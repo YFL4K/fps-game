@@ -1,0 +1,22 @@
+{
+  "name": "procedural-fps",
+  "version": "2.0.0",
+  "description": "纯前端程序化生成的第一人称射击游戏：4 种武器、爆头、5 关任务、90x90 大地图。零依赖，双击 index.html 即玩。",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx --yes http-server -p 8000 -c-1",
+    "serve": "python3 -m http.server 8000"
+  },
+  "keywords": [
+    "fps",
+    "threejs",
+    "game",
+    "procedural",
+    "webgl",
+    "first-person-shooter"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14"
+  }
+}

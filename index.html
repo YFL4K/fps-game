@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>程序化 FPS — three.js</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0b0d12; font-family: Consolas, "Courier New", monospace; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* HUD */
+  #crosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.85); font-size: 30px; font-weight: bold; text-shadow: 0 0 6px rgba(0,0,0,0.8); pointer-events: none; z-index: 10; user-select: none; }
+  #stats { position: fixed; left: 16px; top: 14px; color: #d8e6ff; font-size: 15px; line-height: 1.6; text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; user-select: none; white-space: pre; }
+  #fps { position: fixed; right: 16px; top: 14px; color: #8fdb8f; font-size: 13px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; user-select: none; }
+  #debugBadge { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); color: #ffd94a; font-size: 15px; font-weight: bold; background: rgba(20,20,30,0.75); border: 1px solid #ffd94a; padding: 4px 14px; border-radius: 4px; display: none; pointer-events: none; z-index: 10; user-select: none; }
+
+  /* 关卡横幅 */
+  #levelBanner { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); color: #8fd0ff; font-size: 26px; font-weight: bold; letter-spacing: 4px; text-shadow: 0 0 16px rgba(80,160,255,0.8); opacity: 0; transition: opacity 0.5s; pointer-events: none; z-index: 12; user-select: none; }
+  #levelBanner .sub { font-size: 14px; letter-spacing: 1px; color: #b8c8e8; margin-top: 4px; text-align: center; }
+
+  /* 爆头提示 */
+  #headshotTag { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); color: #ff5f5f; font-size: 22px; font-weight: bold; text-shadow: 0 0 10px rgba(255,60,60,0.9); opacity: 0; pointer-events: none; z-index: 12; user-select: none; }
+
+  /* 命中标记（十字四角） */
+  #hitmark { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 26px; height: 26px; pointer-events: none; z-index: 11; opacity: 0; }
+  #hitmark i { position: absolute; width: 7px; height: 2px; background: #fff; box-shadow: 0 0 4px rgba(255,255,255,0.9); }
+  #hitmark.head i { background: #ff5f5f; box-shadow: 0 0 4px rgba(255,60,60,0.9); }
+  #hitmark i.t { top: 0; left: 10px; }
+  #hitmark i.b { bottom: 0; left: 10px; }
+  #hitmark i.l { left: 0; top: 12px; }
+  #hitmark i.r { right: 0; top: 12px; }
+  @keyframes hitmarkAnim { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); } }
+  #hitmark.show { animation: hitmarkAnim 0.22s ease-out forwards; }
+
+  /* 受伤红晕 */
+  #hurtOverlay { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(255,0,0,0) 40%, rgba(255,0,0,0.5) 100%); opacity: 0; pointer-events: none; z-index: 8; transition: opacity 0.15s; }
+
+  /* 错误面板 */
+  #errPanel { position: fixed; left: 12px; bottom: 12px; max-width: 70vw; z-index: 40; pointer-events: none; }
+  #errPanel div { background: rgba(120,20,20,0.92); color: #ffd7d7; border: 1px solid #ff6b6b; border-radius: 4px; padding: 4px 10px; margin-top: 4px; font-size: 12px; white-space: pre-wrap; }
+
+  /* 开始/暂停遮罩 */
+  #overlay { position: fixed; inset: 0; background: rgba(5,8,15,0.78); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 30; color: #e8f0ff; text-align: center; user-select: none; }
+  #overlay h1 { margin: 0 0 6px; font-size: 34px; letter-spacing: 4px; color: #8fd0ff; text-shadow: 0 0 18px rgba(80,160,255,0.6); }
+  #overlay .sub { font-size: 16px; color: #b8c8e8; margin-bottom: 22px; }
+  #overlay .keys { font-size: 13px; color: #9fb0d0; line-height: 1.9; margin-bottom: 26px; }
+  #overlay .keys b { color: #ffd94a; }
+  #overlay button { background: #2a6fd8; color: #fff; border: none; padding: 12px 42px; font-size: 17px; border-radius: 6px; cursor: pointer; letter-spacing: 2px; font-family: inherit; }
+  #overlay button:hover { background: #3a80ea; }
+  #overlay.fatal button { display: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="crosshair">+</div>
+<div id="stats"></div>
+<div id="fps"></div>
+<div id="debugBadge">[ DEBUG 飞行模式 ]</div>
+<div id="hurtOverlay"></div>
+<div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
+<div id="levelBanner"><div id="levelBannerTitle"></div><div class="sub" id="levelBannerSub"></div></div>
+<div id="headshotTag">爆头!</div>
+<div id="errPanel"></div>
+<div id="overlay">
+  <h1>程序化 FPS</h1>
+  <div class="sub" id="overlaySub">点击开始游戏</div>
+  <div class="keys">
+    <b>W A S D</b> 移动 &nbsp;·&nbsp; <b>Shift</b> 冲刺 &nbsp;·&nbsp; <b>空格</b> 跳跃<br>
+    <b>鼠标左键</b> 射击（可按住连发） &nbsp;·&nbsp; <b>R</b> 换弹<br>
+    <b>1-4</b> 切换武器（手枪/步枪/霰弹枪/狙击枪）<br>
+    <b>E</b> 关卡完成时进入下一关 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停
+  </div>
+  <button id="startBtn">开始游戏</button>
+</div>
+
+<script>
+  // —— 模块加载失败收集器（必须先于所有模块脚本定义）——
+  window.__MOD_ERRS = [];
+  window.__modErr = function (src) { window.__MOD_ERRS.push(src); };
+</script>
+
+<script src="three.min.js" onerror="window.__modErr('three.min.js')"></script>
+<script src="models/floor.js" onerror="window.__modErr('models/floor.js')"></script>
+<script src="models/wall.js" onerror="window.__modErr('models/wall.js')"></script>
+<script src="models/crate.js" onerror="window.__modErr('models/crate.js')"></script>
+<script src="models/obstacle.js" onerror="window.__modErr('models/obstacle.js')"></script>
+<script src="models/target.js" onerror="window.__modErr('models/target.js')"></script>
+<script src="models/pickup.js" onerror="window.__modErr('models/pickup.js')"></script>
+<script src="models/weapon.js" onerror="window.__modErr('models/weapon.js')"></script>
+<script src="models/building.js" onerror="window.__modErr('models/building.js')"></script>
+<script src="models/tree.js" onerror="window.__modErr('models/tree.js')"></script>
+<script src="models/lamp.js" onerror="window.__modErr('models/lamp.js')"></script>
+<script src="models/sky.js" onerror="window.__modErr('models/sky.js')"></script>
+<script src="models/spawner.js" onerror="window.__modErr('models/spawner.js')"></script>
+<script src="models/enemy.js" onerror="window.__modErr('models/enemy.js')"></script>
+<script src="models/gun.js" onerror="window.__modErr('models/gun.js')"></script>
+<script src="scene-layout.js" onerror="window.__modErr('scene-layout.js')"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 0. 错误面板与全局捕获 ================= */
+  var errPanel = document.getElementById('errPanel');
+  function showError(msg) {
+    var d = document.createElement('div');
+    d.textContent = '⚠ ' + msg;
+    errPanel.appendChild(d);
+    console.error('[FPS]', msg);
+  }
+  window.addEventListener('error', function (e) {
+    if (e && e.message) showError('运行时错误: ' + e.message);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    showError('Promise 错误: ' + (e && e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+  if (window.__MOD_ERRS && window.__MOD_ERRS.length) {
+    window.__MOD_ERRS.forEach(function (s) { showError('模块加载失败: ' + s); });
+  }
+
+  var overlay = document.getElementById('overlay');
+  var overlaySub = document.getElementById('overlaySub');
+  var startBtn = document.getElementById('startBtn');
+  var statsEl = document.getElementById('stats');
+  var fpsEl = document.getElementById('fps');
+  var debugBadge = document.getElementById('debugBadge');
+  var hurtEl = document.getElementById('hurtOverlay');
+  var appEl = document.getElementById('app');
+  var hitmarkEl = document.getElementById('hitmark');
+  var headshotEl = document.getElementById('headshotTag');
+  var levelBannerEl = document.getElementById('levelBanner');
+  var levelBannerTitle = document.getElementById('levelBannerTitle');
+  var levelBannerSub = document.getElementById('levelBannerSub');
+
+  if (typeof THREE === 'undefined') {
+    overlay.classList.add('fatal');
+    overlay.querySelector('h1').textContent = 'three.js 加载失败';
+    overlaySub.textContent = '请确认 three.min.js 与 index.html 在同一目录，或检查网络后重试。';
+    startBtn.style.display = 'none';
+    showError('致命: three.js 未加载，游戏无法启动');
+    return;
+  }
+
+  /* ================= 1. 场景布局（缺失时兜底） ================= */
+  var LAYOUT = window.SCENE_LAYOUT;
+  var layoutMissing = false;
+  if (!LAYOUT) {
+    layoutMissing = true;
+    LAYOUT = {
+      playerSpawn: { position: [0, 1.6, 12], yaw: 0 },
+      world: { fogColor: 0x8fa3bf, fogNear: 30, fogFar: 140, gravity: -22, playerSpeed: 6, sprintSpeed: 9, jumpSpeed: 8, eyeHeight: 1.6, playerRadius: 0.4, playerHeight: 1.7, maxHealth: 100 },
+      lights: [
+        { type: 'ambient', color: 0x8899bb, intensity: 0.6 },
+        { type: 'directional', color: 0xfff0dd, intensity: 1.2, position: [12, 25, 8], shadow: true }
+      ],
+      entities: [
+        { id: 'floor-1', model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false },
+        { id: 'wall-n', model: 'wall', position: [0, 0, -45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true },
+        { id: 'wall-s', model: 'wall', position: [0, 0, 45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true },
+        { id: 'wall-e', model: 'wall', position: [45, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true },
+        { id: 'wall-w', model: 'wall', position: [-45, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true },
+        { id: 'target-1', model: 'target', position: [0, 0, -10], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, score: 50 },
+        { id: 'enemy-1', model: 'enemy', position: [4, 0, -12], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, health: 100, speed: 1.6, damage: 8, shootRange: 20, shootCooldown: 2.0, respawn: 6, score: 100 }
+      ]
+    };
+    showError('scene-layout.js 加载失败，使用内置默认场景');
+  }
+  var WORLD = LAYOUT.world || {};
+  var SPAWN = LAYOUT.playerSpawn || { position: [0, 1.6, 6], yaw: 0 };
+
+  /* ================= 1.5 武器类型表（多武器系统） ================= */
+  var GUN_TYPES = {
+    pistol:  { name: '手枪', damage: 15, mag: 12, maxAmmo: 96, fireRate: 4.0,  reload: 1.2, spread: 0.012, pellets: 1, range: 70, auto: false },
+    rifle:   { name: '步枪', damage: 11, mag: 30, maxAmmo: 240, fireRate: 9.0, reload: 1.8, spread: 0.02,  pellets: 1, range: 120, auto: true },
+    shotgun: { name: '霰弹枪', damage: 9, mag: 6,  maxAmmo: 48,  fireRate: 1.7, reload: 2.4, spread: 0.13,  pellets: 8, range: 45, auto: false },
+    sniper:  { name: '狙击枪', damage: 65, mag: 5,  maxAmmo: 40,  fireRate: 0.9, reload: 2.8, spread: 0.003, pellets: 1, range: 260, auto: false }
+  };
+  var GUN_ORDER = ['pistol', 'rifle', 'shotgun', 'sniper'];
+
+  /* ================= 1.6 关卡配置 ================= */
+  var LEVELS = [
+    { name: '第 1 关', kills: 10, enemyCount: 3, health: 100, damage: 8,  speed: 1.6, range: 20, cooldown: 2.0 },
+    { name: '第 2 关', kills: 16, enemyCount: 6, health: 130, damage: 10, speed: 1.8, range: 22, cooldown: 1.8 },
+    { name: '第 3 关', kills: 24, enemyCount: 8, health: 170, damage: 12, speed: 2.0, range: 24, cooldown: 1.6 },
+    { name: '第 4 关', kills: 32, enemyCount: 10, health: 220, damage: 14, speed: 2.2, range: 26, cooldown: 1.4 },
+    { name: '第 5 关', kills: 42, enemyCount: 12, health: 280, damage: 16, speed: 2.4, range: 28, cooldown: 1.2 }
+  ];
+  var levelIndex = 0;
+  var levelKills = 0;
+  var levelCleared = false;
+  var levelClearTimer = 0;
+
+  /* ================= 2. 渲染器 / 场景 / 相机 ================= */
+  var renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+  appEl.appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(WORLD.fogColor || 0x8fa3bf, WORLD.fogNear || 30, WORLD.fogFar || 140);
+  scene.background = new THREE.Color(0x8fa3bf);
+
+  var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+  camera.rotation.order = 'YXZ';
+  scene.add(camera);
+
+  /* ================= 3. 灯光（光影效果） ================= */
+  (LAYOUT.lights || []).forEach(function (lc) {
+    var light = null;
+    if (lc.type === 'ambient') {
+      light = new THREE.AmbientLight(lc.color, lc.intensity);
+    } else if (lc.type === 'directional') {
+      light = new THREE.DirectionalLight(lc.color, lc.intensity);
+      light.position.set(lc.position[0], lc.position[1], lc.position[2]);
+      if (lc.shadow) {
+        light.castShadow = true;
+        light.shadow.mapSize.width = 1024;
+        light.shadow.mapSize.height = 1024;
+        light.shadow.camera.near = 1;
+        light.shadow.camera.far = 160;
+        light.shadow.camera.left = -60;
+        light.shadow.camera.right = 60;
+        light.shadow.camera.top = 60;
+        light.shadow.camera.bottom = -60;
+      }
+    } else if (lc.type === 'point') {
+      light = new THREE.PointLight(lc.color, lc.intensity, lc.distance || 25, 1);
+      light.position.set(lc.position[0], lc.position[1], lc.position[2]);
+    }
+    if (light) scene.add(light);
+  });
+
+  // 枪口闪光点光源（挂在相机上，射击时脉冲）
+  var muzzleLight = new THREE.PointLight(0xffaa44, 0, 14, 1);
+  muzzleLight.position.set(0.2, -0.15, -0.6);
+  camera.add(muzzleLight);
+
+  /* ================= 4. 通用实体系统 ================= */
+  var entities = [];
+  var colliders = [];
+
+  var ctx = {
+    THREE: THREE,
+    scene: scene,
+    camera: camera,
+    player: null,
+    sfx: null,
+    hitPlayer: null,
+    shootDamage: 15,
+    currentDamage: 15,
+    playerRadius: WORLD.playerRadius || 0.4,
+    playerHeight: WORLD.playerHeight || 1.7,
+    time: 0,
+    spawnPos: new THREE.Vector3()
+  };
+
+  function applyTransform(inst, cfg) {
+    inst.position.set(cfg.position[0], cfg.position[1], cfg.position[2]);
+    if (cfg.rotation) inst.rotation.set(cfg.rotation[0] || 0, cfg.rotation[1] || 0, cfg.rotation[2] || 0);
+    if (cfg.scale) inst.scale.set(cfg.scale[0], cfg.scale[1], cfg.scale[2]);
+    inst.updateMatrixWorld(true);
+  }
+
+  function fallbackInst(cfg) {
+    var g = new THREE.Group();
+    var box = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshStandardMaterial({ color: 0xff2222, transparent: true, opacity: 0.5 })
+    );
+    var wire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(box.geometry),
+      new THREE.LineBasicMaterial({ color: 0xff6666 })
+    );
+    g.add(box, wire);
+    g.userData = {};
+    return g;
+  }
+
+  function buildEntity(cfg) {
+    var def = window.MODELS && window.MODELS[cfg.model];
+    var inst = null;
+    if (!def) {
+      showError('模型不存在: ' + cfg.model + '（' + cfg.id + '），使用占位模型');
+      inst = fallbackInst(cfg);
+      def = { name: cfg.model, create: fallbackInst, update: null, onHit: null };
+    } else {
+      try {
+        ctx.spawnPos.set(cfg.position[0], cfg.position[1], cfg.position[2]);
+        inst = def.create(cfg, ctx);
+        if (!inst) throw new Error('create 返回空');
+      } catch (e) {
+        showError('模型创建失败: ' + cfg.model + '（' + cfg.id + '）: ' + e.message + '，使用占位模型');
+        inst = fallbackInst(cfg);
+      }
+    }
+    applyTransform(inst, cfg);
+    scene.add(inst);
+
+    inst.traverse(function (o) {
+      if (o.isMesh) { o.userData.entityId = cfg.id; o.userData.hitTarget = true; }
+    });
+
+    var rec = { cfg: cfg, def: def, inst: inst, alive: true, respawnTimer: 0 };
+    entities.push(rec);
+    if (cfg.collision) colliders.push(rec);
+    return rec;
+  }
+
+  function removeEntity(rec) {
+    if (!rec.alive) return;
+    if (rec.inst.userData && Array.isArray(rec.inst.userData.bullets)) {
+      rec.inst.userData.bullets.forEach(function (b) {
+        if (b.mesh && b.mesh.parent) b.mesh.parent.remove(b.mesh);
+      });
+      rec.inst.userData.bullets.length = 0;
+    }
+    scene.remove(rec.inst);
+    rec.alive = false;
+  }
+
+  function destroyEntity(rec) {
+    removeEntity(rec);
+    var i = entities.indexOf(rec);
+    if (i >= 0) entities.splice(i, 1);
+    var j = colliders.indexOf(rec);
+    if (j >= 0) colliders.splice(j, 1);
+  }
+
+  function respawnEntity(rec) {
+    removeEntity(rec);
+    rec.respawnTimer = rec.cfg.respawn || 0;
+  }
+
+  (LAYOUT.entities || []).forEach(function (cfg) {
+    buildEntity(cfg);
+  });
+
+  /* ================= 5. 玩家状态 ================= */
+  var W = WORLD;
+  var player = {
+    pos: new THREE.Vector3(SPAWN.position[0], SPAWN.position[1], SPAWN.position[2]),
+    vel: new THREE.Vector3(),
+    yaw: SPAWN.yaw || 0,
+    pitch: 0,
+    onGround: true,
+    health: W.maxHealth || 100,
+    gun: 'pistol',
+    ammo: GUN_TYPES.pistol.mag,
+    reserve: GUN_TYPES.pistol.maxAmmo,
+    fireCooldown: 0,
+    firing: false,
+    reloading: false,
+    reloadTimer: 0,
+    dead: false
+  };
+  var score = 0;
+  var debugMode = false;
+
+  function hitPlayer(dmg) {
+    if (player.dead) return;
+    player.health -= dmg;
+    hurtEl.style.opacity = '1';
+    setTimeout(function () { hurtEl.style.opacity = '0'; }, 150);
+    if (sfx) sfx.playHurt();
+    if (player.health <= 0) {
+      player.health = 0;
+      player.dead = true;
+      overlaySub.textContent = '你阵亡了！得分 ' + score;
+      overlay.querySelector('h1').textContent = 'GAME OVER';
+      overlay.style.display = 'flex';
+      if (document.pointerLockElement) document.exitPointerLock();
+    }
+  }
+  function respawnPlayer() {
+    player.dead = false;
+    player.health = W.maxHealth || 100;
+    var gt = GUN_TYPES[player.gun];
+    player.ammo = gt.mag;
+    player.reserve = gt.maxAmmo;
+    player.reloading = false;
+    player.fireCooldown = 0;
+    player.vel.set(0, 0, 0);
+    player.pos.set(SPAWN.position[0], SPAWN.position[1], SPAWN.position[2]);
+    player.yaw = SPAWN.yaw || 0;
+    player.pitch = 0;
+    overlay.style.display = 'flex';
+    overlay.querySelector('h1').textContent = '程序化 FPS';
+    overlaySub.textContent = '点击开始游戏';
+  }
+  ctx.player = player;
+  ctx.hitPlayer = hitPlayer;
+
+  /* ================= 6. 枪械（挂相机，多武器切换） ================= */
+  var gunInst = null;
+  function buildGun(type) {
+    if (gunInst) {
+      camera.remove(gunInst);
+      if (gunInst.geometry) gunInst.geometry.dispose();
+    }
+    var gunDef = window.MODELS && window.MODELS.gun;
+    if (!gunDef || !gunDef.create) {
+      showError('枪械模型不可用，无法显示武器');
+      gunInst = null;
+      return;
+    }
+    gunInst = gunDef.create({ type: type || player.gun });
+    camera.add(gunInst);
+    gunInst.position.copy(gunInst.userData.basePos);
+  }
+  buildGun(player.gun);
+
+  function switchGun(type) {
+    if (!GUN_TYPES[type] || type === player.gun) return;
+    player.gun = type;
+    var gt = GUN_TYPES[type];
+    player.ammo = gt.mag;
+    player.reserve = gt.maxAmmo;
+    player.reloading = false;
+    player.fireCooldown = 0;
+    buildGun(type);
+    if (sfx) sfx.playPickup();
+  }
+
+  /* ================= 7. WebAudio 音效 ================= */
+  var AC = null;
+  function ensureAudio() {
+    if (!AC) {
+      try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; }
+    }
+    if (AC && AC.state === 'suspended') AC.resume();
+  }
+  function noiseBurst(dur, vol, cutoff) {
+    if (!AC) return;
+    var t = AC.currentTime;
+    var buf = AC.createBuffer(1, Math.max(1, Math.floor(AC.sampleRate * dur)), AC.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    var src = AC.createBufferSource(); src.buffer = buf;
+    var f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff;
+    var g = AC.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(AC.destination);
+    src.start(t);
+  }
+  function tone(freq, dur, vol, type, slideTo) {
+    if (!AC) return;
+    var t = AC.currentTime;
+    var o = AC.createOscillator(); o.type = type || 'square'; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    var g = AC.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function shotSound(type) {
+    var gt = GUN_TYPES[type] || GUN_TYPES.pistol;
+    if (type === 'shotgun') {
+      noiseBurst(0.22, 0.7, 600);
+      tone(70, 0.18, 0.35, 'square', 40);
+    } else if (type === 'sniper') {
+      noiseBurst(0.3, 0.8, 700);
+      tone(55, 0.3, 0.4, 'square', 30);
+    } else if (type === 'rifle') {
+      noiseBurst(0.1, 0.5, 1600);
+      tone(150, 0.08, 0.22, 'square', 70);
+    } else {
+      noiseBurst(0.12, 0.5, 1200);
+      tone(140, 0.1, 0.25, 'square', 60);
+    }
+  }
+  var sfx = {
+    playShot: function (type) { shotSound(type); },
+    playHit: function () { tone(880, 0.07, 0.2, 'square', 440); },
+    playHeadshot: function () { tone(1200, 0.08, 0.25, 'square', 600); },
+    playDeath: function () { tone(300, 0.5, 0.3, 'sawtooth', 60); },
+    playEnemyShot: function () { noiseBurst(0.08, 0.2, 900); },
+    playPickup: function () { tone(660, 0.08, 0.2, 'sine'); setTimeout(function () { tone(990, 0.12, 0.2, 'sine'); }, 80); },
+    playReload: function () { tone(200, 0.06, 0.15, 'square'); setTimeout(function () { tone(260, 0.06, 0.15, 'square'); }, 120); },
+    playHurt: function () { tone(160, 0.2, 0.25, 'sawtooth', 90); },
+    playLevelUp: function () { tone(520, 0.12, 0.25, 'sine'); setTimeout(function () { tone(780, 0.16, 0.25, 'sine'); }, 120); }
+  };
+  ctx.sfx = sfx;
+
+  /* ================= 8. 输入：指针锁定 / 键盘 / 鼠标 ================= */
+  var keys = {};
+  var locked = false;
+
+  function requestLock() {
+    ensureAudio();
+    if (renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
+  }
+  startBtn.addEventListener('click', requestLock);
+  overlay.addEventListener('click', function (e) {
+    if (e.target !== startBtn) requestLock();
+  });
+
+  document.addEventListener('pointerlockchange', function () {
+    locked = (document.pointerLockElement === renderer.domElement);
+    if (locked) {
+      overlay.style.display = 'none';
+      if (player.dead) respawnPlayer();
+    } else {
+      if (!player.dead) {
+        overlay.style.display = 'flex';
+        overlay.querySelector('h1').textContent = '程序化 FPS';
+        overlaySub.textContent = '游戏暂停 — 点击继续';
+      }
+    }
+  });
+
+  document.addEventListener('mousemove', function (e) {
+    if (!locked) return;
+    player.yaw -= e.movementX * 0.0022;
+    player.pitch -= e.movementY * 0.0022;
+    var lim = Math.PI / 2 - 0.05;
+    if (player.pitch > lim) player.pitch = lim;
+    if (player.pitch < -lim) player.pitch = -lim;
+  });
+
+  document.addEventListener('mousedown', function (e) {
+    if (!locked || e.button !== 0) return;
+    player.firing = true;
+    if (player.fireCooldown <= 0) tryShoot();
+  });
+  document.addEventListener('mouseup', function (e) {
+    if (e.button === 0) player.firing = false;
+  });
+  document.addEventListener('mouseleave', function () { player.firing = false; });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.code === 'F9') {
+      e.preventDefault();
+      toggleDebug();
+      return;
+    }
+    if (e.code === 'KeyR') { startReload(); return; }
+    if (e.code === 'KeyE' && levelCleared) { nextLevel(); return; }
+    var gi = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code);
+    if (gi >= 0) { switchGun(GUN_ORDER[gi]); return; }
+    keys[e.code] = true;
+    if (['KeyW','KeyA','KeyS','KeyD','Space'].indexOf(e.code) >= 0) e.preventDefault();
+  });
+  document.addEventListener('keyup', function (e) { keys[e.code] = false; });
+
+  function toggleDebug() {
+    debugMode = !debugMode;
+    debugBadge.style.display = debugMode ? 'block' : 'none';
+    if (debugMode) { player.vel.set(0, 0, 0); }
+  }
+
+  /* ================= 9. 射击（多武器 + 弹道 + 击中效果） ================= */
+  var raycaster = new THREE.Raycaster();
+  var fx = [];
+
+  function getMuzzleWorld(v) {
+    v = v || new THREE.Vector3();
+    if (gunInst && gunInst.userData && gunInst.userData.muzzle) {
+      gunInst.userData.muzzle.getWorldPosition(v);
+    } else {
+      camera.getWorldDirection(v);
+      v.multiplyScalar(0.8).add(camera.position);
+    }
+    return v;
+  }
+
+  // 命中的世界点（最近的实体命中或世界命中）
+  function raycastShot(dir) {
+    raycaster.set(camera.position, dir);
+    var hits = raycaster.intersectObjects(scene.children, true);
+    var hitEntity = null;
+    var hitPoint = null;
+    for (var i = 0; i < hits.length; i++) {
+      var obj = hits[i].object;
+      var id = obj.userData && obj.userData.entityId;
+      if (!id) continue;
+      for (var j = 0; j < entities.length; j++) {
+        var rec = entities[j];
+        if (!rec.alive || rec.cfg.id !== id) continue;
+        if (rec.cfg.model === 'sky') break;
+        hitEntity = rec;
+        hitPoint = hits[i].point.clone();
+        return { rec: rec, point: hitPoint };
+      }
+      // 有 id 但未找到对应实体 → 是已死亡实体，跳过
+      continue;
+    }
+    // 没命中实体，取最近的世界交点（墙/地板）
+    if (hits.length > 0 && hits[0].object) {
+      hitPoint = hits[0].point.clone();
+    }
+    return { rec: null, point: hitPoint };
+  }
+
+  function tryShoot() {
+    if (!locked || player.dead || player.reloading) return;
+    var gt = GUN_TYPES[player.gun];
+    if (player.ammo <= 0) { startReload(); return; }
+    player.ammo--;
+    player.fireCooldown = 1 / gt.fireRate;
+    ctx.currentDamage = gt.damage;
+
+    if (gunInst && gunInst.userData) gunInst.userData.recoil = 1;
+    muzzleLight.intensity = 3;
+    sfx.playShot(player.gun);
+
+    var muzzle = getMuzzleWorld();
+    var firstHitPoint = null;
+    var hitSomething = false;
+    var headshot = false;
+
+    for (var p = 0; p < gt.pellets; p++) {
+      // 弹道方向：相机朝向 + 散射
+      var dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      if (gt.spread > 0) {
+        dir.x += (Math.random() - 0.5) * 2 * gt.spread;
+        dir.y += (Math.random() - 0.5) * 2 * gt.spread;
+        dir.z += (Math.random() - 0.5) * 2 * gt.spread;
+        dir.normalize();
+      }
+      // 射程限制：超过射程的命中视为打空
+      var hit = raycastShot(dir);
+      if (!hit.point) continue;
+      if (muzzle.distanceTo(hit.point) > gt.range) continue;
+      if (!firstHitPoint) firstHitPoint = hit.point;
+
+      if (hit.rec) {
+        hitSomething = true;
+        // 命中反馈
+        try {
+          var hs = null;
+          if (hit.rec.def && hit.rec.def.onHit) hs = hit.rec.def.onHit(hit.rec.inst, hit.point, ctx);
+          if (hs) headshot = true;
+        } catch (e) { showError('onHit 失败 (' + hit.rec.cfg.id + '): ' + e.message); }
+        score += hit.rec.cfg.score || 0;
+        if (hit.rec.inst.userData && hit.rec.inst.userData.respawnReady) {
+          respawnEntity(hit.rec);
+        }
+        if (hit.rec.cfg.kind) applyPickup(hit.rec);
+        // 击中效果（实体：火花偏橙红）
+        spawnSparks(hit.point, 0xff8844);
+      } else {
+        // 打中墙/地板：灰色火花
+        spawnSparks(hit.point, 0xcccccc);
+      }
+    }
+
+    // 曳光弹（主弹道）
+    var end = firstHitPoint || new THREE.Vector3().copy(muzzle).add(dir.multiplyScalar(gt.range));
+    spawnTracer(muzzle, end, player.gun === 'sniper' ? 0x88ddff : 0xffcc66);
+
+    if (hitSomething) showHitmark(headshot);
+  }
+
+  function spawnTracer(from, to, color) {
+    var geo = new THREE.BufferGeometry().setFromPoints([from, to]);
+    var mat = new THREE.LineBasicMaterial({
+      color: color || 0xffcc66,
+      transparent: true,
+      opacity: 0.9
+    });
+    var line = new THREE.Line(geo, mat);
+    scene.add(line);
+    fx.push({ type: 'tracer', obj: line, life: 0.07, maxLife: 0.07 });
+  }
+  ctx.spawnTracer = spawnTracer;
+
+  function spawnSparks(point, color) {
+    var c = color || 0xffaa44;
+    // 火花粒子
+    var sparkGeo = new THREE.SphereGeometry(0.035, 4, 4);
+    var mat = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 1 });
+    var n = 8;
+    for (var i = 0; i < n; i++) {
+      var m = new THREE.Mesh(sparkGeo, mat);
+      m.position.copy(point);
+      var v = new THREE.Vector3(
+        (Math.random() - 0.5) * 8,
+        (Math.random() - 0.5) * 8,
+        (Math.random() - 0.5) * 8
+      );
+      scene.add(m);
+      fx.push({ type: 'spark', obj: m, vel: v, life: 0.32, maxLife: 0.32 });
+    }
+    // 扩散环
+    var ringGeo = new THREE.RingGeometry(0.06, 0.12, 20);
+    var ringMat = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+    var ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.position.copy(point);
+    ring.lookAt(camera.position);
+    scene.add(ring);
+    fx.push({ type: 'ring', obj: ring, vel: null, life: 0.25, maxLife: 0.25 });
+  }
+  ctx.spawnSparks = spawnSparks;
+
+  function showHitmark(head) {
+    hitmarkEl.classList.remove('show', 'head');
+    void hitmarkEl.offsetWidth; // 重启动画
+    if (head) hitmarkEl.classList.add('head');
+    hitmarkEl.classList.add('show');
+    if (head) {
+      headshotEl.style.opacity = '1';
+      setTimeout(function () { headshotEl.style.opacity = '0'; }, 600);
+    }
+  }
+
+  function startReload() {
+    var gt = GUN_TYPES[player.gun];
+    if (player.reloading || player.dead || player.ammo >= gt.mag || player.reserve <= 0) return;
+    player.reloading = true;
+    player.reloadTimer = gt.reload;
+    sfx.playReload();
+  }
+
+  /* ================= 10. 拾取物（含武器掉落） ================= */
+  function applyPickup(rec) {
+    if (!rec.cfg.kind) return;
+    if (rec.cfg.kind === 'weapon' && rec.cfg.type) {
+      // 已持有同类型武器 → 补弹药；不同类型 → 切换
+      if (rec.cfg.type === player.gun) {
+        var wgt = GUN_TYPES[player.gun];
+        player.ammo = wgt.mag;
+        player.reserve = wgt.maxAmmo;
+        sfx.playPickup();
+      } else {
+        switchGun(rec.cfg.type);
+      }
+      respawnEntity(rec);
+      return;
+    }
+    if (rec.cfg.kind === 'health') {
+      var maxH = W.maxHealth || 100;
+      player.health = Math.min(maxH, player.health + 30);
+    } else if (rec.cfg.kind === 'ammo') {
+      var gt = GUN_TYPES[player.gun];
+      player.reserve = Math.min(gt.maxAmmo, player.reserve + gt.mag * 1.5);
+    }
+    sfx.playPickup();
+    respawnEntity(rec);
+  }
+
+  // 敌人生成武器掉落
+  function spawnWeaponDrop(pos) {
+    var types = ['rifle', 'shotgun', 'sniper'];
+    var type = types[Math.floor(Math.random() * types.length)];
+    var cfg = {
+      id: 'wdrop-' + Math.floor(Math.random() * 1e6),
+      model: 'weapon',
+      position: [pos.x, 0.8, pos.z],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      collision: false,
+      kind: 'weapon',
+      type: type,
+      respawn: 30
+    };
+    buildEntity(cfg);
+    // 简短的闪光提示
+    spawnSparks(pos, 0x88ddff);
+  }
+  ctx.onEnemyKilled = function (pos) {
+    levelKills++;
+    if (!levelCleared && levelKills >= getLevel().kills) {
+      levelCleared = true;
+      levelClearTimer = 4;
+      levelBannerTitle.textContent = '任务完成！';
+      levelBannerSub.textContent = '按 E 进入下一关';
+      levelBannerEl.style.opacity = '1';
+      if (sfx) sfx.playLevelUp();
+    }
+    if (Math.random() < 0.25) spawnWeaponDrop(pos);
+  };
+
+  /* ================= 11. 关卡系统 ================= */
+  function getLevel() {
+    return LEVELS[Math.min(levelIndex, LEVELS.length - 1)];
+  }
+  function clearEnemies() {
+    for (var i = entities.length - 1; i >= 0; i--) {
+      if (entities[i].cfg.model === 'enemy') destroyEntity(entities[i]);
+    }
+  }
+  function showLevelBanner() {
+    var L = getLevel();
+    levelBannerTitle.textContent = L.name;
+    levelBannerSub.textContent = '击杀目标: ' + L.kills + ' 名敌人';
+    levelBannerEl.style.opacity = '1';
+    setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 2500);
+  }
+  function nextLevel() {
+    levelIndex++;
+    levelKills = 0;
+    levelCleared = false;
+    clearEnemies();
+    var L = getLevel();
+    // 生成敌人（环形分布）
+    var pts = [
+      [10, -10], [-12, -8], [14, -16], [-16, -20], [0, -24], [20, -6],
+      [-20, -12], [24, -18], [-8, -28], [16, -30], [-24, -26], [30, -10]
+    ];
+    for (var i = 0; i < L.enemyCount; i++) {
+      var pt = pts[i % pts.length];
+      buildEntity({
+        id: 'lv' + levelIndex + '-e' + i,
+        model: 'enemy',
+        position: [pt[0], 0, pt[1]],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+        collision: false,
+        health: L.health,
+        damage: L.damage,
+        speed: L.speed,
+        shootRange: L.range,
+        shootCooldown: L.cooldown,
+        respawn: 6,
+        score: 100 + levelIndex * 20
+      });
+    }
+    // 补给：回血 + 补满当前武器弹药
+    player.health = Math.min(W.maxHealth || 100, player.health + 40);
+    var gt = GUN_TYPES[player.gun];
+    player.ammo = gt.mag;
+    player.reserve = gt.maxAmmo;
+    showLevelBanner();
+    if (sfx) sfx.playLevelUp();
+  }
+
+  /* ================= 12. 玩家移动 / 碰撞 / 调试飞行 ================= */
+  var tmpVec = new THREE.Vector3();
+  var tmpVec2 = new THREE.Vector3();
+  var forward = new THREE.Vector3();
+  var right = new THREE.Vector3();
+
+  function updatePlayer(dt) {
+    // 换弹计时
+    if (player.reloading) {
+      player.reloadTimer -= dt;
+      if (player.reloadTimer <= 0) {
+        var gt = GUN_TYPES[player.gun];
+        var need = gt.mag - player.ammo;
+        var take = Math.min(need, player.reserve);
+        player.ammo += take;
+        player.reserve -= take;
+        player.reloading = false;
+      }
+    }
+
+    // 连发计时
+    if (player.fireCooldown > 0) player.fireCooldown -= dt;
+
+    if (player.dead) return;
+
+    // 自动开火（按住左键）
+    if (player.firing && player.fireCooldown <= 0) tryShoot();
+
+    if (debugMode) {
+      camera.getWorldDirection(forward);
+      tmpVec.set(0, 0, 0);
+      var dSpeed = (W.playerSpeed || 6) * 2.2;
+      if (keys.KeyW) tmpVec.addScaledVector(forward, dSpeed * dt);
+      if (keys.KeyS) tmpVec.addScaledVector(forward, -dSpeed * dt);
+      right.crossVectors(forward, camera.up).normalize();
+      if (keys.KeyD) tmpVec.addScaledVector(right, dSpeed * dt);
+      if (keys.KeyA) tmpVec.addScaledVector(right, -dSpeed * dt);
+      if (keys.Space) tmpVec.y += dSpeed * dt;
+      if (keys.ControlLeft || keys.ControlRight) tmpVec.y -= dSpeed * dt;
+      player.pos.add(tmpVec);
+      return;
+    }
+
+    var speed = (keys.ShiftLeft || keys.ShiftRight) ? (W.sprintSpeed || 9) : (W.playerSpeed || 6);
+
+    forward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+    right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+    tmpVec.set(0, 0, 0);
+    if (keys.KeyW) tmpVec.addScaledVector(forward, 1);
+    if (keys.KeyS) tmpVec.addScaledVector(forward, -1);
+    if (keys.KeyD) tmpVec.addScaledVector(right, 1);
+    if (keys.KeyA) tmpVec.addScaledVector(right, -1);
+    if (tmpVec.lengthSq() > 0) tmpVec.normalize().multiplyScalar(speed);
+
+    player.vel.x = tmpVec.x;
+    player.vel.z = tmpVec.z;
+    player.vel.y += (W.gravity || -22) * dt;
+
+    if (keys.Space && player.onGround) {
+      player.vel.y = W.jumpSpeed || 8;
+      player.onGround = false;
+    }
+
+    player.pos.addScaledVector(player.vel, dt);
+
+    collideWorld();
+
+    if (player.pos.y < 0) {
+      player.pos.y = 0;
+      player.vel.y = 0;
+      player.onGround = true;
+    } else if (player.vel.y <= 0 && player.onGround) {
+      player.vel.y = 0;
+    }
+
+    checkPickups();
+  }
+
+  var playerRadius = W.playerRadius || 0.4;
+  var playerHeight = W.playerHeight || 1.7;
+  var box = new THREE.Box3();
+
+  function collideWorld() {
+    var r = playerRadius;
+    for (var i = 0; i < colliders.length; i++) {
+      var rec = colliders[i];
+      if (!rec.alive) continue;
+      box.setFromObject(rec.inst);
+
+      var cx = clamp(player.pos.x, box.min.x, box.max.x);
+      var cz = clamp(player.pos.z, box.min.z, box.max.z);
+      var dx = player.pos.x - cx;
+      var dz = player.pos.z - cz;
+      var d2 = dx * dx + dz * dz;
+      if (d2 < r * r) {
+        if (d2 > 1e-8) {
+          var d = Math.sqrt(d2);
+          var push = (r - d) / d;
+          player.pos.x += dx * push;
+          player.pos.z += dz * push;
+        } else {
+          var px = Math.min(player.pos.x - box.min.x, box.max.x - player.pos.x);
+          var pz = Math.min(player.pos.z - box.min.z, box.max.z - player.pos.z);
+          if (px < pz) player.pos.x = (player.pos.x - box.min.x < box.max.x - player.pos.x) ? box.min.x - r : box.max.x + r;
+          else player.pos.z = (player.pos.z - box.min.z < box.max.z - player.pos.z) ? box.min.z - r : box.max.z + r;
+        }
+      }
+
+      var feet = player.pos.y;
+      if (feet >= box.max.y - 0.3 && feet <= box.max.y + 0.3) {
+        if (player.pos.x > box.min.x - r && player.pos.x < box.max.x + r &&
+            player.pos.z > box.min.z - r && player.pos.z < box.max.z + r) {
+          player.pos.y = box.max.y;
+          player.vel.y = 0;
+          player.onGround = true;
+        }
+      }
+    }
+  }
+
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  function checkPickups() {
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive || !rec.cfg.kind) continue;
+      var dx = rec.inst.position.x - player.pos.x;
+      var dy = rec.inst.position.y - player.pos.y;
+      var dz = rec.inst.position.z - player.pos.z;
+      if (dx * dx + dy * dy + dz * dz < 1.8 * 1.8) {
+        applyPickup(rec);
+      }
+    }
+  }
+
+  /* ================= 13. 实体更新循环（含 respawn） ================= */
+  function updateEntities(dt) {
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive) {
+        rec.respawnTimer -= dt;
+        if (rec.respawnTimer <= 0) rebuildEntity(rec);
+        continue;
+      }
+      if (rec.def && typeof rec.def.update === 'function') {
+        try {
+          rec.def.update(rec.inst, dt, ctx);
+        } catch (e) {
+          showError('实体更新失败 (' + rec.cfg.id + '): ' + e.message);
+        }
+        if (rec.inst.userData && rec.inst.userData.respawnReady) {
+          respawnEntity(rec);
+        }
+      }
+    }
+
+    // 关卡完成倒计时：倒计时结束自动进下一关
+    if (levelCleared) {
+      levelClearTimer -= dt;
+      if (levelClearTimer <= 0) {
+        nextLevel();
+      }
+    }
+  }
+
+  function rebuildEntity(rec) {
+    var cfg = rec.cfg;
+    var def = window.MODELS && window.MODELS[cfg.model];
+    var inst = null;
+    if (def && def.create) {
+      try {
+        ctx.spawnPos.set(cfg.position[0], cfg.position[1], cfg.position[2]);
+        inst = def.create(cfg, ctx);
+      } catch (e) {
+        showError('重生创建失败 (' + cfg.id + '): ' + e.message);
+        inst = null;
+      }
+    }
+    if (!inst) inst = fallbackInst(cfg);
+    applyTransform(inst, cfg);
+    scene.add(inst);
+    inst.traverse(function (o) {
+      if (o.isMesh) { o.userData.entityId = cfg.id; o.userData.hitTarget = true; }
+    });
+    rec.inst = inst;
+    rec.alive = true;
+  }
+
+  /* ================= 14. 特效更新 ================= */
+  function updateFx(dt) {
+    for (var i = fx.length - 1; i >= 0; i--) {
+      var f = fx[i];
+      f.life -= dt;
+      if (f.type === 'spark' && f.vel) {
+        f.obj.position.addScaledVector(f.vel, dt);
+        f.vel.multiplyScalar(0.88);
+        f.obj.material.opacity = Math.max(0, f.life / f.maxLife);
+      } else if (f.type === 'tracer') {
+        f.obj.material.opacity = Math.max(0, f.life / f.maxLife);
+      } else if (f.type === 'ring') {
+        var s = 1 + (1 - f.life / f.maxLife) * 2.2;
+        f.obj.scale.set(s, s, s);
+        f.obj.material.opacity = Math.max(0, f.life / f.maxLife) * 0.9;
+      }
+      if (f.life <= 0) {
+        scene.remove(f.obj);
+        if (f.obj.geometry) f.obj.geometry.dispose();
+        if (f.obj.material) f.obj.material.dispose();
+        fx.splice(i, 1);
+      }
+    }
+    if (muzzleLight.intensity > 0) muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 30);
+  }
+
+  /* ================= 15. HUD ================= */
+  var fpsFrames = 0, fpsTime = 0, fpsValue = 0;
+  function updateHud(dt) {
+    var L = getLevel();
+    var gt = GUN_TYPES[player.gun];
+    statsEl.textContent =
+      (levelCleared ? '★ 任务完成! 按 E 下一关\n' : '') +
+      L.name + '  任务: 击杀 ' + Math.min(levelKills, L.kills) + '/' + L.kills + '\n' +
+      'HP   ' + Math.max(0, Math.round(player.health)) + '/' + (W.maxHealth || 100) + '\n' +
+      gt.name + '  ' + player.ammo + '/' + player.reserve + (player.reloading ? '  [换弹中]' : '') + '\n' +
+      'SCORE ' + score;
+
+    fpsFrames++;
+    fpsTime += dt;
+    if (fpsTime >= 0.5) {
+      fpsValue = Math.round(fpsFrames / fpsTime);
+      fpsFrames = 0; fpsTime = 0;
+    }
+    fpsEl.textContent = 'FPS ' + fpsValue;
+  }
+
+  /* ================= 16. 相机同步 ================= */
+  function updateCamera(dt) {
+    camera.position.set(player.pos.x, player.pos.y + (W.eyeHeight || 1.6), player.pos.z);
+    camera.rotation.set(player.pitch, player.yaw, 0);
+    if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
+      window.MODELS.gun.update(gunInst, dt, ctx);
+    }
+  }
+
+  /* ================= 17. 主循环 ================= */
+  var lastTime = performance.now();
+  function loop(now) {
+    requestAnimationFrame(loop);
+    var dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+
+    try {
+      ctx.time += dt;
+      updatePlayer(dt);
+      updateEntities(dt);
+      updateFx(dt);
+      updateCamera(dt);
+      updateHud(dt);
+      renderer.render(scene, camera);
+    } catch (e) {
+      showError('主循环错误: ' + e.message);
+    }
+  }
+
+  /* ================= 18. 窗口大小 ================= */
+  window.addEventListener('resize', function () {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  if (layoutMissing) overlaySub.textContent = '（场景布局缺失，使用默认场景）点击开始游戏';
+  showLevelBanner();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
