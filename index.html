@@ -68,7 +68,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v5.2</div>
+<div id="versionTag">v6</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -83,9 +83,9 @@
   <div class="keys">
     <b>Enter</b> 开始 / 下一关 &nbsp;·&nbsp; <b>W A S D</b> 移动 &nbsp;·&nbsp; <b>Shift</b> 冲刺 &nbsp;·&nbsp; <b>空格</b> 跳跃<br>
     <b>鼠标左键</b> 射击（可按住连发） &nbsp;·&nbsp; <b>R</b> 换弹<br>
-    <b>1-5</b> 切换武器（手枪/步枪/霰弹枪/狙击枪/火箭筒）<br>
+    <b>1-5</b> 切换武器（手枪/步枪/喷火器/狙击枪/火箭筒）<br>
     <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
-    <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸 · 击杀敌人掉落宝箱 · 击落直升机获得火箭筒</span>
+    <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸 · 击杀敌人掉落宝箱 · 击落直升机获得火箭筒/喷火器 · 蜘蛛会自爆！</span>
   </div>
   <button id="startBtn">开始游戏</button>
 </div>
@@ -118,6 +118,11 @@
 <script src="models/enemy.js" onerror="window.__modErr('models/enemy.js')"></script>
 <script src="models/gun.js" onerror="window.__modErr('models/gun.js')"></script>
 <script src="models/mountain-scenery.js" onerror="window.__modErr('models/mountain-scenery.js')"></script>
+<script src="models/truck.js" onerror="window.__modErr('models/truck.js')"></script>
+<script src="models/plane.js" onerror="window.__modErr('models/plane.js')"></script>
+<script src="models/container.js" onerror="window.__modErr('models/container.js')"></script>
+<script src="models/pot.js" onerror="window.__modErr('models/pot.js')"></script>
+<script src="models/spider.js" onerror="window.__modErr('models/spider.js')"></script>
 <script src="scene-layout.js" onerror="window.__modErr('scene-layout.js')"></script>
 <script src="scene-layout-level2.js" onerror="window.__modErr('scene-layout-level2.js')"></script>
 
@@ -194,31 +199,31 @@
   var WORLD = LAYOUT.world || {};
   var SPAWN = LAYOUT.playerSpawn || { position: [0, 1.6, 6], yaw: 0 };
 
-  /* ================= 1.5 武器类型表（多武器 + 火箭筒 AOE） ================= */
+  /* ================= 1.5 武器类型表（多武器 + 火箭筒 AOE + 喷火器） ================= */
   var GUN_TYPES = {
-    pistol:  { name: '手枪', damage: 28, mag: 12, maxAmmo: 96, fireRate: 4.0,  reload: 1.2, spread: 0.012, pellets: 1, range: 70, auto: false },
-    rifle:   { name: '步枪', damage: 20, mag: 30, maxAmmo: 240, fireRate: 9.0, reload: 1.8, spread: 0.02,  pellets: 1, range: 120, auto: true },
-    shotgun: { name: '霰弹枪', damage: 15, mag: 6,  maxAmmo: 48,  fireRate: 1.7, reload: 2.4, spread: 0.13,  pellets: 8, range: 45, auto: false },
-    sniper:  { name: '狙击枪', damage: 120, mag: 5,  maxAmmo: 40,  fireRate: 0.9, reload: 2.8, spread: 0.003, pellets: 1, range: 260, auto: false },
-    rocket:  { name: '火箭筒', damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 3.4, spread: 0.01,  pellets: 1, range: 240, auto: false, aoe: { radius: 6, damage: 170 } }
+    pistol:     { name: '手枪',     damage: 28, mag: 12,  maxAmmo: 96,  fireRate: 4.0,  reload: 0.78, spread: 0.012, pellets: 1,   range: 70,   auto: false },
+    rifle:      { name: '步枪',     damage: 20, mag: 30,  maxAmmo: 240, fireRate: 9.0,  reload: 1.17, spread: 0.02,  pellets: 1,   range: 120,  auto: true },
+    flamethrower: { name: '喷火器', damage: 18, mag: 5,   maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 18,   auto: true, flame: true },
+    sniper:     { name: '狙击枪',   damage: 120, mag: 5,  maxAmmo: 40,  fireRate: 0.9,  reload: 1.82, spread: 0.003, pellets: 1,   range: 260,  auto: false },
+    rocket:     { name: '火箭筒',   damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 240,  auto: false, aoe: { radius: 6, damage: 170 } }
   };
-  var GUN_ORDER = ['pistol', 'rifle', 'shotgun', 'sniper', 'rocket'];
+  var GUN_ORDER = ['pistol', 'rifle', 'flamethrower', 'sniper', 'rocket'];
 
-  /* ================= 1.6 关卡配置（v3：任务模式 + BOSS 触发） ================= */
+  /* ================= 1.6 关卡配置（v6：任务模式 + 敌人持续刷新） ================= */
   var LEVELS = [
     { name: '第 1 关', title: '清剿街区', mission: '击杀 8 名敌人',
-      killTarget: 8, boss: null, pool: { human: 5, monster: 3 }, stats: { damage: 0, health: 0 } },
+      killTarget: 8, boss: null, pool: { human: 4, monster: 2 }, stats: { damage: 0, health: 0 } },
     { name: '第 2 关', title: '火力围猎', mission: '击杀 16 名敌人',
-      killTarget: 16, boss: null, pool: { human: 8, monster: 6 }, stats: { damage: 2, health: 20 } },
+      killTarget: 16, boss: null, pool: { human: 6, monster: 4 }, stats: { damage: 2, health: 20 } },
     { name: '第 3 关', title: '巨兽苏醒', mission: '击杀 12 名敌人后 BOSS 现身，击败 BOSS 过关',
       killTarget: 12, boss: { trigger: 12, health: 1100, damage: 18, speed: 0.9, scale: 3.0 },
-      pool: { human: 6, monster: 5 }, stats: { damage: 4, health: 40 } },
+      pool: { human: 5, monster: 4 }, stats: { damage: 4, health: 40 } },
     { name: '第 4 关', title: '绞肉机', mission: '击杀 18 名敌人后 BOSS 现身，击败 BOSS 过关',
       killTarget: 18, boss: { trigger: 18, health: 1600, damage: 22, speed: 1.1, scale: 3.4 },
-      pool: { human: 8, monster: 8 }, stats: { damage: 6, health: 60 } },
+      pool: { human: 7, monster: 6 }, stats: { damage: 6, health: 60 } },
     { name: '第 5 关', title: '终焉之战', mission: '击杀 26 名敌人后 BOSS 现身，击败 BOSS 过关',
       killTarget: 26, boss: { trigger: 26, health: 2400, damage: 26, speed: 1.3, scale: 4.0 },
-      pool: { human: 11, monster: 11 }, stats: { damage: 8, health: 90 } }
+      pool: { human: 10, monster: 8 }, stats: { damage: 8, health: 90 } }
   ];
   var levelIndex = 0;
   var levelKills = 0;
@@ -506,9 +511,9 @@
   }
   function shotSound(type) {
     var gt = GUN_TYPES[type] || GUN_TYPES.pistol;
-    if (type === 'shotgun') {
-      noiseBurst(0.22, 0.7, 600);
-      tone(70, 0.18, 0.35, 'square', 40);
+    if (type === 'flamethrower') {
+      noiseBurst(0.15, 0.9, 200);
+      tone(80, 0.12, 0.2, 'sawtooth', 25);
     } else if (type === 'sniper') {
       noiseBurst(0.3, 0.8, 700);
       tone(55, 0.3, 0.4, 'square', 30);
@@ -706,6 +711,16 @@
     if (!locked || player.dead || player.reloading || state !== 'playing') return;
     var gt = GUN_TYPES[player.gun];
     if (player.ammo <= 0) { startReload(); return; }
+    
+    // 喷火器：消耗火焰，每发持续喷射效果
+    if (gt.flame) {
+      player.ammo--;
+      player.fireCooldown = 1 / gt.fireRate;
+      spawnFlameBurst(getMuzzleWorld());
+      if (sfx) sfx.playShot('flamethrower');
+      return;
+    }
+    
     player.ammo--;
     player.fireCooldown = 1 / gt.fireRate;
     var dmgMul = player.buffs.damage > 0 ? 3 : 1;
@@ -894,6 +909,27 @@
     fx.push({ type: 'ring', obj: ring, vel: null, life: 0.25, maxLife: 0.25 });
   }
   ctx.spawnSparks = spawnSparks;
+
+  // 喷火器火焰效果
+  function spawnFlameBurst(origin) {
+    var dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    var spread = 0.12;
+    for (var i = 0; i < 12; i++) {
+      var v = new THREE.Vector3(
+        dir.x + (Math.random() - 0.5) * spread,
+        dir.y + (Math.random() - 0.5) * spread,
+        dir.z + (Math.random() - 0.5) * spread
+      ).normalize();
+      var flame = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08 + Math.random() * 0.06, 5, 5),
+        new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0xff6600 : 0xff3300, transparent: true, opacity: 0.85 })
+      );
+      flame.position.copy(origin).addScaledVector(v, 0.3);
+      scene.add(flame);
+      fx.push({ type: 'flame', obj: flame, vel: v.multiplyScalar(18 + Math.random() * 6), life: 0.25 + Math.random() * 0.15, maxLife: 0.4 });
+    }
+  }
 
   /* ================= 9.5 爆炸 / 碎片 / 破坏系统 ================= */
   var DESTRUCTIBLE_MODELS = { crate: 1, obstacle: 1, barrel: 1, tnt: 1, vehicle: 1, step: 1, building: 1, tree: 1, lamp: 1 };
@@ -1174,8 +1210,8 @@
     else {
       var r = Math.random();
       if (r < 0.14) type = 'rocket';
-      else if (r < 0.42) type = 'sniper';
-      else if (r < 0.72) type = 'shotgun';
+      else if (r < 0.38) type = 'sniper';
+      else if (r < 0.65) type = 'flamethrower';
       else type = 'rifle';
     }
     var cfg = {
@@ -1262,11 +1298,16 @@
 
   function getTargetLayout() {
     if (levelIndex >= LEVELS.length) return null;
-    if (levelIndex === 1) return 'level2';
-    return 'level1';
+    // 根据关卡选择对应布局（支持随机生成的多个版本）
+    if (levelIndex === 0) return window.SCENE_LAYOUT;
+    if (levelIndex === 1) return window.SCENE_LAYOUT_LEVEL2 || window.SCENE_LAYOUT;
+    if (levelIndex === 2) return window.SCENE_LAYOUT_LEVEL3 || window.SCENE_LAYOUT;
+    if (levelIndex === 3) return window.SCENE_LAYOUT_LEVEL4 || window.SCENE_LAYOUT;
+    if (levelIndex === 4) return window.SCENE_LAYOUT_LEVEL5 || window.SCENE_LAYOUT;
+    return window.SCENE_LAYOUT;
   }
 
-  function rebuildFullScene(layoutName) {
+  function rebuildFullScene(layoutObj) {
     // 保存当前场景状态
     var currentSpawn = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
     
@@ -1280,22 +1321,16 @@
     layoutRecs = [];
     colliders = [];
     
-    // 重新加载布局
-    var layout = window.SCENE_LAYOUT;
-    if (layoutName === 'level2') {
-      layout = window.SCENE_LAYOUT_LEVEL2 || window.SCENE_LAYOUT;
-    }
-    
     // 重建灯光和雾
-    rebuildLights(layout);
+    rebuildLights(layoutObj);
     
     // 重建实体
-    (layout.entities || []).forEach(function (cfg) {
+    (layoutObj.entities || []).forEach(function (cfg) {
       layoutRecs.push(buildEntity(cfg));
     });
     
     // 恢复玩家位置（使用新的出生点）
-    var newSpawn = layout.playerSpawn || SPAWN;
+    var newSpawn = layoutObj.playerSpawn || SPAWN;
     player.pos.set(newSpawn.position[0], newSpawn.position[1], newSpawn.position[2]);
     player.yaw = newSpawn.yaw || 0;
     player.pitch = 0;
@@ -1358,6 +1393,11 @@
       var n = pool[t] || 0;
       for (var i = 0; i < n; i++) waveQueue.push(t);
     });
+    // v6: 蜘蛛敌人随机加入（从第二关开始）
+    if (levelIndex >= 1) {
+      var spiderCount = randInt(0, 2 + levelIndex);
+      for (var i = 0; i < spiderCount; i++) waveQueue.push('spider');
+    }
     for (var j = waveQueue.length - 1; j > 0; j--) {
       var k = Math.floor(Math.random() * (j + 1));
       var tmp = waveQueue[j]; waveQueue[j] = waveQueue[k]; waveQueue[k] = tmp;
@@ -1390,11 +1430,12 @@
     var stats = L.stats || {};
     var base = {
       human:   { health: 100, damage: 8,  speed: 1.5, range: 24, cd: 2.3, score: 100 },
-      monster: { health: 170, damage: 15, speed: 1.25, range: 20, cd: 3.2, score: 150 }
+      monster: { health: 170, damage: 15, speed: 1.25, range: 20, cd: 3.2, score: 150 },
+      spider:  { health: 40, damage: 25, speed: 2.8, range: 1.5, cd: 0.3, score: 150, explode: true }
     }[type] || {};
     var cfg = {
       id: 'dyn-e-' + (++dynCounter),
-      model: 'enemy',
+      model: type === 'spider' ? 'spider' : 'enemy',
       position: [pos.x, 0, pos.z],
       rotation: [0, 0, 0],
       scale: [1, 1, 1],
@@ -1407,7 +1448,8 @@
       speed: base.speed || 1.5,
       shootRange: base.range || 22,
       shootCooldown: base.cd || 2.3,
-      score: (base.score || 100) + levelIndex * 20
+      score: (base.score || 100) + levelIndex * 20,
+      explode: base.explode || false
     };
     buildEntity(cfg);
   }
@@ -1482,6 +1524,10 @@
     var L = getLevel();
 
     // 波次随机刷怪
+    // 波次随机刷怪 — 当波次耗尽但击杀数未达标时补充新波次
+    if (waveQueue.length === 0 && levelKills < L.killTarget) {
+      buildWave(L);
+    }
     if (waveQueue.length) {
       waveTimer -= dt;
       if (waveTimer <= 0) {
@@ -1921,6 +1967,15 @@
         var k3 = 1 - f.life / f.maxLife;
         f.obj.scale.setScalar(0.5 + k3 * (f.growTo || 2.4));
         f.obj.material.opacity = Math.max(0, f.life / f.maxLife) * 0.5;
+      } else if (f.type === 'flame') {
+        f.obj.position.addScaledVector(f.vel, dt);
+        f.vel.multiplyScalar(0.92);
+        var k4 = f.life / f.maxLife;
+        f.obj.scale.setScalar(k4);
+        f.obj.material.opacity = k4 * 0.8;
+        // 火焰变色：黄→橙→红
+        var c = new THREE.Color().setHSL(0.06 * k4, 1, 0.5);
+        f.obj.material.color.copy(c);
       } else if (f.type === 'flashlight') {
         f.obj.intensity = 8 * Math.max(0, f.life / f.maxLife);
       } else if (f.type === 'debris') {

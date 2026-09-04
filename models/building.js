@@ -42,7 +42,8 @@
       g.add(body);
 
       // 屋顶：四棱锥（坡屋顶），盖在主体上方
-      const roof = new T.Mesh(new T.ConeGeometry(Math.max(w, d) * 0.72, h * 0.55, 4), roofMat);
+      // 半径 0.52 使锥体底边直径 = max(w,d)*1.04，略小于墙体，AABB 不超界
+      const roof = new T.Mesh(new T.ConeGeometry(Math.max(w, d) * 0.52, h * 0.55, 4), roofMat);
       roof.position.y = h + h * 0.275;
       roof.rotation.y = Math.PI / 4;
       roof.castShadow = true;
@@ -77,8 +78,8 @@
       door.position.set(0, doorH / 2, d / 2 + 0.01);
       g.add(door);
 
-      // 檐口线（装饰）
-      const eave = new T.Mesh(new T.BoxGeometry(w + 0.4, 0.14, d + 0.4), roofMat);
+      // 檐口线（装饰）— 略窄于墙体，不扩大 AABB
+      const eave = new T.Mesh(new T.BoxGeometry(w + 0.1, 0.14, d + 0.1), roofMat);
       eave.position.y = h;
       g.add(eave);
 

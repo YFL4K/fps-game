@@ -21,7 +21,8 @@
   var LOOKS = {
     human:   { body: 0x3d5a80, dark: 0x293241, eye: 0xff3b3b },
     monster: { body: 0x7a3b58, dark: 0x4a2236, eye: 0xffe24a },
-    boss:    { body: 0x4a1f2c, dark: 0x2a1016, eye: 0xff2a2a }
+    boss:    { body: 0x4a1f2c, dark: 0x2a1016, eye: 0xff2a2a },
+    spider:  { body: 0x2d1f1f, dark: 0x1a1212, eye: 0xff4444, leg: 0x3d2b2b }
   };
 
   global.MODELS.enemy = {

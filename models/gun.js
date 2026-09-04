@@ -23,10 +23,10 @@
       len: 0.62, barrelLen: 0.42, pos: [0.30, -0.30, -0.55],
       scope: false, recoilKick: 0.75
     },
-    shotgun: {
-      bodyColor: 0x4a3c2a, accentColor: 0x8b4513,
-      len: 0.55, barrelLen: 0.5, pos: [0.30, -0.32, -0.5],
-      scope: false, recoilKick: 1.8
+    flamethrower: {
+      bodyColor: 0x4a4a4a, accentColor: 0xff6600,
+      len: 0.58, barrelLen: 0.55, pos: [0.30, -0.28, -0.52],
+      scope: false, recoilKick: 0.8, tankSize: 0.12
     },
     sniper: {
       bodyColor: 0x2b3550, accentColor: 0x1e90ff,
@@ -122,6 +122,23 @@
         rscope.rotation.x = Math.PI / 2;
         rscope.position.set(0, 0.08, -L * 0.45);
         g.add(rscope);
+      }
+
+      // 喷火器：粗喷嘴 + 燃料罐
+      if (type === 'flamethrower') {
+        // 移除默认细枪管，换粗喷嘴
+        if (barrel.parent) g.remove(barrel);
+        const nozzle = new T.Mesh(new T.CylinderGeometry(0.045, 0.035, st.barrelLen, 8), dark);
+        nozzle.rotation.x = Math.PI / 2;
+        nozzle.position.set(0, 0.01, -L * 0.45 - st.barrelLen / 2);
+        g.add(nozzle);
+        // 燃料罐（背部）
+        const tank = new T.Mesh(new T.CylinderGeometry(st.tankSize, st.tankSize, 0.22, 10), accent);
+        tank.rotation.x = Math.PI / 2;
+        tank.position.set(0, -0.05, 0.08);
+        g.add(tank);
+        // 握把调整
+        grip.scale.set(1.1, 1.1, 1.1);
       }
 
       // 枪口锚点（曳光弹起点）
