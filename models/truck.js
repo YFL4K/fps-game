@@ -5,7 +5,7 @@
  * config: color 车身颜色，variant 可选 'semi'（半挂车）或 'truck'（普通货车）
  */
 (function (global) {
-  global.MODELS = {};
+  global.MODELS = global.MODELS || {};
   global.MODELS.truck = {
     name: 'truck',
     create: function (config) {

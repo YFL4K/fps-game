@@ -5,7 +5,7 @@
  * config: size '20ft' | '40ft'，color 颜色
  */
 (function (global) {
-  global.MODELS = {};
+  global.MODELS = global.MODELS || {};
   global.MODELS.container = {
     name: 'container',
     create: function (config) {

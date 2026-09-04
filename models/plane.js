@@ -5,7 +5,7 @@
  * config: color 机身颜色，scale 控制大小
  */
 (function (global) {
-  global.MODELS = {};
+  global.MODELS = global.MODELS || {};
   global.MODELS.plane = {
     name: 'plane',
     create: function (config) {

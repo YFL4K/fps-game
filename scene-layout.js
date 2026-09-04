@@ -75,11 +75,13 @@
       // 放置台阶（通往屋顶）
       if (Math.random() > 0.4) {
         var stepCount = randInt(2, 4);
+        var stepDirX = side.rot === 0 ? 0 : (side.rot === Math.PI ? 0 : -0.8);
+        var stepDirZ = side.rot === 0 ? -0.8 : (side.rot === Math.PI ? 0.8 : 0);
         for (var s = 0; s < stepCount; s++) {
           entities.push({
             id: nextId('step'), model: 'step',
-            position: [ex + side.rot === 0 ? 0 : -s * 0.8, 0.14 + s * 0.28, ez + (side.rot === 0 ? -s * 0.8 : 0)],
-            rotation: [0, 0, 0], scale: [2, 1, 1], collision: true
+            position: [ex + stepDirX * s, 0.14 + s * 0.28, ez + stepDirZ * s],
+            rotation: [0, side.rot, 0], scale: [2, 1, 1], collision: true
           });
         }
       }

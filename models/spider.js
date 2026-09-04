@@ -150,24 +150,23 @@
       const player = ctx.player;
       if (!player) return;
 
+      if (u.exploding) {
+        // 自爆脉冲（health<=0 或贴近玩家触发）：优先于死亡动画
+        u.explodeTimer -= dt;
+        u.bodyMat.emissive.setHex(0xaa22ff);
+        u.bodyMat.emissiveIntensity = Math.max(0, 1.5 - u.explodeTimer * 3);
+        if (u.explodeTimer <= 0) {
+          u.triggerExplode(inst.position.clone());
+        }
+        return;
+      }
+
       if (u.dead) {
         u.deathTimer += dt;
         const k = Math.min(1, u.deathTimer / 0.5);
         inst.scale.y = 1 - k * 0.6;
         inst.position.y = -k * 0.15;
         if (k >= 1) u.respawnReady = true;
-        return;
-      }
-
-      // 自爆逻辑
-      if (u.exploding) {
-        u.explodeTimer -= dt;
-        // 发光脉冲
-        u.bodyMat.emissive.setHex(0xaa22ff);
-        u.bodyMat.emissiveIntensity = 1.5 - u.explodeTimer * 3;
-        if (u.explodeTimer <= 0) {
-          u.triggerExplode(inst.position.clone());
-        }
         return;
       }
 

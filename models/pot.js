@@ -5,7 +5,7 @@
  * config: size 'small' | 'large'，color 花盆颜色
  */
 (function (global) {
-  global.MODELS = {};
+  global.MODELS = global.MODELS || {};
   global.MODELS.pot = {
     name: 'pot',
     create: function (config) {
