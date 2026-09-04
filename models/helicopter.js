@@ -138,7 +138,7 @@
       const player = ctx.player;
       if (!player) return;
 
-      // ---- 导弹更新 ----
+      // ---- 导弹/火箭弹更新 ----
       for (let i = u.projectiles.length - 1; i >= 0; i--) {
         const b = u.projectiles[i];
         b.life -= dt;
@@ -146,7 +146,9 @@
         const dx = b.mesh.position.x - player.pos.x;
         const dz = b.mesh.position.z - player.pos.z;
         const dy = b.mesh.position.y - player.pos.y;
-        if (dx * dx + dz * dz < 0.75 * 0.75 && dy > -0.5 && dy < 2.2) {
+        if (dx * dx + dz * dz < 1.5 * 1.5 && dy > -0.5 && dy < 2.5) {
+          // 火箭弹命中玩家 → 爆炸伤害
+          if (ctx.explode) ctx.explode(b.mesh.position.clone(), 3.5, 600, { nuke: false });
           if (ctx.hitPlayer) ctx.hitPlayer(u.damage * 0.5);   // 直升机伤害已减半
           if (ctx.spawnSparks) ctx.spawnSparks(b.mesh.position.clone(), 0xff6633);
           ctx.scene.remove(b.mesh);
@@ -193,11 +195,11 @@
       u.mainRotor.rotation.z += dt * 26;
       u.tailRotor.rotation.z += dt * 34;
 
-      // ---- 开火：机腹炮发射导弹 ----
+      // ---- 开火：机腹发射火箭弹（命中后爆炸） ----
       u.shootTimer -= dt;
       if (u.shootTimer <= 0 && !player.dead) {
         u.shootTimer = u.shootCooldown;
-        if (ctx.sfx) ctx.sfx.playEnemyShot();
+        if (ctx && ctx.sfx) ctx.sfx.playEnemyShot();
 
         const muzzle = new T.Vector3(0, -0.46, -1.2);
         inst.localToWorld(muzzle);
@@ -212,25 +214,25 @@
 
         // 曳光
         if (ctx.spawnTracer) {
-          ctx.spawnTracer(muzzle, muzzle.clone().addScaledVector(aim, Math.min(dist, 18)), 0xff6633);
+          ctx.spawnTracer(muzzle, muzzle.clone().addScaledVector(aim, Math.min(dist, 18)), 0xff4422);
         }
 
-        // 导弹（发光长条 + 尾焰）
+        // 火箭弹（橙色粗管 + 尾焰）
         const body = new T.Mesh(
-          new T.CylinderGeometry(0.09, 0.09, 0.72, 8),
-          new T.MeshBasicMaterial({ color: 0xff4422 })
+          new T.CylinderGeometry(0.11, 0.09, 0.55, 8),
+          new T.MeshBasicMaterial({ color: 0xff5511 })
         );
         body.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
         body.position.copy(muzzle);
         const flame = new T.Mesh(
-          new T.ConeGeometry(0.08, 0.4, 8),
-          new T.MeshBasicMaterial({ color: 0xffcc44 })
+          new T.ConeGeometry(0.1, 0.5, 8),
+          new T.MeshBasicMaterial({ color: 0xffcc22 })
         );
         flame.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
-        flame.position.copy(muzzle).addScaledVector(aim, -0.5);
+        flame.position.copy(muzzle).addScaledVector(aim, -0.45);
         body.add(flame);
         ctx.scene.add(body);
-        u.projectiles.push({ mesh: body, vel: aim.multiplyScalar(16), life: 5 });
+        u.projectiles.push({ mesh: body, vel: aim.multiplyScalar(22), life: 4.5 });
       }
     }
   };

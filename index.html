@@ -115,7 +115,9 @@
 <script src="models/helicopter.js" onerror="window.__modErr('models/helicopter.js')"></script>
 <script src="models/enemy.js" onerror="window.__modErr('models/enemy.js')"></script>
 <script src="models/gun.js" onerror="window.__modErr('models/gun.js')"></script>
+<script src="models/mountain-scenery.js" onerror="window.__modErr('models/mountain-scenery.js')"></script>
 <script src="scene-layout.js" onerror="window.__modErr('scene-layout.js')"></script>
+<script src="scene-layout-level2.js" onerror="window.__modErr('scene-layout-level2.js')"></script>
 
 <script>
 (function () {
@@ -224,7 +226,10 @@
   var waveQueue = [];
   var waveTimer = 1.0;
   var heliTimer = 20;
+  var heliSpawnedCount = 0;
+  var chestSpawnedCount = 0;
   var dynCounter = 0;
+  var currentLayout = null;  // 记录当前加载的布局版本
 
   /* ================= 2. 渲染器 / 场景 / 相机 ================= */
   var renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -565,8 +570,12 @@
   document.addEventListener('pointerlockchange', function () {
     locked = (document.pointerLockElement === renderer.domElement);
     if (locked) {
-      state = 'playing';
-      overlay.style.display = 'none';
+      // 在 complete 状态下重新锁定 → 自动进下一关
+      if (state === 'complete') nextLevel();
+      else {
+        state = 'playing';
+        overlay.style.display = 'none';
+      }
     } else {
       if (state === 'complete') {
         overlay.style.display = 'flex';
@@ -1110,6 +1119,8 @@
     showToast('宝箱：' + item.name + ' — ' + item.desc, item.color);
     if (sfx) sfx.playChest();
     destroyEntity(rec);
+    // 30% 概率同时掉落弹药
+    if (Math.random() < 0.30) spawnAmmoDrop(rec.inst.position.clone());
   }
 
   function applyPickup(rec) {
@@ -1165,7 +1176,26 @@
     spawnSparks(pos, 0x88ddff);
   }
 
+  /** 掉落弹药补给（30% 触发，在地面） */
+  function spawnAmmoDrop(pos) {
+    var cfg = {
+      id: 'ammo-' + (++dynCounter),
+      model: 'pickup',
+      position: [pos.x, 0.8, pos.z],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      collision: false,
+      kind: 'ammo',
+      respawn: 0,
+      dynamic: true
+    };
+    buildEntity(cfg);
+    spawnSparks(pos, 0xffcc44);
+  }
+
   function spawnChest(pos) {
+    if (chestSpawnedCount >= 2) return;
+    chestSpawnedCount++;
     var cfg = {
       id: 'dyn-chest-' + (++dynCounter),
       model: 'chest',
@@ -1196,9 +1226,102 @@
     }
   }
   function rebuildDestroyedMapObjects() {
+    // 检查是否需要重建整个场景（关卡切换）
+    var targetLayout = getTargetLayout();
+    if (currentLayout !== targetLayout) {
+      // 重建整个场景
+      currentLayout = targetLayout;
+      rebuildFullScene(targetLayout);
+      return;
+    }
+    // 只重建被破坏的静态对象
     for (var i = 0; i < layoutRecs.length; i++) {
       var rec = layoutRecs[i];
       if (!rec.alive) rebuildEntity(rec);
+    }
+  }
+
+  function getTargetLayout() {
+    if (levelIndex >= LEVELS.length) return null;
+    if (levelIndex === 1) return 'level2';
+    return 'level1';
+  }
+
+  function rebuildFullScene(layoutName) {
+    // 保存当前场景状态
+    var currentSpawn = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
+    
+    // 清空场景中的静态实体（layoutRecs 中的）
+    for (var i = entities.length - 1; i >= 0; i--) {
+      var rec = entities[i];
+      if (rec.cfg && !rec.cfg.dynamic) {
+        destroyEntity(rec);
+      }
+    }
+    layoutRecs = [];
+    colliders = [];
+    
+    // 重新加载布局
+    var layout = window.SCENE_LAYOUT;
+    if (layoutName === 'level2') {
+      layout = window.SCENE_LAYOUT_LEVEL2 || window.SCENE_LAYOUT;
+    }
+    
+    // 重建灯光和雾
+    rebuildLights(layout);
+    
+    // 重建实体
+    (layout.entities || []).forEach(function (cfg) {
+      layoutRecs.push(buildEntity(cfg));
+    });
+    
+    // 恢复玩家位置（使用新的出生点）
+    var newSpawn = layout.playerSpawn || SPAWN;
+    player.pos.set(newSpawn.position[0], newSpawn.position[1], newSpawn.position[2]);
+    player.yaw = newSpawn.yaw || 0;
+    player.pitch = 0;
+    player.vel.set(0, 0, 0);
+    camera.position.set(player.pos.x, player.pos.y + (W.eyeHeight || 1.6), player.pos.z);
+  }
+
+  function rebuildLights(layout) {
+    // 移除旧的灯光
+    var toRemove = [];
+    scene.traverse(function (child) {
+      if (child.isLight) toRemove.push(child);
+    });
+    toRemove.forEach(function (light) { scene.remove(light); });
+    
+    // 添加新灯光
+    (layout.lights || []).forEach(function (lc) {
+      var light = null;
+      if (lc.type === 'ambient') {
+        light = new THREE.AmbientLight(lc.color, lc.intensity);
+      } else if (lc.type === 'directional') {
+        light = new THREE.DirectionalLight(lc.color, lc.intensity);
+        light.position.set(lc.position[0], lc.position[1], lc.position[2]);
+        if (lc.shadow) {
+          light.castShadow = true;
+          light.shadow.mapSize.width = 1024;
+          light.shadow.mapSize.height = 1024;
+          light.shadow.camera.near = 1;
+          light.shadow.camera.far = 160;
+          light.shadow.camera.left = -60;
+          light.shadow.camera.right = 60;
+          light.shadow.camera.top = 60;
+          light.shadow.camera.bottom = -60;
+        }
+      } else if (lc.type === 'point') {
+        light = new THREE.PointLight(lc.color, lc.intensity, lc.distance || 25, 1);
+        light.position.set(lc.position[0], lc.position[1], lc.position[2]);
+      }
+      if (light) scene.add(light);
+    });
+    
+    // 更新雾
+    if (layout.world && layout.world.fogColor) {
+      scene.fog = new THREE.Fog(layout.world.fogColor, layout.world.fogNear || 30, layout.world.fogFar || 140);
+      scene.background = new THREE.Color(layout.world.fogColor);
     }
   }
   function showLevelBanner() {
@@ -1305,6 +1428,7 @@
   }
 
   function spawnHelicopter() {
+    heliSpawnedCount++;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(player.pos.x + side * 30, 11, player.pos.z - 20 - Math.random() * 10);
     var cfg = {
@@ -1356,11 +1480,13 @@
       spawnBoss();
     }
 
-    // 直升机随机出现
-    heliTimer -= dt;
-    if (heliTimer <= 0) {
-      if (!helicopterAlive()) spawnHelicopter();
-      heliTimer = 24 + Math.random() * 14;
+    // 直升机随机出现（每关最多 2 次）
+    if (heliSpawnedCount < 2) {
+      heliTimer -= dt;
+      if (heliTimer <= 0) {
+        if (!helicopterAlive()) spawnHelicopter();
+        heliTimer = 32 + Math.random() * 18;
+      }
     }
   }
 
@@ -1396,8 +1522,11 @@
     levelCleared = false;
     bossAppeared = false;
     bossAlive = false;
+    heliSpawnedCount = 0;
+    chestSpawnedCount = 0;
     clearAllDynamic();
-    rebuildDestroyedMapObjects();
+    // 重建场景（如果切换到新关卡布局）
+    rebuildFullScene(getTargetLayout());
     var L = getLevel();
     buildWave(L);
     player.health = Math.min(player.maxHealth, player.health + 50);
@@ -1414,9 +1543,12 @@
     levelCleared = false;
     bossAppeared = false;
     bossAlive = false;
+    heliSpawnedCount = 0;
+    chestSpawnedCount = 0;
+    currentLayout = getTargetLayout();
     score = 0;
     clearAllDynamic();
-    rebuildDestroyedMapObjects();
+    rebuildFullScene(currentLayout);
     player.dead = false;
     player.health = W.maxHealth || 100;
     player.maxHealth = W.maxHealth || 100;
@@ -1441,8 +1573,13 @@
   ctx.onEnemyKilled = function (pos, type) {
     levelKills++;
     score += (type === 'boss' ? 2000 : (type === 'monster' ? 150 : 100));
-    if (Math.random() < (type === 'boss' ? 1 : 0.32)) {
+    if (Math.random() < (type === 'boss' ? 1 : 0.08)) {
+      chestSpawnedCount++;
       spawnChest(randomSpawnPos());
+    }
+    // 30% 概率掉落弹药
+    if (Math.random() < 0.30) {
+      spawnAmmoDrop(pos);
     }
     if (Math.random() < 0.2) spawnWeaponDrop(pos);
     checkMissionComplete();
@@ -1464,8 +1601,16 @@
     if (sfx) sfx.playNuke();
     var p = new THREE.Vector3(player.pos.x, player.pos.y + 0.8, player.pos.z);
     explode(p, 95, 3000, { nuke: true, noPlayer: true });
-    hitPlayer(50);
-    showToast('☢ 核弹引爆！', 0xffcc22);
+    // 核弹伤害 = 最大生命 × 30%（不按当前血量，是固定的）
+    var nukeDmg = Math.round(player.maxHealth * 0.30);
+    hitPlayer(nukeDmg);
+    if (player.dead) {
+      overlaySub.textContent = '你被核弹杀死了！得分 ' + score + ' — 按 Enter 重新开始';
+      overlay.querySelector('h1').textContent = '☢ 核爆致命';
+      overlay.style.display = 'flex';
+      return;
+    }
+    showToast('☢ 核弹引爆！继续战斗', 0xffcc22);
   }
 
   /* ================= 12. 玩家移动 / 碰撞 / 调试飞行 ================= */
