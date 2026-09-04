@@ -22,6 +22,9 @@
   /* 爆头提示 */
   #headshotTag { position: fixed; left: 50%; top: 40%; transform: translateX(-50%); color: #ff5f5f; font-size: 22px; font-weight: bold; text-shadow: 0 0 10px rgba(255,60,60,0.9); opacity: 0; pointer-events: none; z-index: 12; user-select: none; }
 
+  /* 暴击/秒杀提示 */
+  #critTag { position: fixed; left: 50%; top: 36%; transform: translateX(-50%); color: #ffaa00; font-size: 28px; font-weight: bold; text-shadow: 0 0 14px rgba(255,170,0,0.95); opacity: 0; transition: opacity 0.15s; pointer-events: none; z-index: 13; user-select: none; white-space: nowrap; }
+
   /* 命中标记（十字四角） */
   #hitmark { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 26px; height: 26px; pointer-events: none; z-index: 11; opacity: 0; }
   #hitmark i { position: absolute; width: 7px; height: 2px; background: #fff; box-shadow: 0 0 4px rgba(255,255,255,0.9); }
@@ -69,6 +72,7 @@
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
 <div id="levelBanner"><div id="levelBannerTitle"></div><div class="sub" id="levelBannerSub"></div></div>
 <div id="headshotTag">爆头!</div>
+<div id="critTag">暴击!</div>
 <div id="toast"></div>
 <div id="errPanel"></div>
 <div id="overlay">
@@ -147,6 +151,7 @@
   var appEl = document.getElementById('app');
   var hitmarkEl = document.getElementById('hitmark');
   var headshotEl = document.getElementById('headshotTag');
+  var critTagEl = document.getElementById('critTag');
   var levelBannerEl = document.getElementById('levelBanner');
   var levelBannerTitle = document.getElementById('levelBannerTitle');
   var levelBannerSub = document.getElementById('levelBannerSub');
@@ -187,11 +192,11 @@
 
   /* ================= 1.5 武器类型表（多武器 + 火箭筒 AOE） ================= */
   var GUN_TYPES = {
-    pistol:  { name: '手枪', damage: 15, mag: 12, maxAmmo: 96, fireRate: 4.0,  reload: 1.2, spread: 0.012, pellets: 1, range: 70, auto: false },
-    rifle:   { name: '步枪', damage: 11, mag: 30, maxAmmo: 240, fireRate: 9.0, reload: 1.8, spread: 0.02,  pellets: 1, range: 120, auto: true },
-    shotgun: { name: '霰弹枪', damage: 9, mag: 6,  maxAmmo: 48,  fireRate: 1.7, reload: 2.4, spread: 0.13,  pellets: 8, range: 45, auto: false },
-    sniper:  { name: '狙击枪', damage: 65, mag: 5,  maxAmmo: 40,  fireRate: 0.9, reload: 2.8, spread: 0.003, pellets: 1, range: 260, auto: false },
-    rocket:  { name: '火箭筒', damage: 80, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 3.4, spread: 0.01,  pellets: 1, range: 240, auto: false, aoe: { radius: 5.5, damage: 90 } }
+    pistol:  { name: '手枪', damage: 28, mag: 12, maxAmmo: 96, fireRate: 4.0,  reload: 1.2, spread: 0.012, pellets: 1, range: 70, auto: false },
+    rifle:   { name: '步枪', damage: 20, mag: 30, maxAmmo: 240, fireRate: 9.0, reload: 1.8, spread: 0.02,  pellets: 1, range: 120, auto: true },
+    shotgun: { name: '霰弹枪', damage: 15, mag: 6,  maxAmmo: 48,  fireRate: 1.7, reload: 2.4, spread: 0.13,  pellets: 8, range: 45, auto: false },
+    sniper:  { name: '狙击枪', damage: 120, mag: 5,  maxAmmo: 40,  fireRate: 0.9, reload: 2.8, spread: 0.003, pellets: 1, range: 260, auto: false },
+    rocket:  { name: '火箭筒', damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 3.4, spread: 0.01,  pellets: 1, range: 240, auto: false, aoe: { radius: 6, damage: 170 } }
   };
   var GUN_ORDER = ['pistol', 'rifle', 'shotgun', 'sniper', 'rocket'];
 
@@ -287,6 +292,7 @@
     hitPlayer: null,
     shootDamage: 15,
     currentDamage: 15,
+    oneShotKill: false,
     playerRadius: WORLD.playerRadius || 0.4,
     playerHeight: WORLD.playerHeight || 1.7,
     time: 0,
@@ -339,7 +345,7 @@
       if (o.isMesh) { o.userData.entityId = cfg.id; o.userData.hitTarget = true; }
     });
 
-    var rec = { cfg: cfg, def: def, inst: inst, alive: true, respawnTimer: 0 };
+    var rec = { cfg: cfg, def: def, inst: inst, alive: true, respawnTimer: 0, spawnTime: ctx.time };
     entities.push(rec);
     if (cfg.collision) colliders.push(rec);
     return rec;
@@ -516,6 +522,7 @@
     playHeadshot: function () { tone(1200, 0.08, 0.25, 'square', 600); },
     playDeath: function () { tone(300, 0.5, 0.3, 'sawtooth', 60); },
     playEnemyShot: function () { noiseBurst(0.08, 0.2, 900); },
+    playRocket: function () { noiseBurst(0.35, 0.6, 700); tone(120, 0.3, 0.3, 'sawtooth', 55); },
     playPickup: function () { tone(660, 0.08, 0.2, 'sine'); setTimeout(function () { tone(990, 0.12, 0.2, 'sine'); }, 80); },
     playReload: function () { tone(200, 0.06, 0.15, 'square'); setTimeout(function () { tone(260, 0.06, 0.15, 'square'); }, 120); },
     playHurt: function () { tone(160, 0.2, 0.25, 'sawtooth', 90); },
@@ -643,6 +650,7 @@
     }
     return null;
   }
+  ctx.findEntityById = findEntityById;
 
   function raycastShot(dir) {
     raycaster.set(camera.position, dir);
@@ -678,7 +686,11 @@
     player.ammo--;
     player.fireCooldown = 1 / gt.fireRate;
     var dmgMul = player.buffs.damage > 0 ? 3 : 1;
-    ctx.currentDamage = gt.damage * dmgMul;
+    // 暴击：20% 概率 ×3；暴击中 40% 概率对普通敌人一击必杀
+    var isCrit = Math.random() < 0.2;
+    var oneShot = isCrit && Math.random() < 0.4;
+    ctx.currentDamage = gt.damage * dmgMul * (isCrit ? 3 : 1);
+    ctx.oneShotKill = !!oneShot;
 
     if (gunInst && gunInst.userData) gunInst.userData.recoil = 1;
     muzzleLight.intensity = 3;
@@ -703,6 +715,7 @@
     var firstHitPoint = null;
     var hitSomething = false;
     var headshot = false;
+    var hitEnemy = false;
     var dir = new THREE.Vector3();
 
     for (var p = 0; p < gt.pellets; p++) {
@@ -720,6 +733,7 @@
 
       if (hit.rec) {
         hitSomething = true;
+        if (hit.rec.cfg.model === 'enemy' || hit.rec.cfg.model === 'helicopter') hitEnemy = true;
         try {
           var hs = null;
           if (hit.rec.def && hit.rec.def.onHit) hs = hit.rec.def.onHit(hit.rec.inst, hit.point, ctx);
@@ -733,15 +747,19 @@
           respawnEntity(hit.rec);
         }
         if (hit.rec.cfg.kind) applyPickup(hit.rec);
-        spawnSparks(hit.point, 0xff8844);
+        spawnSparks(hit.point, isCrit ? 0xffaa00 : 0xff8844);
       } else {
         spawnSparks(hit.point, 0xcccccc);
       }
     }
 
     var end = firstHitPoint || new THREE.Vector3().copy(muzzle).add(dir.multiplyScalar(gt.range));
-    spawnTracer(muzzle, end, player.gun === 'sniper' ? 0x88ddff : 0xffcc66);
-    if (hitSomething) showHitmark(headshot);
+    spawnTracer(muzzle, end, isCrit ? 0xffdd55 : (player.gun === 'sniper' ? 0x88ddff : 0xffcc66));
+    if (hitSomething) {
+      if (oneShot && hitEnemy) showTag('暴击秒杀!', 0xffcc00);
+      else if (isCrit && hitEnemy) showTag('暴击!', 0xffaa00);
+      else showHitmark(headshot);
+    }
   }
 
   function fireRocket(from, dir, damage, aoe) {
@@ -939,18 +957,21 @@
     fx.push({ type: 'shockwave', obj: ring, life: 0.45, maxLife: 0.45, growTo: radius * 1.4 });
     // 火花
     spawnSparks(point, 0xffaa44);
-    // 烟雾
-    for (var i = 0; i < 10; i++) {
+    // 烟雾（浓黑升腾，双层）
+    for (var i = 0; i < 22; i++) {
       var smoke = new T.Mesh(
-        new T.SphereGeometry(0.5, 6, 6),
-        new T.MeshBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.5 })
+        new T.SphereGeometry(0.5 + Math.random() * 0.45, 6, 6),
+        new T.MeshBasicMaterial({
+          color: Math.random() < 0.55 ? 0x2a2a2a : 0x555555,
+          transparent: true, opacity: 0.55
+        })
       );
       smoke.position.copy(point);
       scene.add(smoke);
       fx.push({
         type: 'smoke', obj: smoke,
-        vel: new T.Vector3((Math.random() - 0.5) * 4, Math.random() * 3 + 1, (Math.random() - 0.5) * 4),
-        life: 1.6 + Math.random() * 0.8, maxLife: 2.4, growTo: 2.4
+        vel: new T.Vector3((Math.random() - 0.5) * 5, Math.random() * 4 + 1.2, (Math.random() - 0.5) * 5),
+        life: 2.0 + Math.random() * 1.5, maxLife: 3.5, growTo: 3.5
       });
     }
     // 闪光点光源
@@ -1004,11 +1025,12 @@
       }
     }
 
-    // 摧毁可破坏模型 + 收集连环引爆
+    // 摧毁可破坏模型 + 收集连环引爆（宽限期内的新掉落物不受爆炸波及）
     for (var k = entities.length - 1; k >= 0; k--) {
       var rec2 = entities[k];
       if (!rec2.alive) continue;
       if (!isDestructible(rec2)) continue;
+      if (rec2.cfg.grace && ctx.time - rec2.spawnTime < rec2.cfg.grace) continue;
       var u2 = rec2.inst.userData;
       if (u2 && u2.destroyed) continue;
       var d2 = rec2.inst.position.distanceTo(pt);
@@ -1038,6 +1060,17 @@
       headshotEl.style.opacity = '1';
       setTimeout(function () { headshotEl.style.opacity = '0'; }, 600);
     }
+  }
+
+  var critTagTimer = 0;
+  function showTag(text, color) {
+    critTagEl.textContent = text;
+    critTagEl.style.color = color !== undefined ? '#' + ('000000' + color.toString(16)).slice(-6) : '#ffaa00';
+    critTagEl.style.opacity = '1';
+    critTagEl.style.transform = 'translateX(-50%) scale(1.2)';
+    setTimeout(function () { critTagEl.style.transform = 'translateX(-50%) scale(0.9)'; }, 60);
+    clearTimeout(critTagTimer);
+    critTagTimer = setTimeout(function () { critTagEl.style.opacity = '0'; }, 650);
   }
 
   function startReload() {
@@ -1105,9 +1138,9 @@
     respawnEntity(rec);
   }
 
-  function spawnWeaponDrop(pos, rocket) {
+  function spawnWeaponDrop(pos, forceType) {
     var type;
-    if (rocket) type = 'rocket';
+    if (forceType) type = forceType;
     else {
       var r = Math.random();
       if (r < 0.14) type = 'rocket';
@@ -1125,7 +1158,8 @@
       kind: 'weapon',
       type: type,
       respawn: 0,
-      dynamic: true
+      dynamic: true,
+      grace: 2.5
     };
     buildEntity(cfg);
     spawnSparks(pos, 0x88ddff);
@@ -1419,7 +1453,7 @@
   };
   ctx.onHelicopterKilled = function (pos) {
     score += 800;
-    spawnWeaponDrop(pos, true);
+    spawnWeaponDrop(pos, 'rocket');
     showToast('击毁直升机！获得 火箭筒（5 发炮弹）', 0xffcc66);
     if (sfx) sfx.playLevelUp();
   };
@@ -1585,6 +1619,41 @@
     }
   }
 
+  /** 敌人与静态碰撞体（建筑/墙/车辆/箱子等）的水平推挤，防止穿模 */
+  function collideEnemies() {
+    var ab = new THREE.Box3();
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive || rec.cfg.model !== 'enemy') continue;
+      var u = rec.inst.userData;
+      if (u && u.dead) continue;
+      rec.inst.updateMatrixWorld(true);
+      var r = (rec.inst.scale.x || 1) * 0.38;
+      for (var j = 0; j < colliders.length; j++) {
+        var c = colliders[j];
+        if (!c.alive) continue;
+        c.inst.updateMatrixWorld(true);
+        ab.setFromObject(c.inst);
+        var cx = clamp(rec.inst.position.x, ab.min.x, ab.max.x);
+        var cz = clamp(rec.inst.position.z, ab.min.z, ab.max.z);
+        var dx = rec.inst.position.x - cx;
+        var dz = rec.inst.position.z - cz;
+        var d2 = dx * dx + dz * dz;
+        if (d2 < r * r && d2 > 1e-8) {
+          var d = Math.sqrt(d2);
+          var push = (r - d) / d;
+          rec.inst.position.x += dx * push;
+          rec.inst.position.z += dz * push;
+        } else if (d2 <= 1e-8) {
+          var px = Math.min(rec.inst.position.x - ab.min.x, ab.max.x - rec.inst.position.x);
+          var pz = Math.min(rec.inst.position.z - ab.min.z, ab.max.z - rec.inst.position.z);
+          if (px < pz) rec.inst.position.x = (rec.inst.position.x - ab.min.x < ab.max.x - rec.inst.position.x) ? ab.min.x - r : ab.max.x + r;
+          else rec.inst.position.z = (rec.inst.position.z - ab.min.z < ab.max.z - rec.inst.position.z) ? ab.min.z - r : ab.max.z + r;
+        }
+      }
+    }
+  }
+
   /* ================= 13. 实体更新循环（含 respawn / 移除） ================= */
   function updateEntities(dt) {
     for (var i = 0; i < entities.length; i++) {
@@ -1632,6 +1701,7 @@
     });
     rec.inst = inst;
     rec.alive = true;
+    rec.spawnTime = ctx.time;
     if (cfg.collision && colliders.indexOf(rec) < 0) colliders.push(rec);
   }
 
@@ -1756,6 +1826,7 @@
         updatePlayer(dt);
         updateRockets(dt);
         updateEntities(dt);
+        collideEnemies();
         updateWaves(dt);
         updateFx(dt);
       } else {

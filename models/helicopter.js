@@ -147,7 +147,7 @@
         const dz = b.mesh.position.z - player.pos.z;
         const dy = b.mesh.position.y - player.pos.y;
         if (dx * dx + dz * dz < 0.75 * 0.75 && dy > -0.5 && dy < 2.2) {
-          if (ctx.hitPlayer) ctx.hitPlayer(u.damage);
+          if (ctx.hitPlayer) ctx.hitPlayer(u.damage * 0.5);   // 直升机伤害已减半
           if (ctx.spawnSparks) ctx.spawnSparks(b.mesh.position.clone(), 0xff6633);
           ctx.scene.remove(b.mesh);
           u.projectiles.splice(i, 1);

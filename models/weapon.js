@@ -12,7 +12,8 @@
     pistol:  { color: 0xd35400, len: 0.4 },
     rifle:   { color: 0x2e8b57, len: 0.62 },
     shotgun: { color: 0x8b4513, len: 0.55 },
-    sniper:  { color: 0x1e90ff, len: 0.8 }
+    sniper:  { color: 0x1e90ff, len: 0.8 },
+    rocket:  { color: 0xd4a017, len: 0.72 }
   };
 
   global.MODELS.weapon = {

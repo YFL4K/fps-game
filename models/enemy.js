@@ -200,7 +200,7 @@
       return g;
     },
 
-    /** 玩家子弹命中；返回 true 表示爆头（爆头 ×3 伤害） */
+    /** 玩家子弹命中；返回 true 表示爆头（爆头 ×5，暴击一击必杀由 ctx.oneShotKill 控制） */
     onHit: function (inst, point, ctx) {
       const u = inst.userData;
       if (u.dead) return false;
@@ -208,8 +208,10 @@
       const s = inst.scale.x || 1;
       const headBottom = inst.position.y + 1.68 * s;
       const head = !!(point && point.y > headBottom);
-      const dmg = (ctx && ctx.currentDamage) || 15;
-      u.takeDamage(head ? dmg * 3 : dmg);
+      let dmg = (ctx && ctx.currentDamage) || 15;
+      if (head) dmg *= 5;
+      if (ctx && ctx.oneShotKill && u.type !== 'boss') dmg = 99999;
+      u.takeDamage(dmg);
       if (ctx && ctx.sfx && head) ctx.sfx.playHeadshot();
       return head;
     },
@@ -292,9 +294,9 @@
         }
       }
 
-      // ---- 攻击 ----
+      // ---- 攻击（先检查视线：被墙/建筑/车辆等挡住则不开枪） ----
       u.shootTimer -= dt;
-      if (u.shootTimer <= 0 && dist < u.shootRange && !player.dead) {
+      if (u.shootTimer <= 0 && dist < u.shootRange && !player.dead && canSeePlayer(inst, ctx, player)) {
         u.shootTimer = u.shootCooldown;
         if (isMonsterType(u)) {
           fireFireball(u, inst, ctx, player);
@@ -311,6 +313,32 @@
       function isMonsterType(uu) { return uu.type === 'monster'; }
     }
   };
+
+  /** 视线检测：从敌人头部到玩家躯干，中间若被存活碰撞体（墙/建筑/车/箱）挡住则不可见 */
+  function canSeePlayer(inst, ctx, player) {
+    if (!ctx.scene || !ctx.findEntityById) return true;
+    const T = global.THREE;
+    const from = inst.position.clone();
+    from.y += (inst.scale.x || 1) * 1.6;
+    const to = new T.Vector3(player.pos.x, player.pos.y + 0.85, player.pos.z);
+    const dir = to.clone().sub(from);
+    const d = dir.length();
+    if (d < 0.01) return true;
+    dir.normalize();
+    const ray = new T.Raycaster(from, dir, 0, d);
+    const hits = ray.intersectObjects(ctx.scene.children, true);
+    for (let i = 0; i < hits.length; i++) {
+      const o = hits[i].object;
+      if (o.userData && o.userData.noHit) continue;
+      const id = o.userData && o.userData.entityId;
+      if (!id) continue;
+      const rec = ctx.findEntityById(id);
+      if (rec && rec.alive && rec.cfg.collision && rec.cfg.model !== 'sky' && rec.cfg.model !== 'floor') {
+        return false;
+      }
+    }
+    return true;
+  }
 
   // ---- 投射物更新 ----
   function updateProjectiles(u, inst, dt, ctx, pr, ph) {
@@ -331,7 +359,7 @@
       const hitR = (b.kind === 'fireball' ? 0.55 : 0.22) + pr;
 
       if (hd < hitR && by > -0.3 && by < ph) {
-        if (ctx.hitPlayer) ctx.hitPlayer(b.damage);
+        if (ctx.hitPlayer) ctx.hitPlayer(b.damage * 0.5);   // 敌人伤害已减半
         if (ctx.spawnSparks) ctx.spawnSparks(b.mesh.position.clone(), b.kind === 'fireball' ? 0xff7722 : 0xffaa55);
         ctx.scene.remove(b.mesh);
         u.projectiles.splice(i, 1);
