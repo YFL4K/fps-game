@@ -32,6 +32,11 @@
       bodyColor: 0x2b3550, accentColor: 0x1e90ff,
       len: 0.8, barrelLen: 0.55, pos: [0.28, -0.32, -0.62],
       scope: true, recoilKick: 2.2
+    },
+    rocket: {
+      bodyColor: 0x3a3a26, accentColor: 0xd4a017,
+      len: 0.72, barrelLen: 0.5, pos: [0.30, -0.36, -0.6],
+      scope: true, recoilKick: 3.4
     }
   };
 
@@ -90,6 +95,33 @@
         lens.rotation.y = Math.PI / 2;
         lens.position.set(0, 0.09, -L * 0.55 - 0.11);
         g.add(lens);
+      }
+
+      // 火箭筒：粗发射管 + 喇叭口 + 弹头
+      if (type === 'rocket') {
+        // 移除默认细枪管，换粗管
+        if (barrel.parent) g.remove(barrel);
+        const tube = new T.Mesh(new T.CylinderGeometry(0.055, 0.055, L * 1.1, 10), dark);
+        tube.rotation.x = Math.PI / 2;
+        tube.position.set(0, 0.0, -L * 0.7);
+        g.add(tube);
+        // 喇叭口（尾部扩大）
+        const flare = new T.Mesh(new T.CylinderGeometry(0.09, 0.055, 0.12, 10), dark);
+        flare.rotation.x = Math.PI / 2;
+        flare.position.set(0, 0.0, -L * 0.7 - 0.12);
+        g.add(flare);
+        // 弹头（彩色标识）
+        const warhead = new T.Mesh(new T.CylinderGeometry(0.05, 0.03, 0.3, 10), accent);
+        warhead.rotation.x = Math.PI / 2;
+        warhead.position.set(0, 0.0, L * 0.15);
+        g.add(warhead);
+        // 大号握把
+        grip.scale.set(1.5, 1.5, 1.5);
+        // 光学瞄具
+        const rscope = new T.Mesh(new T.CylinderGeometry(0.045, 0.045, 0.16, 10), dark);
+        rscope.rotation.x = Math.PI / 2;
+        rscope.position.set(0, 0.08, -L * 0.45);
+        g.add(rscope);
       }
 
       // 枪口锚点（曳光弹起点）
