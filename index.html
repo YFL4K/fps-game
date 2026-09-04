@@ -14,6 +14,7 @@
   #stats { position: fixed; left: 16px; top: 14px; color: #d8e6ff; font-size: 15px; line-height: 1.6; text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; user-select: none; white-space: pre; }
   #fps { position: fixed; right: 16px; top: 14px; color: #8fdb8f; font-size: 13px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; user-select: none; }
   #debugBadge { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); color: #ffd94a; font-size: 15px; font-weight: bold; background: rgba(20,20,30,0.75); border: 1px solid #ffd94a; padding: 4px 14px; border-radius: 4px; display: none; pointer-events: none; z-index: 10; user-select: none; }
+  #versionTag { position: fixed; right: 16px; bottom: 14px; color: rgba(180,200,230,0.5); font-size: 12px; pointer-events: none; z-index: 10; user-select: none; }
 
   /* 关卡横幅 */
   #levelBanner { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); color: #8fd0ff; font-size: 26px; font-weight: bold; letter-spacing: 4px; text-shadow: 0 0 16px rgba(80,160,255,0.8); opacity: 0; transition: opacity 0.5s; pointer-events: none; z-index: 12; user-select: none; }
@@ -67,6 +68,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
+<div id="versionTag">v5</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -560,7 +562,11 @@
       buildWave(getLevel());
       showLevelBanner();
       requestLock();
+      return;
     }
+    // v5: 点击完成界面也进入下一关
+    if (state === 'complete') { nextLevel(); return; }
+  }
   }
   startBtn.addEventListener('click', startGame);
   overlay.addEventListener('click', function (e) {
@@ -1092,9 +1098,9 @@
 
   /* ================= 10. 拾取物（武器/血包/弹药/宝箱） ================= */
   var ITEMS = [
-    { id: 'speed', name: '疾风', desc: '移动速度 +50%（20 秒）', color: 0x66ccff },
-    { id: 'damage', name: '狂暴', desc: '伤害 +200%（20 秒）', color: 0xff6644 },
-    { id: 'health', name: '体魄', desc: '最大生命 +200% 并回满血', color: 0x66ff88 },
+    { id: 'speed', name: '疾风', desc: '移动速度 +100%（30 秒）', color: 0x66ccff },
+    { id: 'damage', name: '狂暴', desc: '伤害 +200%（30 秒）', color: 0xff6644 },
+    { id: 'health', name: '体魄', desc: '最大生命 +200% 并回满血（30 秒）', color: 0x66ff88 },
     { id: 'nuke', name: '核弹', desc: '按 G 引爆，毁灭全部敌人（1 发）', color: 0xffcc22 }
   ];
 
@@ -1108,9 +1114,14 @@
 
   function applyChest(rec) {
     var item = ITEMS[Math.floor(Math.random() * ITEMS.length)];
-    if (item.id === 'speed') player.buffs.speed = 20;
-    else if (item.id === 'damage') player.buffs.damage = 20;
-    else if (item.id === 'health') {
+    if (item.id === 'speed') {
+      player.buffs.speed = 30;
+    } else if (item.id === 'damage') {
+      player.buffs.damage = 30;
+    } else if (item.id === 'health') {
+      // 记录当前原始 maxHealth，用于超时后恢复
+      player.buffs.healthMax = player.maxHealth;
+      player.buffs.healthTimer = 30;
       player.maxHealth = Math.min(1200, Math.round(player.maxHealth * 3));
       player.health = player.maxHealth;
     } else if (item.id === 'nuke') {
@@ -1535,6 +1546,10 @@
     player.reserve = gt.maxAmmo;
     showLevelBanner();
     if (sfx) sfx.playLevelUp();
+    // v5: 确保状态正确，防止进关后无法操作
+    state = 'playing';
+    overlay.style.display = 'none';
+    requestLock();
   }
   function resetGame() {
     state = 'menu';
@@ -1552,7 +1567,7 @@
     player.dead = false;
     player.health = W.maxHealth || 100;
     player.maxHealth = W.maxHealth || 100;
-    player.buffs = { speed: 0, damage: 0 };
+    player.buffs = { speed: 0, damage: 0, healthTimer: undefined, healthMax: undefined };
     player.nukes = 0;
     player.hasRocket = false;
     player.gun = 'pistol';
@@ -1622,8 +1637,26 @@
 
   function updatePlayer(dt) {
     // Buff 计时
-    if (player.buffs.speed > 0) player.buffs.speed -= dt;
-    if (player.buffs.damage > 0) player.buffs.damage -= dt;
+    if (player.buffs.speed > 0) {
+      player.buffs.speed -= dt;
+      if (player.buffs.speed <= 0) player.buffs.speed = 0;
+    }
+    if (player.buffs.damage > 0) {
+      player.buffs.damage -= dt;
+      if (player.buffs.damage <= 0) player.buffs.damage = 0;
+    }
+    // health buff 独立计时恢复 maxHealth
+    if (player.buffs.healthTimer !== undefined) {
+      player.buffs.healthTimer -= dt;
+      if (player.buffs.healthTimer <= 0) {
+        player.buffs.healthTimer = 0;
+        if (player.buffs.healthMax !== undefined) {
+          player.maxHealth = player.buffs.healthMax;
+          delete player.buffs.healthMax;
+          player.health = Math.min(player.health, player.maxHealth);
+        }
+      }
+    }
 
     // 换弹计时
     if (player.reloading) {
@@ -1659,7 +1692,7 @@
       return;
     }
 
-    var speedMul = player.buffs.speed > 0 ? 1.5 : 1;
+    var speedMul = player.buffs.speed > 0 ? 2.0 : 1;
     var speed = ((keys.ShiftLeft || keys.ShiftRight) ? (W.sprintSpeed || 9) : (W.playerSpeed || 6)) * speedMul;
 
     forward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
@@ -1927,6 +1960,7 @@
     var buffs = [];
     if (player.buffs.speed > 0) buffs.push('疾风 ' + Math.ceil(player.buffs.speed) + 's');
     if (player.buffs.damage > 0) buffs.push('狂暴 ' + Math.ceil(player.buffs.damage) + 's');
+    if (player.buffs.healthTimer !== undefined) buffs.push('体魄 ' + Math.ceil(player.buffs.healthTimer) + 's');
     if (buffs.length) lines.push('Buff: ' + buffs.join('  |  '));
     if (player.nukes > 0) lines.push('☢ 核弹 ×' + player.nukes + '  — 按 G 引爆');
     if (debugMode) lines.push('DEBUG 飞行模式');
