@@ -131,6 +131,55 @@
       });
     }
 
+    // ---- v6.7 场景美化：大树 / 高墙 / 摩天轮 / 草地 / 巨石（随机分布）----
+    for (var bti = 0; bti < randInt(2, 4); bti++) {
+      entities.push({
+        id: nextId('bigtree'), model: 'bigtree',
+        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.9, 1.3), rand(0.9, 1.3), rand(0.9, 1.3)],
+        collision: true
+      });
+    }
+    for (var hwi = 0; hwi < randInt(2, 3); hwi++) {
+      entities.push({
+        id: nextId('highwall'), model: 'highwall',
+        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, rand(0.85, 1.2), 1],
+        collision: true
+      });
+    }
+    for (var fwi = 0; fwi < randInt(1, 2); fwi++) {
+      // 摩天轮：体型大，放地图边缘避免挡路；不参与碰撞
+      entities.push({
+        id: nextId('ferris'), model: 'ferriswheel',
+        position: [randChoice([-1, 1]) * rand(32, 40), 0, randChoice([-1, 1]) * rand(32, 40)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.65, 0.85), rand(0.65, 0.85), rand(0.65, 0.85)],
+        collision: false
+      });
+    }
+    for (var gsi = 0; gsi < randInt(5, 9); gsi++) {
+      entities.push({
+        id: nextId('grass'), model: 'grass',
+        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.7, 1.4), rand(0.7, 1.4), rand(0.7, 1.4)],
+        collision: false
+      });
+    }
+    for (var bdi = 0; bdi < randInt(3, 6); bdi++) {
+      entities.push({
+        id: nextId('boulder'), model: 'boulder',
+        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.8, 1.5), rand(0.8, 1.5), rand(0.8, 1.5)],
+        collision: true
+      });
+    }
+    // v6.7 空中飞鸟：2 种（白鸥/深灰猎鸟）随机 2~4 群绕地图上空盘旋
+    for (var bri = 0; bri < randInt(2, 4); bri++) {
+      var birc = rand(-20, 20), bircc = rand(-20, 20);
+      entities.push({
+        id: nextId('birds'), model: 'birds',
+        position: [birc, rand(20, 28), bircc], rotation: [0, 0, 0], scale: [1, 1, 1],
+        collision: false,
+        variant: randChoice(['white', 'dark']),
+        cx: birc, cz: bircc, radius: rand(28, 55), height: rand(20, 28), speed: rand(1.6, 3.0)
+      });
+    }
+
     // ---- 车辆 ----
     for (var vi = 0; vi < randInt(3, 6); vi++) {
       entities.push({

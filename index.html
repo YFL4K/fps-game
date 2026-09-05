@@ -43,6 +43,15 @@
   /* 核弹/大爆炸白闪 */
   #flashOverlay { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 25; }
 
+  /* v6.7 狙击镜（4 倍瞄准） */
+  #scopeOverlay { position: fixed; inset: 0; display: none; pointer-events: none; z-index: 21; background: radial-gradient(circle at center, transparent 0 32%, rgba(0,0,0,0.985) 33% 100%); }
+  #scopeOverlay .sline { position: absolute; background: rgba(0,0,0,0.96); }
+  #scopeOverlay .sh { top: 50%; left: 0; right: 0; height: 2px; transform: translateY(-50%); }
+  #scopeOverlay .sv { left: 50%; top: 0; bottom: 0; width: 2px; transform: translateX(-50%); }
+  #scopeOverlay .sret { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%, -50%); border: 2px solid rgba(0,0,0,0.9); border-radius: 50%; }
+  #scopeOverlay .sdot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; transform: translate(-50%, -50%); background: #0f0; border-radius: 50%; box-shadow: 0 0 6px rgba(0,255,0,0.9); }
+  #scopeOverlay .stext { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); color: rgba(0,255,0,0.75); font-size: 13px; letter-spacing: 2px; text-shadow: 0 0 6px rgba(0,0,0,0.9); }
+
   /* 提示条（宝箱/直升机/BOSS） */
   #toast { position: fixed; left: 50%; top: 26%; transform: translateX(-50%); background: rgba(10,15,25,0.85); border: 1px solid rgba(255,215,100,0.6); color: #ffdd88; font-size: 16px; font-weight: bold; padding: 8px 22px; border-radius: 6px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 14; user-select: none; text-align: center; max-width: 80vw; }
 
@@ -104,10 +113,11 @@
 <body>
 <div id="app"></div>
 <div id="crosshair">+</div>
+<div id="scopeOverlay"><div class="sh sline"></div><div class="sv sline"></div><div class="sret"></div><div class="sdot"></div><div class="stext">4X</div></div>
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6.6</div>
+<div id="versionTag">v6.7</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -133,11 +143,12 @@
   </div>
   <div class="keys">
     <b>Enter</b> 开始 / 下一关 &nbsp;·&nbsp; <b>W A S D</b> 移动 &nbsp;·&nbsp; <b>Shift</b> 冲刺 &nbsp;·&nbsp; <b>空格</b> 跳跃<br>
-    <b>鼠标左键</b> 射击（可按住连发） &nbsp;·&nbsp; <b>R</b> 换弹<br>
+    <b>鼠标左键</b> 射击（可按住连发） &nbsp;·&nbsp; <b>鼠标右键</b> 瞄准（狙击 4 倍镜） &nbsp;·&nbsp; <b>滚轮</b> 切换武器 &nbsp;·&nbsp; <b>R</b> 换弹<br>
     <b>1-5</b> 切换武器（手枪/步枪/喷火器/狙击枪/火箭筒）<br>
-    <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>M</b> 背景音乐开关 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
+    <b>T</b> 对讲机·呼叫空中支援 &nbsp;·&nbsp; <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>M</b> 背景音乐开关 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
     <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸 · 击杀敌人掉落宝箱 · 击落直升机获得火箭筒/喷火器 · 蜘蛛会自爆！</span><br>
-    <span class="warn">🎵 每关专属劲爆战斗 BGM（M 键静音）· 🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span>
+    <span class="warn">🎵 每关专属劲爆战斗 BGM（M 键静音）· 🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span><br>
+    <span class="warn">📻 击杀 BOSS/直升机 10% 掉落对讲机（每关随机出现）——按 T 呼叫导弹空袭，1 次有效！</span>
   </div>
   <button id="startBtn">开始游戏（过关模式）</button>
 </div>
@@ -175,6 +186,13 @@
 <script src="models/container.js" onerror="window.__modErr('models/container.js')"></script>
 <script src="models/pot.js" onerror="window.__modErr('models/pot.js')"></script>
 <script src="models/spider.js" onerror="window.__modErr('models/spider.js')"></script>
+<script src="models/bigtree.js" onerror="window.__modErr('models/bigtree.js')"></script>
+<script src="models/highwall.js" onerror="window.__modErr('models/highwall.js')"></script>
+<script src="models/ferriswheel.js" onerror="window.__modErr('models/ferriswheel.js')"></script>
+<script src="models/grass.js" onerror="window.__modErr('models/grass.js')"></script>
+<script src="models/boulder.js" onerror="window.__modErr('models/boulder.js')"></script>
+<script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
+<script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
 <script src="scene-layout.js" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
@@ -222,6 +240,8 @@
   var flashEl = document.getElementById('flashOverlay');
   var toastEl = document.getElementById('toast');
   var appEl = document.getElementById('app');
+  var crosshairEl = document.getElementById('crosshair');
+  var scopeEl = document.getElementById('scopeOverlay');
   var hitmarkEl = document.getElementById('hitmark');
   var headshotEl = document.getElementById('headshotTag');
   var critTagEl = document.getElementById('critTag');
@@ -264,12 +284,13 @@
   var SPAWN = LAYOUT.playerSpawn || { position: [0, 1.6, 6], yaw: 0 };
 
   /* ================= 1.5 武器类型表（多武器 + 火箭筒 AOE + 喷火器） ================= */
+  // v6.7: 每把枪新增 aimFov（右键瞄准 FOV）+ scopeLens（狙击 4 倍镜遮罩）
   var GUN_TYPES = {
-    pistol:     { name: '手枪',     damage: 28, mag: 12,  maxAmmo: 96,  fireRate: 4.0,  reload: 0.78, spread: 0.012, pellets: 1,   range: 70,   auto: false },
-    rifle:      { name: '步枪',     damage: 20, mag: 30,  maxAmmo: 240, fireRate: 9.0,  reload: 1.17, spread: 0.02,  pellets: 1,   range: 120,  auto: true },
-    flamethrower: { name: '喷火器', damage: 108, mag: 5,  maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 36,   auto: true, flame: true, flameRadius: 4.5 },  // v6.4: 伤害54→108(+100%) 射程18→36(+100%) 范围3.0→4.5(+50%)
-    sniper:     { name: '狙击枪',   damage: 120, mag: 5,  maxAmmo: 40,  fireRate: 0.9,  reload: 1.82, spread: 0.003, pellets: 1,   range: 260,  auto: false },
-    rocket:     { name: '火箭筒',   damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 240,  auto: false, aoe: { radius: 6, damage: 170 } }
+    pistol:     { name: '手枪',     damage: 28, mag: 12,  maxAmmo: 96,  fireRate: 4.0,  reload: 0.78, spread: 0.012, pellets: 1,   range: 70,   auto: false, aimFov: 50, scopeLens: false },
+    rifle:      { name: '步枪',     damage: 20, mag: 30,  maxAmmo: 240, fireRate: 9.0,  reload: 1.17, spread: 0.02,  pellets: 1,   range: 120,  auto: true,  aimFov: 45, scopeLens: false },
+    flamethrower: { name: '喷火器', damage: 108, mag: 5,  maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 36,   auto: true, flame: true, flameRadius: 4.5, aimFov: 55, scopeLens: false },  // v6.4: 伤害54→108(+100%) 射程18→36(+100%) 范围3.0→4.5(+50%)
+    sniper:     { name: '狙击枪',   damage: 120, mag: 5,  maxAmmo: 40,  fireRate: 0.9,  reload: 1.82, spread: 0.003, pellets: 1,   range: 260,  auto: false, aimFov: 18, scopeLens: true },   // v6.7: 狙击右键 4 倍镜
+    rocket:     { name: '火箭筒',   damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 240,  auto: false, aoe: { radius: 6, damage: 170 }, aimFov: 35, scopeLens: false }
   };
   var GUN_ORDER = ['pistol', 'rifle', 'flamethrower', 'sniper', 'rocket'];
 
@@ -501,11 +522,14 @@
     nukes: 0,
     hasRocket: false,
     flameReserve: 30,
-    berserk: false
+    berserk: false,
+    walkie: false      // v6.7 对讲机（1 次有效，不累积）
   };
   var score = 0;
   var debugMode = false;
   var state = 'menu';   // menu | playing | paused | complete | dead | victory
+  var aiming = false;   // v6.7 右键瞄准
+  var airstrikes = [];  // v6.7 空袭导弹
 
   // v6.5 无尽模式结束：记录最高击杀/最高分（localStorage），展示结算
   function showEndlessEnd(title) {
@@ -521,8 +545,10 @@
     overlay.querySelector('h1').textContent = title || '无尽模式结束';
   }
 
-  function hitPlayer(dmg) {
+  function hitPlayer(dmg, opts) {
     if (player.dead || state !== 'playing') return;
+    // v6.7 敌人伤害钳制：单次 5~20，杜绝一击必杀（核弹自伤等特殊来源传 { noClamp: true }）
+    if (!(opts && opts.noClamp)) dmg = Math.min(20, Math.max(5, dmg));
     player.health -= dmg;
     hurtEl.style.opacity = '1';
     setTimeout(function () { hurtEl.style.opacity = '0'; }, 150);
@@ -574,6 +600,7 @@
     }
     // v6.2 喷火器弹药独立储备（切离时保存；备用 30 发 = 6 个弹匣）
     if (GUN_TYPES[player.gun].flame) player.flameReserve = player.reserve;
+    aiming = false;   // v6.7 切换武器取消瞄准
     player.gun = type;
     var gt = GUN_TYPES[type];
     player.ammo = gt.mag;
@@ -907,22 +934,41 @@
 
   document.addEventListener('mousemove', function (e) {
     if (!locked) return;
-    player.yaw -= e.movementX * 0.0022;
-    player.pitch -= e.movementY * 0.0022;
+    // v6.7 右键瞄准时降低灵敏度
+    var sensMul = aiming ? 0.35 : 1;
+    player.yaw -= e.movementX * 0.0022 * sensMul;
+    player.pitch -= e.movementY * 0.0022 * sensMul;
     var lim = Math.PI / 2 - 0.05;
     if (player.pitch > lim) player.pitch = lim;
     if (player.pitch < -lim) player.pitch = -lim;
   });
 
   document.addEventListener('mousedown', function (e) {
-    if (!locked || e.button !== 0) return;
-    player.firing = true;
-    if (player.fireCooldown <= 0) tryShoot();
+    if (!locked) return;
+    if (e.button === 0) {
+      player.firing = true;
+      if (player.fireCooldown <= 0) tryShoot();
+    } else if (e.button === 2) {
+      aiming = true;
+    }
   });
   document.addEventListener('mouseup', function (e) {
     if (e.button === 0) player.firing = false;
+    if (e.button === 2) aiming = false;
   });
-  document.addEventListener('mouseleave', function () { player.firing = false; });
+  document.addEventListener('mouseleave', function () { player.firing = false; aiming = false; });
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  // v6.7 鼠标滚轮循环切换武器
+  document.addEventListener('wheel', function (e) {
+    if (!locked) return;
+    e.preventDefault();
+    var owned = GUN_ORDER.filter(function (t) { return t !== 'rocket' || player.hasRocket; });
+    if (owned.length < 2) return;
+    var idx = owned.indexOf(player.gun);
+    var dir = e.deltaY > 0 ? 1 : -1;
+    var next = owned[(idx + dir + owned.length) % owned.length];
+    switchGun(next);
+  }, { passive: false });
 
   document.addEventListener('keydown', function (e) {
     if (e.code === 'F9') {
@@ -945,6 +991,8 @@
       showToast(muted ? '🔇 背景音乐已静音（再按 M 恢复）' : '🔊 背景音乐已开启', muted ? 0xaaaaaa : 0x66ffaa);
       return;
     }
+    // v6.7 对讲机：呼叫空中支援
+    if (e.code === 'KeyT') { useAirSupport(); return; }
     var gi = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
     if (gi >= 0) { switchGun(GUN_ORDER[gi]); return; }
     keys[e.code] = true;
@@ -1543,6 +1591,16 @@
   function applyPickup(rec) {
     if (!rec.cfg.kind) return;
     if (rec.cfg.kind === 'chest') { applyChest(rec); return; }
+    // v6.7 对讲机：1 次有效，重复拾取不累积
+    if (rec.cfg.kind === 'walkie') {
+      if (!player.walkie) {
+        player.walkie = true;
+        showToast('📻 获得对讲机！按 T 呼叫空中支援（1 次有效）', 0x66ccff);
+        if (sfx) sfx.playPickup();
+      }
+      respawnEntity(rec);
+      return;
+    }
     if (rec.cfg.kind === 'weapon' && rec.cfg.type) {
       if (rec.cfg.type === 'rocket') player.hasRocket = true;
       if (rec.cfg.type === 'flamethrower') player.flameReserve = Math.min(60, player.flameReserve + 15);
@@ -1653,6 +1711,108 @@
     spawnSparks(pos, 0xffd94a);
   }
 
+  /* ================= v6.7 对讲机 / 空中支援 ================= */
+  /** 击杀 BOSS 或直升机 10% 掉落对讲机；已有对讲机则不重复掉落 */
+  function spawnWalkieDrop(pos) {
+    if (player.walkie) return;
+    var cfg = {
+      id: 'walkie-' + (++dynCounter),
+      model: 'walkie',
+      position: [pos.x, 0.8, pos.z],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      collision: false,
+      kind: 'walkie',
+      respawn: 0,
+      dynamic: true,
+      grace: 2.5
+    };
+    buildEntity(cfg);
+    spawnSparks(pos, 0x66ccff);
+  }
+
+  /** 呼叫空中支援：多枚导弹从空中轰击敌人区域（1 次有效） */
+  function useAirSupport() {
+    if (!player.walkie || player.dead || state !== 'playing') return;
+    player.walkie = false;
+    if (sfx) sfx.playRocket();
+    showToast('☁ 空中支援已呼叫！导弹从天而降', 0x99ccff);
+
+    // 收集目标：所有存活敌人 + 直升机
+    var targets = [];
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive) continue;
+      if (!rec.cfg.enemyType && rec.cfg.model !== 'helicopter') continue;
+      var u = rec.inst.userData;
+      if (u && u.dead) continue;
+      targets.push(rec.inst.position.clone());
+    }
+    if (targets.length === 0) {
+      // 无目标时轰击正前方 35m 区域
+      var fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+      targets.push(player.pos.clone().addScaledVector(fwd, 35));
+    }
+
+    var N = Math.max(8, Math.min(16, targets.length * 3));
+    for (var k = 0; k < N; k++) {
+      var t = targets[Math.floor(Math.random() * targets.length)];
+      var tx = t.clone().add(new THREE.Vector3((Math.random() - 0.5) * 9, 0, (Math.random() - 0.5) * 9));
+      tx.y = Math.max(0.2, tx.y);
+      var sx = tx.x + (Math.random() - 0.5) * 40;
+      var sz = tx.z + (Math.random() - 0.5) * 40;
+      var mesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.14, 1.3, 6),
+        new THREE.MeshBasicMaterial({ color: 0xffcc44 })
+      );
+      mesh.userData.noHit = true;
+      mesh.position.set(sx, 70 + Math.random() * 15, sz);
+      scene.add(mesh);
+      airstrikes.push({ mesh: mesh, target: tx, delay: k * 0.14, speed: 60 + Math.random() * 20 });
+    }
+  }
+
+  function updateAirstrikes(dt) {
+    for (var i = airstrikes.length - 1; i >= 0; i--) {
+      var a = airstrikes[i];
+      a.delay -= dt;
+      if (a.delay > 0) continue;
+      var dir = new THREE.Vector3().subVectors(a.target, a.mesh.position);
+      var dist = dir.length();
+      var step = a.speed * dt;
+      if (dist <= step) {
+        a.mesh.position.copy(a.target);
+        a.mesh.position.y = Math.max(0.2, a.target.y);
+        // 命中 → 范围爆炸（不伤玩家）
+        explode(a.mesh.position.clone(), 6.5, 450, { noPlayer: true });
+        spawnSparks(a.mesh.position.clone(), 0xffaa44);
+        scene.remove(a.mesh);
+        airstrikes.splice(i, 1);
+        continue;
+      }
+      dir.normalize();
+      a.mesh.position.addScaledVector(dir, step);
+      a.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      // 下落尾烟
+      if (Math.random() < 0.5) {
+        var sm = new THREE.Mesh(
+          new THREE.SphereGeometry(0.2, 5, 5),
+          new THREE.MeshBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.5 })
+        );
+        sm.position.copy(a.mesh.position);
+        scene.add(sm);
+        fx.push({ type: 'smoke', obj: sm, vel: new THREE.Vector3((Math.random() - 0.5) * 2, -1, (Math.random() - 0.5) * 2), life: 1.2, maxLife: 1.2, growTo: 2.2 });
+      }
+    }
+  }
+
+  function clearAirstrikes() {
+    for (var i = airstrikes.length - 1; i >= 0; i--) {
+      scene.remove(airstrikes[i].mesh);
+      airstrikes.splice(i, 1);
+    }
+  }
+
   /* ================= 11. 关卡系统（v3） ================= */
   function getLevel() {
     if (gameMode === 'endless') {
@@ -1671,6 +1831,7 @@
       scene.remove(rockets[r].mesh);
       rockets.splice(r, 1);
     }
+    clearAirstrikes();   // v6.7 清空空袭导弹
   }
   function rebuildDestroyedMapObjects() {
     // 检查是否需要重建整个场景（关卡切换）
@@ -2104,6 +2265,7 @@
     player.hasRocket = false;
     player.flameReserve = 30;
     player.berserk = false;
+    player.walkie = false;   // v6.7 对讲机重开归零
     player.gun = 'pistol';
     var gt = GUN_TYPES.pistol;
     player.ammo = gt.mag;
@@ -2153,6 +2315,11 @@
     // v6.5: 击杀 BOSS 奖励核弹 ×1（过关模式 + 无尽模式都适用）
     player.nukes = (player.nukes || 0) + 1;
     showToast('☢ 击败 BOSS！获得 核弹 ×1', 0xffcc66);
+    // v6.7 对讲机 10% 掉落
+    if (Math.random() < 0.10) {
+      spawnWalkieDrop(pos);
+      showToast('📻 空袭对讲机掉落！', 0x66ccff);
+    }
     if (sfx) sfx.playLevelUp();
     if (gameMode === 'endless') return;  // 无尽模式不结束
     completeLevel();
@@ -2166,6 +2333,11 @@
       spawnAmmoDrop(pos, 'flame');
       extra = ' + 喷火弹药补给';
     }
+    // v6.7 对讲机 10% 掉落
+    if (Math.random() < 0.10) {
+      spawnWalkieDrop(pos);
+      extra = ' + 📻 空袭对讲机';
+    }
     showToast('击毁直升机！获得 火箭筒（5 发炮弹）' + extra, 0xffcc66);
     if (sfx) sfx.playLevelUp();
   };
@@ -2176,9 +2348,9 @@
     if (sfx) sfx.playNuke();
     var p = new THREE.Vector3(player.pos.x, player.pos.y + 0.8, player.pos.z);
     explode(p, 95, 3000, { nuke: true, noPlayer: true });
-    // 核弹伤害 = 最大生命 × 30%（不按当前血量，是固定的）
+    // 核弹伤害 = 最大生命 × 30%（不按当前血量，是固定的）；自伤不钳制
     var nukeDmg = Math.round(player.maxHealth * 0.30);
-    hitPlayer(nukeDmg);
+    hitPlayer(nukeDmg, { noClamp: true });
     if (player.dead) {
       bgm.stop();
       if (gameMode === 'endless') {
@@ -2561,6 +2733,7 @@
     if (player.buffs.healthTimer !== undefined) buffs.push('体魄 ' + Math.ceil(player.buffs.healthTimer) + 's');
     if (buffs.length) lines.push('Buff: ' + buffs.join('  |  '));
     if (player.nukes > 0) lines.push('☢ 核弹 ×' + player.nukes + '  — 按 G 引爆');
+    if (player.walkie) lines.push('📻 对讲机 ×1  — 按 T 呼叫空中支援');
     if (debugMode) lines.push('DEBUG 飞行模式');
     lines.push('SCORE ' + score);
     statsEl.textContent = lines.join('\n');
@@ -2585,6 +2758,21 @@
     }
     camera.position.set(player.pos.x + shakeX, player.pos.y + (W.eyeHeight || 1.6) + shakeY, player.pos.z);
     camera.rotation.set(player.pitch, player.yaw, 0);
+    // v6.7 右键瞄准：FOV 平滑缩放（狙击 4 倍镜 ≈ 18°，其余 35~55°）
+    var baseFov = 75;
+    var targetFov = baseFov;
+    if (aiming && !player.dead && state === 'playing') {
+      targetFov = GUN_TYPES[player.gun].aimFov || baseFov;
+    }
+    if (Math.abs(camera.fov - targetFov) > 0.05) {
+      camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 20);
+      camera.updateProjectionMatrix();
+    }
+    // 狙击镜遮罩 / 准星 / 枪模显示
+    var scopeOn = aiming && GUN_TYPES[player.gun].scopeLens && !player.dead && state === 'playing';
+    scopeEl.style.display = scopeOn ? 'block' : 'none';
+    crosshairEl.style.display = scopeOn ? 'none' : 'block';
+    if (gunInst) gunInst.visible = !scopeOn;
     if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
       window.MODELS.gun.update(gunInst, dt, ctx);
     }
@@ -2608,6 +2796,7 @@
         ctx.time += dt;
         updatePlayer(dt);
         updateRockets(dt);
+        updateAirstrikes(dt);
         updateEntities(dt);
         collideEnemies();
         updateWaves(dt);
@@ -2668,6 +2857,21 @@
                    healthTimer: Math.round((player.buffs.healthTimer === undefined ? 0 : player.buffs.healthTimer) * 10) / 10,
                    healthMax: player.buffs.healthMax },
           nukes: player.nukes,
+          walkie: !!player.walkie,
+          aiming: aiming,
+          scopeOn: scopeEl.style.display === 'block',
+          fov: Math.round(camera.fov * 10) / 10,
+          airstrikes: airstrikes.length,
+          hasRocket: !!player.hasRocket,
+          scenery: {
+            birds: entities.filter(function (e) { return e.cfg && e.cfg.model === 'birds'; }).length,
+            bigtree: entities.filter(function (e) { return e.cfg && e.cfg.model === 'bigtree'; }).length,
+            highwall: entities.filter(function (e) { return e.cfg && e.cfg.model === 'highwall'; }).length,
+            ferris: entities.filter(function (e) { return e.cfg && e.cfg.model === 'ferriswheel'; }).length,
+            grass: entities.filter(function (e) { return e.cfg && e.cfg.model === 'grass'; }).length,
+            boulder: entities.filter(function (e) { return e.cfg && e.cfg.model === 'boulder'; }).length,
+            walkies: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length
+          },
           playerPos: player.pos ? { x: player.pos.x.toFixed(2), y: player.pos.y.toFixed(2), z: player.pos.z.toFixed(2) } : null,
           gun: player.gun, ammo: Math.round(player.ammo * 100) / 100, reserve: player.reserve,
           flameReserve: player.flameReserve, berserk: player.berserk,
@@ -2703,6 +2907,12 @@
     };
     // 键盘触发（指针锁定下鼠标点击不可用）：K=击杀达标+通关判定, L=complete 状态进下一关,
     // F=持续开火开关, H=血量压到15%（触发狂暴）, M=满血（解除狂暴）
+    window.__fpsTest.hitPlayerTest = function (d) { hitPlayer(d); };   // v6.7 伤害钳制测试
+    window.__fpsTest.advanceAirstrikes = function (frames) {          // v6.7 空袭推进测试
+      var f = frames || 80;
+      for (var i = 0; i < f; i++) updateAirstrikes(0.05);
+      return airstrikes.length;
+    };
     document.addEventListener('keydown', function (e) {
       if (e.code === 'KeyK' && gameMode !== 'endless') { levelKills = getLevel().killTarget; checkMissionComplete(); }
       if (e.code === 'KeyL' && state === 'complete') nextLevel();
@@ -2722,6 +2932,14 @@
         spawnChest(player.pos.clone().addScaledVector(fwd2, 3));
       }
       if (e.code === 'KeyN') { player.nukes += 1; }
+      // P：直接给 1 个对讲机（测试空袭）；U：呼叫空中支援；Y：切换右键瞄准（测试瞄准 FOV）
+      if (e.code === 'KeyP') { player.walkie = true; }
+      if (e.code === 'KeyU') { useAirSupport(); }
+      if (e.code === 'KeyY') { aiming = !aiming; }
+      // Q：在脚下直接刷一个对讲机（测试拾取）
+      if (e.code === 'KeyQ') {
+        spawnWalkieDrop(new THREE.Vector3(player.pos.x, player.pos.y, player.pos.z));
+      }
       // B：无尽模式强制召唤随机机甲 BOSS（测试 BOSS）
       if (e.code === 'KeyB' && gameMode === 'endless' && !bossAlive) spawnEndlessBoss();
       // V：自动前进开关（测试移动速度）
