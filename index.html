@@ -68,7 +68,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6</div>
+<div id="versionTag">v6.1</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -77,6 +77,13 @@
 <div id="critTag">暴击!</div>
 <div id="toast"></div>
 <div id="errPanel"></div>
+<!-- 测试工具栏（仅 location.hash === '#test' 时显示，正常游玩不可见） -->
+<div id="fpsTestBar" style="position:fixed;top:0;left:0;z-index:99999;display:none;background:rgba(0,0,0,0.7);color:#0f0;font:12px monospace;padding:4px">
+  <button id="tSetKills">setKills</button>
+  <button id="tNext">next</button>
+  <button id="tComplete">complete</button>
+  <span id="tState">--</span>
+</div>
 <div id="overlay">
   <h1>程序化 FPS</h1>
   <div class="sub" id="overlaySub">按 <b>Enter</b> 开始游戏</div>
@@ -1785,6 +1792,7 @@
   var playerRadius = W.playerRadius || 0.4;
   var playerHeight = W.playerHeight || 1.7;
 
+  function randInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
   function collideWorld() {
@@ -2091,6 +2099,40 @@
 
   if (layoutMissing) overlaySub.textContent = '（场景布局缺失，使用默认场景）按 Enter 开始游戏';
   requestAnimationFrame(loop);
+
+  /* ================= 19. 测试钩子（仅 #test 模式，正常游玩不生效） ================= */
+  if (location.hash === '#test') {
+    var tBar = document.getElementById('fpsTestBar');
+    if (tBar) {
+      tBar.style.display = 'block';
+      document.getElementById('tSetKills').addEventListener('click', function () {
+        levelKills = getLevel().killTarget;
+      });
+      document.getElementById('tNext').addEventListener('click', function () {
+        if (state === 'complete') nextLevel();
+      });
+      document.getElementById('tComplete').addEventListener('click', completeLevel);
+    }
+    window.__fpsTest = {
+      getState: function () {
+        return {
+          state: state, levelIndex: levelIndex, levelKills: levelKills,
+          levelCleared: levelCleared, waveQueueLen: waveQueue.length,
+          enemyCount: entities.filter(function (e) { return e.cfg && e.cfg.enemyType; }).length, killTarget: getLevel().killTarget,
+          playerPos: player.pos ? { x: player.pos.x.toFixed(2), y: player.pos.y.toFixed(2), z: player.pos.z.toFixed(2) } : null
+        };
+      }
+    };
+    // 键盘触发（指针锁定下鼠标点击不可用）：K=击杀达标, L=complete 状态进下一关
+    document.addEventListener('keydown', function (e) {
+      if (e.code === 'KeyK') { levelKills = getLevel().killTarget; checkMissionComplete(); }
+      if (e.code === 'KeyL' && state === 'complete') nextLevel();
+    });
+    setInterval(function () {
+      var el = document.getElementById('tState');
+      if (el && window.__fpsTest) el.textContent = JSON.stringify(window.__fpsTest.getState());
+    }, 300);
+  }
 })();
 </script>
 </body>

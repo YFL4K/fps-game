@@ -6,6 +6,8 @@
 (function () {
   var rand = function (min, max) { return min + Math.random() * (max - min); };
   var randInt = function (min, max) { return Math.floor(rand(min, max + 1)); };
+  // 暴露全局，供主脚本（index.html 内联 IIFE）及后续扩展脚本使用
+  window.randInt = function (min, max) { return Math.floor(rand(min, max + 1)); };
   var randChoice = function (arr) { return arr[randInt(0, arr.length - 1)]; };
   var randColor = function () { return randInt(0x223344, 0x8899aa); };
   var randRoofColor = function () { return randChoice([0x5d4a3a, 0x6b4a2f, 0x4a5568, 0x3d3d3d, 0x8b4513]); };

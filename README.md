@@ -45,6 +45,11 @@
 
 ## 📋 更新履历
 
+### v6.1（2026-09-05）
+- 🐛 修复过关后按 Enter 进下一关玩家卡死、无敌人、大量报错 `Uncaught ReferenceError: randInt is not defined`（根因：`scene-layout.js` 的 `randInt` 是 IIFE 局部变量，主脚本第二关起刷蜘蛛时调用不到 → `buildWave` 抛异常中断 `nextLevel()`，状态卡在 complete）
+- ✅ 主脚本内置 `randInt` 辅助函数，并在 `scene-layout.js` 暴露 `window.randInt` 全局（双保险）
+- ✅ 新增 `#test` 模式测试钩子（`index.html#test`，正常游玩不可见），支持自动化回归验证
+
 ### v6.0（2026-09-04）
 - ✅ 修复建筑物碰撞区域过大问题（锥体半径 0.72→0.52，檐口线 0.4→0.1）
 - ✅ 换弹时间缩短 35%（reload × 0.65）
