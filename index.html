@@ -107,7 +107,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6.5</div>
+<div id="versionTag">v6.6</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -135,9 +135,9 @@
     <b>Enter</b> 开始 / 下一关 &nbsp;·&nbsp; <b>W A S D</b> 移动 &nbsp;·&nbsp; <b>Shift</b> 冲刺 &nbsp;·&nbsp; <b>空格</b> 跳跃<br>
     <b>鼠标左键</b> 射击（可按住连发） &nbsp;·&nbsp; <b>R</b> 换弹<br>
     <b>1-5</b> 切换武器（手枪/步枪/喷火器/狙击枪/火箭筒）<br>
-    <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
+    <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>M</b> 背景音乐开关 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
     <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸 · 击杀敌人掉落宝箱 · 击落直升机获得火箭筒/喷火器 · 蜘蛛会自爆！</span><br>
-    <span class="warn">🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span>
+    <span class="warn">🎵 每关专属劲爆战斗 BGM（M 键静音）· 🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span>
   </div>
   <button id="startBtn">开始游戏（过关模式）</button>
 </div>
@@ -531,6 +531,7 @@
       player.health = 0;
       player.dead = true;
       state = 'dead';
+      bgm.stop();
       if (gameMode === 'endless') {
         showEndlessEnd('GAME OVER');
       } else {
@@ -590,6 +591,7 @@
       try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; }
     }
     if (AC && AC.state === 'suspended') AC.resume();
+    if (bgm) bgm.init();
   }
   function noiseBurst(dur, vol, cutoff) {
     if (!AC) return;
@@ -649,6 +651,180 @@
   };
   ctx.sfx = sfx;
 
+  /* ================= 7.6 背景音乐引擎（v6.6 程序化战斗 BGM） =================
+   * 每关一首劲爆战斗曲，WebAudio 实时合成（无需外部音频文件）：
+   *   L1 巷战冲锋 / L2 火力围猎 / L3 机甲降临 / L4 钢铁洪流 / L5 终焉之战 / 无尽鏖战
+   * 每曲 = 鼓(4/4 循环) + 锯齿贝斯 + 合成器主旋律 riff，节奏/调式/音色各不相同。
+   */
+  var BGM_TRACKS = [
+    { name: '巷战冲锋', tempo: 132, key: 55, scale: [0, 3, 5, 7, 10, 12],
+      bass: [0, 0, 12, 7], lead: [0, 3, 7, 3, 10, 7, 3, 5, 7, 10, 12, 10, 5, 7, 3, 5],
+      kick: 'four', hat: 'eighth', leadType: 'square', leadVol: 0.09, bassVol: 0.16 },
+    { name: '火力围猎', tempo: 148, key: 50, scale: [0, 2, 3, 5, 7, 8, 10],
+      bass: [0, 0, 7, 12], lead: [0, 5, 7, 5, 12, 10, 7, 5, 3, 5, 7, 10, 7, 5, 3, 2],
+      kick: 'double', hat: 'sixteenth', leadType: 'sawtooth', leadVol: 0.09, bassVol: 0.18 },
+    { name: '机甲降临', tempo: 140, key: 52, scale: [0, 2, 3, 5, 7, 8, 10],
+      bass: [0, 0, 0, 7], lead: [0, 3, 5, 0, 5, 3, 0, -5, 7, 5, 3, 2, 3, 5, 7, 3],
+      kick: 'heavy', hat: 'eighth', leadType: 'sawtooth', leadVol: 0.11, bassVol: 0.20 },
+    { name: '钢铁洪流', tempo: 156, key: 53, scale: [0, 2, 3, 5, 7, 8, 10],
+      bass: [0, 7, 0, 10], lead: [0, 7, 10, 7, 12, 10, 7, 5, 3, 2, 0, 2, 3, 5, 7, 10],
+      kick: 'double', hat: 'sixteenth', leadType: 'square', leadVol: 0.10, bassVol: 0.18 },
+    { name: '终焉之战', tempo: 170, key: 48, scale: [0, 2, 3, 5, 7, 8, 10],
+      bass: [0, 0, 12, 12], lead: [0, 5, 7, 10, 12, 10, 7, 5, 7, 10, 12, 15, 12, 10, 7, 3],
+      kick: 'double', hat: 'sixteenth', leadType: 'sawtooth', leadVol: 0.12, bassVol: 0.20 },
+    { name: '无尽鏖战', tempo: 152, key: 46, scale: [0, 3, 5, 7, 10, 12, 15],
+      bass: [0, 7, 0, 12], lead: [0, 3, 7, 10, 12, 10, 7, 3, 5, 7, 10, 7, 12, 10, 7, 5],
+      kick: 'heavy', hat: 'sixteenth', leadType: 'sawtooth', leadVol: 0.11, bassVol: 0.19 }
+  ];
+  function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function bgmNoise(t, dur, vol, cutoff, type) {
+    if (!AC) return;
+    var buf = AC.createBuffer(1, Math.max(1, Math.floor(AC.sampleRate * dur)), AC.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    var src = AC.createBufferSource(); src.buffer = buf;
+    var f = AC.createBiquadFilter(); f.type = type || 'highpass'; f.frequency.value = cutoff;
+    var g = AC.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(bgm.master);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+  function bgmKick(t, heavy) {
+    if (!AC) return;
+    var o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(heavy ? 170 : 150, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+    var g = AC.createGain(); g.gain.setValueAtTime(heavy ? 1.0 : 0.85, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+    o.connect(g); g.connect(bgm.master);
+    o.start(t); o.stop(t + 0.16);
+  }
+  function bgmSnare(t) {
+    if (!AC) return;
+    var o = AC.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(210, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.09);
+    var g = AC.createGain(); g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
+    o.connect(g); g.connect(bgm.master); o.start(t); o.stop(t + 0.13);
+    bgmNoise(t, 0.11, 0.3, 1700, 'bandpass');
+  }
+  function bgmHat(t, open) {
+    bgmNoise(t, open ? 0.09 : 0.035, open ? 0.14 : 0.11, 6500, 'highpass');
+  }
+  function bgmBass(t, note, dur) {
+    if (!AC) return;
+    var f = midiHz(note);
+    var o = AC.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f, t);
+    var fl = AC.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 520; fl.Q.value = 6;
+    var g = AC.createGain(); g.gain.setValueAtTime(0.24, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(fl); fl.connect(g); g.connect(bgm.master);
+    o.start(t); o.stop(t + dur + 0.02);
+    var sub = AC.createOscillator(); sub.type = 'square';
+    sub.frequency.setValueAtTime(f / 2, t);
+    var g2 = AC.createGain(); g2.gain.setValueAtTime(0.09, t);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    sub.connect(g2); g2.connect(bgm.master); sub.start(t); sub.stop(t + dur + 0.02);
+  }
+  function bgmLead(t, note, dur, type, vol) {
+    if (!AC) return;
+    var o = AC.createOscillator(); o.type = type || 'square';
+    o.frequency.setValueAtTime(midiHz(note), t);
+    var fl = AC.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 2400;
+    var g = AC.createGain(); g.gain.setValueAtTime(vol || 0.1, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(fl); fl.connect(g); g.connect(bgm.master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  var bgm = {
+    idx: -1, track: null, playing: false, muted: false,
+    master: null, timer: null, nextT: 0, step: 0,
+    init: function () {
+      if (!AC || this.master) return;
+      this.master = AC.createGain();
+      this.master.gain.value = 0.16;
+      this.master.connect(AC.destination);
+    },
+    playTrack: function (i) {
+      if (!AC) return;
+      this.init();
+      this.stop();
+      this.idx = Math.max(0, Math.min(i, BGM_TRACKS.length - 1));
+      this.track = BGM_TRACKS[this.idx];
+      this.step = 0;
+      this.nextT = AC.currentTime + 0.08;
+      this.playing = true;
+      var self = this;
+      this.timer = setInterval(function () { self.schedule(); }, 25);
+    },
+    stop: function () {
+      this.playing = false;
+      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    },
+    pause: function () {
+      this.playing = false;
+      if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    },
+    resume: function () {
+      if (!AC || !this.track || this.playing) return;
+      this.playing = true;
+      this.nextT = AC.currentTime + 0.05;
+      var self = this;
+      this.timer = setInterval(function () { self.schedule(); }, 25);
+    },
+    setMuted: function (m) {
+      this.muted = m;
+      if (this.master) this.master.gain.setTargetAtTime(m ? 0.0001 : 0.16, AC.currentTime, 0.02);
+    },
+    toggleMute: function () { this.setMuted(!this.muted); return this.muted; },
+    schedule: function () {
+      if (!this.playing || !AC || !this.track) return;
+      var spb = 60 / this.track.tempo / 4;   // 一个 16 分音符的秒数
+      while (this.nextT < AC.currentTime + 0.15) {
+        this.playStep(this.step, this.nextT);
+        this.nextT += spb;
+        this.step = (this.step + 1) % 64;    // 4 小节循环
+      }
+    },
+    playStep: function (s, t) {
+      var tr = this.track;
+      var spb = 60 / tr.tempo / 4;
+      var bar = (s >> 4) & 3;                // 0-3 小节
+      var beat = s & 15;                     // 16 分内位置
+      // 鼓
+      if (tr.kick === 'four') {
+        if (beat === 0 || beat === 8) bgmKick(t, false);
+      } else if (tr.kick === 'heavy') {
+        if (beat === 0 || beat === 8) bgmKick(t, true);
+        if (beat === 14) bgmKick(t, false);
+      } else if (tr.kick === 'double') {
+        if (beat === 0 || beat === 8) bgmKick(t, true);
+        if (beat === 2 || beat === 6 || beat === 10 || beat === 14) bgmKick(t, false);
+      }
+      if (beat === 4 || beat === 12) bgmSnare(t);
+      if (tr.hat === 'eighth') { if (s % 2 === 0) bgmHat(t, s % 4 === 2); }
+      else { bgmHat(t, beat % 4 === 2); }    // 16 分
+      // 贝斯（8 分音符）
+      if (s % 2 === 0) {
+        var bnote = tr.key + tr.bass[bar];
+        bgmBass(t, bnote, spb * 1.7);
+      }
+      // 主旋律 riff（8 分音符，16 音符 loop，值为半音程度数）
+      if (s % 2 === 0) {
+        var li = (s >> 1) & 15;
+        var deg = tr.lead[li];
+        if (deg !== undefined && deg !== null) {
+          bgmLead(t, tr.key + 12 + deg, spb * 1.5, tr.leadType, tr.leadVol);
+        }
+      }
+    }
+  };
+  function bgmPlayForCurrent() {
+    if (gameMode === 'endless') bgm.playTrack(5);
+    else bgm.playTrack(Math.min(levelIndex, 4));
+  }
+  bgm.setMuted(false);
+  ctx.bgm = bgm;
+
   /* ================= 8. 输入：指针锁定 / 键盘 / 鼠标 ================= */
   var keys = {};
   var locked = false;
@@ -665,6 +841,7 @@
   function startGame() {
     if (state === 'paused') {
       state = 'playing';
+      bgm.resume();
       requestLock();
       return;
     }
@@ -673,6 +850,8 @@
       // v6.5: 默认过关模式；点击「无尽模式」按钮会先设置 gameMode 再调用本函数
       state = 'playing';
       ensureAudio();
+      // v6.6: 开始游戏 → 播放本关战斗 BGM
+      bgmPlayForCurrent();
       setModeBtnsVisible(false);
       buildWave(getLevel());
       showLevelBanner();
@@ -717,6 +896,7 @@
       }
       if (!player.dead && state !== 'menu' && state !== 'victory') {
         state = 'paused';
+        bgm.pause();
         overlay.style.display = 'flex';
         setModeBtnsVisible(false);
         overlay.querySelector('h1').textContent = '疯狂的猪头佳';
@@ -759,6 +939,12 @@
     }
     if (e.code === 'KeyG') { detonateNuke(); return; }
     if (e.code === 'KeyR') { startReload(); return; }
+    if (e.code === 'KeyM') {
+      // v6.6: BGM 静音切换
+      var muted = bgm.toggleMute();
+      showToast(muted ? '🔇 背景音乐已静音（再按 M 恢复）' : '🔊 背景音乐已开启', muted ? 0xaaaaaa : 0x66ffaa);
+      return;
+    }
     var gi = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
     if (gi >= 0) { switchGun(GUN_ORDER[gi]); return; }
     keys[e.code] = true;
@@ -1594,7 +1780,8 @@
   function showLevelBanner() {
     var L = getLevel();
     levelBannerTitle.textContent = L.name + ' 「' + L.title + '」';
-    levelBannerSub.textContent = L.mission + (L.boss ? '（BOSS 触发: 击杀 ' + L.boss.trigger + ' 名敌人）' : '');
+    levelBannerSub.textContent = L.mission + (L.boss ? '（BOSS 触发: 击杀 ' + L.boss.trigger + ' 名敌人）' : '') +
+      (bgm.idx >= 0 ? '  ♪ ' + BGM_TRACKS[bgm.idx].name : '');
     levelBannerEl.style.opacity = '1';
     setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 2800);
   }
@@ -1856,9 +2043,12 @@
       setModeBtnsVisible(false);
       overlay.querySelector('h1').textContent = '🎉 通关！';
       overlaySub.textContent = '你击败了所有关卡！总分 ' + score + '  —  按 Enter 重新开始';
+      bgm.stop();
       return;
     }
     levelIndex++;
+    // v6.6: 进入新关卡 → 换 BGM
+    bgmPlayForCurrent();
     levelKills = 0;
     levelCleared = false;
     bossAppeared = false;
@@ -1928,12 +2118,16 @@
     levelBannerEl.style.opacity = '0';
     if (showMenu) {
       // 停在菜单：显示模式选择
+      bgm.stop();
       overlay.style.display = 'flex';
       overlay.querySelector('h1').textContent = '疯狂的猪头佳';
       overlaySub.textContent = '选择模式开始游戏';
       setModeBtnsVisible(true);
       return;
     }
+    // v6.6: 开始/重开 → 播放本关战斗 BGM（先确保音频上下文可用）
+    ensureAudio();
+    bgmPlayForCurrent();
     startGame();
   }
 
@@ -1986,6 +2180,7 @@
     var nukeDmg = Math.round(player.maxHealth * 0.30);
     hitPlayer(nukeDmg);
     if (player.dead) {
+      bgm.stop();
       if (gameMode === 'endless') {
         showEndlessEnd('☢ 核爆致命');
       } else {
@@ -2465,6 +2660,7 @@
                     }
                     return null;
                   })() },
+          bgm: { idx: bgm.idx, name: bgm.idx >= 0 ? BGM_TRACKS[bgm.idx].name : null, playing: bgm.playing, muted: bgm.muted },
           enemyCount: entities.filter(function (e) { return e.cfg && e.cfg.enemyType; }).length, killTarget: getLevel().killTarget,
           chest: { levelHasChest: levelHasChest, spawned: chestSpawnedThisLevel, count: chestSpawnedCount,
                    chests: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'chest'; }).length },
