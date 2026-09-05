@@ -261,5 +261,7 @@
   window.SCENE_LAYOUT_LEVEL3 = generateLayout(3);
   window.SCENE_LAYOUT_LEVEL4 = generateLayout(4);
   window.SCENE_LAYOUT_LEVEL5 = generateLayout(5);
+  // v6.5 无尽模式：暴露生成器，每次进入以随机种子生成全新地图
+  window.generateLayout = generateLayout;
 
 })();

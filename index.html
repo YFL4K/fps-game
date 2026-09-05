@@ -93,6 +93,11 @@
   #overlay .keys .warn { color: #ff8a7a; }
   #overlay button { background: #2a6fd8; color: #fff; border: none; padding: 12px 42px; font-size: 17px; border-radius: 6px; cursor: pointer; letter-spacing: 2px; font-family: inherit; }
   #overlay button:hover { background: #3a80ea; }
+  #overlay .mode-btns { display: flex; gap: 16px; justify-content: center; margin-bottom: 18px; }
+  #overlay .mode-btns button { background: rgba(42, 111, 216, 0.32); border: 2px solid #2a6fd8; padding: 10px 26px; font-size: 15px; letter-spacing: 1px; }
+  #overlay .mode-btns button:hover { background: #2a6fd8; }
+  #overlay .mode-btns button.endless { background: rgba(216, 92, 42, 0.32); border-color: #d85c2a; }
+  #overlay .mode-btns button.endless:hover { background: #d85c2a; }
   #overlay.fatal button { display: none; }
 </style>
 </head>
@@ -102,7 +107,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6.4</div>
+<div id="versionTag">v6.5</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -121,15 +126,20 @@
 <div id="overlay">
   <h1>疯狂的猪头佳</h1>
   <div class="sub-en">Mad Pig Li</div>
-  <div class="sub" id="overlaySub">按 <b>Enter</b> 开始游戏</div>
+  <div class="sub" id="overlaySub">按 <b>Enter</b> 开始游戏（过关模式）</div>
+  <div class="mode-btns" id="modeBtns">
+    <button id="modeStoryBtn">🎯 过关模式</button>
+    <button id="modeEndlessBtn" class="endless">♾️ 无尽模式</button>
+  </div>
   <div class="keys">
     <b>Enter</b> 开始 / 下一关 &nbsp;·&nbsp; <b>W A S D</b> 移动 &nbsp;·&nbsp; <b>Shift</b> 冲刺 &nbsp;·&nbsp; <b>空格</b> 跳跃<br>
     <b>鼠标左键</b> 射击（可按住连发） &nbsp;·&nbsp; <b>R</b> 换弹<br>
     <b>1-5</b> 切换武器（手枪/步枪/喷火器/狙击枪/火箭筒）<br>
     <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
-    <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸 · 击杀敌人掉落宝箱 · 击落直升机获得火箭筒/喷火器 · 蜘蛛会自爆！</span>
+    <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸 · 击杀敌人掉落宝箱 · 击落直升机获得火箭筒/喷火器 · 蜘蛛会自爆！</span><br>
+    <span class="warn">🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span>
   </div>
-  <button id="startBtn">开始游戏</button>
+  <button id="startBtn">开始游戏（过关模式）</button>
 </div>
 
 <script>
@@ -193,6 +203,18 @@
   var overlay = document.getElementById('overlay');
   var overlaySub = document.getElementById('overlaySub');
   var startBtn = document.getElementById('startBtn');
+  var modeBtns = document.getElementById('modeBtns');
+  var modeStoryBtn = document.getElementById('modeStoryBtn');
+  var modeEndlessBtn = document.getElementById('modeEndlessBtn');
+  // v6.5 无尽模式历史最高记录（localStorage 持久化）
+  try {
+    endlessBest.kills = parseInt(localStorage.getItem('fps_endless_kills') || '0', 10) || 0;
+    endlessBest.score = parseInt(localStorage.getItem('fps_endless_score') || '0', 10) || 0;
+  } catch (e) { endlessBest = { kills: 0, score: 0 }; }
+  function setModeBtnsVisible(v) {
+    if (modeBtns) modeBtns.style.display = v ? 'flex' : 'none';
+  }
+  setModeBtnsVisible(true);
   var statsEl = document.getElementById('stats');
   var fpsEl = document.getElementById('fps');
   var debugBadge = document.getElementById('debugBadge');
@@ -251,22 +273,35 @@
   };
   var GUN_ORDER = ['pistol', 'rifle', 'flamethrower', 'sniper', 'rocket'];
 
-  /* ================= 1.6 关卡配置（v6：任务模式 + 敌人持续刷新） ================= */
+  /* ================= 1.6 关卡配置（v6：任务模式 + 敌人持续刷新；v6.5：击杀目标上调 + 机甲 BOSS） ================= */
+  // v6.5: 每关击杀数上调（30/50/70/90/110，之后每关 +20）；BOSS 改为巨型机甲（血量=普通敌人3倍、防御2倍、火箭炮武器）
   var LEVELS = [
-    { name: '第 1 关', title: '清剿街区', mission: '击杀 8 名敌人',
-      killTarget: 8, boss: null, pool: { human: 4, monster: 2 }, stats: { damage: 0, health: 0 } },
-    { name: '第 2 关', title: '火力围猎', mission: '击杀 16 名敌人',
-      killTarget: 16, boss: null, pool: { human: 6, monster: 4 }, stats: { damage: 2, health: 20 } },
-    { name: '第 3 关', title: '巨兽苏醒', mission: '击杀 12 名敌人后 BOSS 现身，击败 BOSS 过关',
-      killTarget: 12, boss: { trigger: 12, health: 1100, damage: 18, speed: 0.9, scale: 3.0 },
+    { name: '第 1 关', title: '清剿街区', mission: '击杀 30 名敌人',
+      killTarget: 30, boss: null, pool: { human: 4, monster: 2 }, stats: { damage: 0, health: 0 } },
+    { name: '第 2 关', title: '火力围猎', mission: '击杀 50 名敌人',
+      killTarget: 50, boss: null, pool: { human: 6, monster: 4 }, stats: { damage: 2, health: 20 } },
+    { name: '第 3 关', title: '机甲降临', mission: '击杀 70 名敌人后机甲 BOSS 现身，击败 BOSS 过关',
+      killTarget: 70, boss: { trigger: 70, kind: 'mech', skin: 1, damage: 24, speed: 1.0, scale: 3.2, defense: 2, weapon: 'rocket' },
       pool: { human: 5, monster: 4 }, stats: { damage: 4, health: 40 } },
-    { name: '第 4 关', title: '绞肉机', mission: '击杀 18 名敌人后 BOSS 现身，击败 BOSS 过关',
-      killTarget: 18, boss: { trigger: 18, health: 1600, damage: 22, speed: 1.1, scale: 3.4 },
+    { name: '第 4 关', title: '钢铁洪流', mission: '击杀 90 名敌人后机甲 BOSS 现身，击败 BOSS 过关',
+      killTarget: 90, boss: { trigger: 90, kind: 'mech', skin: 2, damage: 30, speed: 1.15, scale: 3.6, defense: 2, weapon: 'rocket' },
       pool: { human: 7, monster: 6 }, stats: { damage: 6, health: 60 } },
-    { name: '第 5 关', title: '终焉之战', mission: '击杀 26 名敌人后 BOSS 现身，击败 BOSS 过关',
-      killTarget: 26, boss: { trigger: 26, health: 2400, damage: 26, speed: 1.3, scale: 4.0 },
+    { name: '第 5 关', title: '终焉机甲', mission: '击杀 110 名敌人后机甲 BOSS 现身，击败 BOSS 过关',
+      killTarget: 110, boss: { trigger: 110, kind: 'mech', skin: 3, damage: 36, speed: 1.3, scale: 4.2, defense: 2, weapon: 'rocket' },
       pool: { human: 10, monster: 8 }, stats: { damage: 8, health: 90 } }
   ];
+  // v6.5 无尽模式：虚拟关卡配置（killTarget=Infinity 永不达标 → 无限刷怪）
+  var ENDLESS_LEVEL = {
+    name: '无尽模式', title: '随机战场', mission: '存活到生命耗尽，BOSS 随机出现（15%）',
+    killTarget: Infinity, boss: null,
+    pool: { human: 6, monster: 4 },
+    stats: { damage: 4, health: 40 }
+  };
+  var gameMode = 'story';   // 'story' 过关模式 | 'endless' 无尽模式
+  var endlessLayout = null; // 无尽模式随机地图（每次进入重新生成）
+  var endlessWave = 1;      // 无尽模式波次（每 25 杀 +1，用于敌人/BOSS 强度缩放）
+  var endlessBossTimer = 30;
+  var endlessBest = { kills: 0, score: 0 };  // 历史最高（localStorage）
   var levelIndex = 0;
   var levelKills = 0;
   var levelCleared = false;
@@ -472,6 +507,20 @@
   var debugMode = false;
   var state = 'menu';   // menu | playing | paused | complete | dead | victory
 
+  // v6.5 无尽模式结束：记录最高击杀/最高分（localStorage），展示结算
+  function showEndlessEnd(title) {
+    var bk = endlessBest.kills, bs = endlessBest.score;
+    if (levelKills > bk) bk = levelKills;
+    if (score > bs) bs = score;
+    endlessBest = { kills: bk, score: bs };
+    try {
+      localStorage.setItem('fps_endless_kills', String(bk));
+      localStorage.setItem('fps_endless_score', String(bs));
+    } catch (e) {}
+    overlaySub.textContent = '击杀 ' + levelKills + ' · 得分 ' + score + '  —  历史最高 击杀 ' + bk + ' · 得分 ' + bs + '  —  按 Enter 返回菜单';
+    overlay.querySelector('h1').textContent = title || '无尽模式结束';
+  }
+
   function hitPlayer(dmg) {
     if (player.dead || state !== 'playing') return;
     player.health -= dmg;
@@ -482,8 +531,13 @@
       player.health = 0;
       player.dead = true;
       state = 'dead';
-      overlaySub.textContent = '你阵亡了！得分 ' + score + '  —  按 Enter 重新开始';
-      overlay.querySelector('h1').textContent = 'GAME OVER';
+      if (gameMode === 'endless') {
+        showEndlessEnd('GAME OVER');
+      } else {
+        overlaySub.textContent = '你阵亡了！得分 ' + score + '  —  按 Enter 重新开始';
+        overlay.querySelector('h1').textContent = 'GAME OVER';
+      }
+      setModeBtnsVisible(false);
       overlay.style.display = 'flex';
       if (document.pointerLockElement) document.exitPointerLock();
     }
@@ -614,10 +668,12 @@
       requestLock();
       return;
     }
-    if (state === 'dead' || state === 'victory') { resetGame(); return; }
+    if (state === 'dead' || state === 'victory') { resetGame(gameMode === 'endless'); return; }
     if (state === 'menu') {
+      // v6.5: 默认过关模式；点击「无尽模式」按钮会先设置 gameMode 再调用本函数
       state = 'playing';
       ensureAudio();
+      setModeBtnsVisible(false);
       buildWave(getLevel());
       showLevelBanner();
       requestLock();
@@ -630,9 +686,15 @@
     // v5: 点击完成界面也进入下一关
     if (state === 'complete') { nextLevel(); return; }
   }
+  function pickMode(mode) {
+    gameMode = mode;
+    resetGame(false);
+  }
+  if (modeStoryBtn) modeStoryBtn.addEventListener('click', function (e) { e.stopPropagation(); pickMode('story'); });
+  if (modeEndlessBtn) modeEndlessBtn.addEventListener('click', function (e) { e.stopPropagation(); pickMode('endless'); });
   startBtn.addEventListener('click', startGame);
   overlay.addEventListener('click', function (e) {
-    if (e.target !== startBtn) startGame();
+    if (e.target !== startBtn && e.target !== modeStoryBtn && e.target !== modeEndlessBtn) startGame();
   });
 
   document.addEventListener('pointerlockchange', function () {
@@ -640,13 +702,15 @@
     if (locked) {
       // 在 complete 状态下重新锁定 → 自动进下一关
       if (state === 'complete') nextLevel();
-      else {
+      else if (!player.dead) {
+        // v6.5 守卫：玩家死亡时不因指针锁定回调恢复 playing（防“复活”）
         state = 'playing';
         overlay.style.display = 'none';
       }
     } else {
       if (state === 'complete') {
         overlay.style.display = 'flex';
+        setModeBtnsVisible(false);
         overlay.querySelector('h1').textContent = '★ 任务完成';
         overlaySub.textContent = '按 Enter 进入下一关';
         return;
@@ -654,6 +718,7 @@
       if (!player.dead && state !== 'menu' && state !== 'victory') {
         state = 'paused';
         overlay.style.display = 'flex';
+        setModeBtnsVisible(false);
         overlay.querySelector('h1').textContent = '疯狂的猪头佳';
         overlaySub.textContent = '游戏暂停 — 按 Enter 或点击继续';
       }
@@ -1404,6 +1469,11 @@
 
   /* ================= 11. 关卡系统（v3） ================= */
   function getLevel() {
+    if (gameMode === 'endless') {
+      // 无尽模式：强度随波次缩放
+      ENDLESS_LEVEL.stats = { damage: 4 + (endlessWave - 1) * 2, health: 40 + (endlessWave - 1) * 25 };
+      return ENDLESS_LEVEL;
+    }
     return LEVELS[Math.min(levelIndex, LEVELS.length - 1)];
   }
   function clearAllDynamic() {
@@ -1433,6 +1503,13 @@
   }
 
   function getTargetLayout() {
+    if (gameMode === 'endless') {
+      // v6.5 无尽模式：每次进入随机生成全新地图
+      if (!endlessLayout && window.generateLayout) {
+        endlessLayout = window.generateLayout(Math.floor(Math.random() * 999999));
+      }
+      return endlessLayout || window.SCENE_LAYOUT;
+    }
     if (levelIndex >= LEVELS.length) return null;
     // 根据关卡选择对应布局（支持随机生成的多个版本）
     if (levelIndex === 0) return window.SCENE_LAYOUT;
@@ -1529,8 +1606,8 @@
       var n = pool[t] || 0;
       for (var i = 0; i < n; i++) waveQueue.push(t);
     });
-    // v6: 蜘蛛敌人随机加入（从第二关开始）
-    if (levelIndex >= 1) {
+    // v6: 蜘蛛敌人随机加入（从第二关开始；无尽模式始终有）
+    if (gameMode === 'endless' || levelIndex >= 1) {
       var spiderCount = randInt(0, 2 + levelIndex);
       for (var i = 0; i < spiderCount; i++) waveQueue.push('spider');
     }
@@ -1595,6 +1672,9 @@
     bossAlive = true;
     var L = getLevel();
     var b = L.boss;
+    // v6.5: 机甲 BOSS 血量 = 普通敌人血量 ×3（普通敌人 = 100 + 关卡 stats.health），防御 ×2（伤害减半）
+    var normalHp = 100 + ((L.stats && L.stats.health) || 0);
+    var bossHp = normalHp * 3;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(side * (22 + Math.random() * 12), 0, -30 - Math.random() * 8);
     var cfg = {
@@ -1607,20 +1687,64 @@
       dynamic: true,
       respawn: 0,
       enemyType: 'boss',
-      health: b.health,
+      bossKind: b.kind || 'mech',   // v6.5: 机甲 BOSS
+      bossSkin: b.skin || 1,
+      health: bossHp,
       damage: b.damage,
       speed: b.speed,
-      shootRange: 44,
+      defense: b.defense || 2,
+      weapon: b.weapon || 'rocket',
+      shootRange: 46,
       shootCooldown: 2.6,
-      stopDist: 8,
+      stopDist: 12,
       score: 2000 + levelIndex * 500
     };
     buildEntity(cfg);
-    showToast('⚠ BOSS 出现！击败 BOSS 完成本关', 0xff5f5f);
-    levelBannerTitle.textContent = '⚠ BOSS 现身';
-    levelBannerSub.textContent = '击杀 BOSS 完成本关';
+    showToast('⚠ 机甲 BOSS 出现！击败 BOSS 完成本关，奖励核弹', 0xff5f5f);
+    levelBannerTitle.textContent = '⚠ 机甲 BOSS 现身';
+    levelBannerSub.textContent = '击败 BOSS 完成本关（火箭炮注意躲避！）';
     levelBannerEl.style.opacity = '1';
     setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 3000);
+    if (sfx) sfx.playBoss();
+  }
+
+  // v6.5 无尽模式 BOSS：随机出现（15% 概率），造型/强度随波次随机
+  function spawnEndlessBoss() {
+    bossAppeared = true;
+    bossAlive = true;
+    var stats = getLevel().stats || {};
+    var bossHp = 3 * (100 + stats.health) + endlessWave * 150;
+    var scale = Math.min(5.5, 3.0 + endlessWave * 0.35);
+    var side = Math.random() < 0.5 ? -1 : 1;
+    var pos = new THREE.Vector3(side * (22 + Math.random() * 12), 0, -30 - Math.random() * 8);
+    var cfg = {
+      id: 'dyn-boss-endless-' + (++dynCounter),
+      model: 'enemy',
+      position: [pos.x, 0, pos.z],
+      rotation: [0, 0, 0],
+      scale: [scale, scale, scale],
+      collision: false,
+      dynamic: true,
+      respawn: 0,
+      enemyType: 'boss',
+      bossKind: 'mech',
+      bossSkin: 1 + Math.floor(Math.random() * 3),  // 无尽模式随机 3 种配色（红/蓝/绿）
+      health: bossHp,
+      damage: 26 + endlessWave * 4,
+      speed: 1.0 + Math.min(0.4, endlessWave * 0.05),
+      defense: 2,
+      weapon: 'rocket',
+      shootRange: 46,
+      shootCooldown: 2.4,
+      stopDist: 12,
+      score: 2000 + endlessWave * 500
+    };
+    buildEntity(cfg);
+    showToast('⚠ 随机机甲 BOSS 出现！击败可获得核弹', 0xff5f5f);
+    levelBannerTitle.textContent = '⚠ 随机机甲 BOSS';
+    levelBannerSub.textContent = '击败 BOSS 获得核弹！';
+    levelBannerEl.style.opacity = '1';
+    setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 2600);
     if (sfx) sfx.playBoss();
   }
 
@@ -1676,9 +1800,19 @@
       }
     }
 
-    // BOSS 触发条件
+    // BOSS 触发条件（过关模式）
     if (L.boss && !bossAppeared && levelKills >= L.boss.trigger) {
       spawnBoss();
+    }
+
+    // v6.5 无尽模式：BOSS 随机出现（每次判定 15% 概率），强度随波次缩放
+    if (gameMode === 'endless') {
+      if (levelKills >= endlessWave * 25) endlessWave++;
+      endlessBossTimer -= dt;
+      if (endlessBossTimer <= 0) {
+        endlessBossTimer = 30 + Math.random() * 25;
+        if (!bossAlive && Math.random() < 0.15) spawnEndlessBoss();
+      }
     }
 
     // 直升机随机出现（每关最多 2 次）
@@ -1693,6 +1827,8 @@
 
   function checkMissionComplete() {
     if (levelCleared) return;
+    // v6.5 无尽模式永不“过关”，只记录击杀/得分
+    if (gameMode === 'endless') return;
     var L = getLevel();
     if (L.boss) {
       // v6.4 修复：BOSS 关卡必须「BOSS 已现身且被击败」才过关
@@ -1717,6 +1853,7 @@
       state = 'victory';
       if (document.pointerLockElement) document.exitPointerLock();
       overlay.style.display = 'flex';
+      setModeBtnsVisible(false);
       overlay.querySelector('h1').textContent = '🎉 通关！';
       overlaySub.textContent = '你击败了所有关卡！总分 ' + score + '  —  按 Enter 重新开始';
       return;
@@ -1747,7 +1884,8 @@
     overlay.style.display = 'none';
     requestLock();
   }
-  function resetGame() {
+  // v6.5: showMenu=true → 停在菜单（无尽模式结束后返回模式选择）；false → 直接开始
+  function resetGame(showMenu) {
     state = 'menu';
     levelIndex = 0;
     levelKills = 0;
@@ -1758,6 +1896,12 @@
     chestSpawnedCount = 0;
     levelHasChest = Math.random() < 0.30;
     chestSpawnedThisLevel = false;
+    if (gameMode === 'endless') {
+      // 无尽模式：每次进入重新随机地图 + 重置波次/计时器
+      endlessLayout = null;
+      endlessWave = 1;
+      endlessBossTimer = 25 + Math.random() * 20;
+    }
     currentLayout = getTargetLayout();
     score = 0;
     clearAllDynamic();
@@ -1782,6 +1926,14 @@
     player.pitch = 0;
     buildGun('pistol');
     levelBannerEl.style.opacity = '0';
+    if (showMenu) {
+      // 停在菜单：显示模式选择
+      overlay.style.display = 'flex';
+      overlay.querySelector('h1').textContent = '疯狂的猪头佳';
+      overlaySub.textContent = '选择模式开始游戏';
+      setModeBtnsVisible(true);
+      return;
+    }
     startGame();
   }
 
@@ -1802,8 +1954,13 @@
     if (Math.random() < 0.2) spawnHealthDrop(pos);
     checkMissionComplete();
   };
-  ctx.onBossKilled = function () {
+  ctx.onBossKilled = function (pos) {
     bossAlive = false;
+    // v6.5: 击杀 BOSS 奖励核弹 ×1（过关模式 + 无尽模式都适用）
+    player.nukes = (player.nukes || 0) + 1;
+    showToast('☢ 击败 BOSS！获得 核弹 ×1', 0xffcc66);
+    if (sfx) sfx.playLevelUp();
+    if (gameMode === 'endless') return;  // 无尽模式不结束
     completeLevel();
   };
   ctx.onHelicopterKilled = function (pos) {
@@ -1829,8 +1986,12 @@
     var nukeDmg = Math.round(player.maxHealth * 0.30);
     hitPlayer(nukeDmg);
     if (player.dead) {
-      overlaySub.textContent = '你被核弹杀死了！得分 ' + score + ' — 按 Enter 重新开始';
-      overlay.querySelector('h1').textContent = '☢ 核爆致命';
+      if (gameMode === 'endless') {
+        showEndlessEnd('☢ 核爆致命');
+      } else {
+        overlaySub.textContent = '你被核弹杀死了！得分 ' + score + ' — 按 Enter 重新开始';
+        overlay.querySelector('h1').textContent = '☢ 核爆致命';
+      }
       overlay.style.display = 'flex';
       return;
     }
@@ -2178,13 +2339,21 @@
     var lines = [];
     if (state === 'complete') lines.push('★ 任务完成 — 按 Enter 进入下一关');
     if (state === 'dead') lines.push('GAME OVER');
-    lines.push(L.name + '  「' + L.title + '」');
-    lines.push('任务: ' + L.mission);
-    if (L.boss) {
-      lines.push('击杀 ' + Math.min(levelKills, L.boss.trigger) + '/' + L.boss.trigger +
-        (bossAppeared ? (bossAlive ? '  ·  ⚠ BOSS 对战中!' : '  ·  BOSS 已击败') : '  ·  BOSS 未出现'));
+    if (gameMode === 'endless') {
+      // v6.5 无尽模式 HUD
+      lines.push('无尽模式  「随机战场」  ·  波次 ' + endlessWave);
+      lines.push('任务: 存活到生命耗尽，BOSS 随机出现（15%）');
+      lines.push('击杀 ' + levelKills + (bossAppeared ? (bossAlive ? '  ·  ⚠ 机甲对战中!' : '  ·  BOSS 已击败') : '  ·  等待随机 BOSS…'));
+      lines.push('历史最高 击杀 ' + endlessBest.kills + ' · 得分 ' + endlessBest.score);
     } else {
-      lines.push('击杀 ' + Math.min(levelKills, L.killTarget) + '/' + L.killTarget);
+      lines.push(L.name + '  「' + L.title + '」');
+      lines.push('任务: ' + L.mission);
+      if (L.boss) {
+        lines.push('击杀 ' + Math.min(levelKills, L.boss.trigger) + '/' + L.boss.trigger +
+          (bossAppeared ? (bossAlive ? '  ·  ⚠ 机甲 BOSS 对战中!' : '  ·  BOSS 已击败') : '  ·  BOSS 未出现'));
+      } else {
+        lines.push('击杀 ' + Math.min(levelKills, L.killTarget) + '/' + L.killTarget);
+      }
     }
     lines.push('HP   ' + Math.max(0, Math.round(player.health)) + '/' + player.maxHealth);
     lines.push(gt.name + '  ' + (gt.flame ? (Math.ceil(player.ammo * 100) / 100) : player.ammo) + '/' + player.reserve +
@@ -2285,9 +2454,17 @@
     window.__fpsTest = {
       getState: function () {
         return {
-          state: state, levelIndex: levelIndex, levelKills: levelKills,
+          state: state, mode: gameMode, levelIndex: levelIndex, levelKills: levelKills,
+          endlessWave: endlessWave, endlessBest: endlessBest,
           levelCleared: levelCleared, waveQueueLen: waveQueue.length,
-          boss: { appeared: bossAppeared, alive: bossAlive },
+          boss: { appeared: bossAppeared, alive: bossAlive,
+                  kind: (function () {
+                    for (var i = 0; i < entities.length; i++) {
+                      var r = entities[i];
+                      if (r.alive && r.cfg && r.cfg.enemyType === 'boss') return r.cfg.bossKind || 'legacy';
+                    }
+                    return null;
+                  })() },
           enemyCount: entities.filter(function (e) { return e.cfg && e.cfg.enemyType; }).length, killTarget: getLevel().killTarget,
           chest: { levelHasChest: levelHasChest, spawned: chestSpawnedThisLevel, count: chestSpawnedCount,
                    chests: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'chest'; }).length },
@@ -2331,7 +2508,7 @@
     // 键盘触发（指针锁定下鼠标点击不可用）：K=击杀达标+通关判定, L=complete 状态进下一关,
     // F=持续开火开关, H=血量压到15%（触发狂暴）, M=满血（解除狂暴）
     document.addEventListener('keydown', function (e) {
-      if (e.code === 'KeyK') { levelKills = getLevel().killTarget; checkMissionComplete(); }
+      if (e.code === 'KeyK' && gameMode !== 'endless') { levelKills = getLevel().killTarget; checkMissionComplete(); }
       if (e.code === 'KeyL' && state === 'complete') nextLevel();
       if (e.code === 'KeyF') player.firing = !player.firing;
       if (e.code === 'KeyH') player.health = player.maxHealth * 0.15;
@@ -2349,6 +2526,8 @@
         spawnChest(player.pos.clone().addScaledVector(fwd2, 3));
       }
       if (e.code === 'KeyN') { player.nukes += 1; }
+      // B：无尽模式强制召唤随机机甲 BOSS（测试 BOSS）
+      if (e.code === 'KeyB' && gameMode === 'endless' && !bossAlive) spawnEndlessBoss();
       // V：自动前进开关（测试移动速度）
       if (e.code === 'KeyV') _testForward = !_testForward;
     });
