@@ -68,7 +68,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6.1</div>
+<div id="versionTag">v6.2</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -210,7 +210,7 @@
   var GUN_TYPES = {
     pistol:     { name: '手枪',     damage: 28, mag: 12,  maxAmmo: 96,  fireRate: 4.0,  reload: 0.78, spread: 0.012, pellets: 1,   range: 70,   auto: false },
     rifle:      { name: '步枪',     damage: 20, mag: 30,  maxAmmo: 240, fireRate: 9.0,  reload: 1.17, spread: 0.02,  pellets: 1,   range: 120,  auto: true },
-    flamethrower: { name: '喷火器', damage: 18, mag: 5,   maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 18,   auto: true, flame: true },
+    flamethrower: { name: '喷火器', damage: 54, mag: 5,   maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 36,   auto: true, flame: true, flameRadius: 3.0 },  // v6.2: 伤害18→54(+200%) 射程18→36(+100%) 范围基础2.0+50%=3.0
     sniper:     { name: '狙击枪',   damage: 120, mag: 5,  maxAmmo: 40,  fireRate: 0.9,  reload: 1.82, spread: 0.003, pellets: 1,   range: 260,  auto: false },
     rocket:     { name: '火箭筒',   damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 240,  auto: false, aoe: { radius: 6, damage: 170 } }
   };
@@ -426,7 +426,9 @@
     dead: false,
     buffs: { speed: 0, damage: 0 },
     nukes: 0,
-    hasRocket: false
+    hasRocket: false,
+    flameReserve: 30,
+    berserk: false
   };
   var score = 0;
   var debugMode = false;
@@ -477,10 +479,12 @@
       showToast('需要先击毁直升机获得火箭筒', 0xff8866);
       return;
     }
+    // v6.2 喷火器弹药独立储备（切离时保存；备用 30 发 = 6 个弹匣）
+    if (GUN_TYPES[player.gun].flame) player.flameReserve = player.reserve;
     player.gun = type;
     var gt = GUN_TYPES[type];
     player.ammo = gt.mag;
-    player.reserve = gt.maxAmmo;
+    player.reserve = (type === 'flamethrower') ? player.flameReserve : gt.maxAmmo;
     player.reloading = false;
     player.fireCooldown = 0;
     buildGun(type);
@@ -719,18 +723,20 @@
     var gt = GUN_TYPES[player.gun];
     if (player.ammo <= 0) { startReload(); return; }
     
-    // 喷火器：消耗火焰，每发持续喷射效果
+    // 喷火器（v6.2）：持续喷火，每发子弹 = 15 秒（ammo 按时间消耗），火焰持续伤害锥体
     if (gt.flame) {
-      player.ammo--;
-      player.fireCooldown = 1 / gt.fireRate;
+      player.ammo = Math.max(0, player.ammo - (1 / gt.fireRate) / 15);
+      player.fireCooldown = 1 / (gt.fireRate * (player.berserk ? 1.5 : 1));
       spawnFlameBurst(getMuzzleWorld());
+      applyFlameDamage(1 / gt.fireRate);
       if (sfx) sfx.playShot('flamethrower');
       return;
     }
     
     player.ammo--;
-    player.fireCooldown = 1 / gt.fireRate;
+    player.fireCooldown = 1 / (gt.fireRate * (player.berserk ? 1.5 : 1));
     var dmgMul = player.buffs.damage > 0 ? 3 : 1;
+    if (player.berserk) dmgMul *= 1.5;
     // 暴击：20% 概率 ×3；暴击中 40% 概率对普通敌人一击必杀
     var isCrit = Math.random() < 0.2;
     var oneShot = isCrit && Math.random() < 0.4;
@@ -793,6 +799,8 @@
         }
         if (hit.rec.cfg.kind) applyPickup(hit.rec);
         spawnSparks(hit.point, isCrit ? 0xffaa00 : 0xff8844);
+        // v6.2 狂暴模式：子弹命中带爆炸效果（小范围，不伤自己、无视觉重特效）
+        if (player.berserk) explode(hit.point, 2.2, ctx.currentDamage * 0.5, { noPlayer: true, noVisual: true, quiet: true });
       } else {
         spawnSparks(hit.point, 0xcccccc);
       }
@@ -805,6 +813,56 @@
       else if (isCrit && hitEnemy) showTag('暴击!', 0xffaa00);
       else showHitmark(headshot);
     }
+  }
+
+  /**
+   * v6.2 喷火器持续伤害：以喷口为起点、沿视线方向的圆柱判定
+   *  - 射程 36（+100%）、伤害 54/秒（+200%）、伤害半径 3.0（基础 2.0 +50%）
+   *  - 每发子弹可持续 15 秒喷火（ammo 按时间消耗）
+   *  - 狂暴模式：伤害 ×1.5，命中点附带小爆炸
+   */
+  function applyFlameDamage(dtTick) {
+    var gt = GUN_TYPES[player.gun];
+    if (!gt || !gt.flame || state !== 'playing') return;
+    var origin = getMuzzleWorld();
+    var dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    var radius = gt.flameRadius || 3.0;
+    var dmg = gt.damage * dtTick * (player.berserk ? 1.5 : 1);
+    var pTo = new THREE.Vector3();
+    var pToXZ = new THREE.Vector3();
+    var dirXZ = new THREE.Vector3();
+    var projXZ = new THREE.Vector3();
+    ctx.oneShotKill = false;
+    var hitCount = 0;
+    dirXZ.set(dir.x, 0, dir.z).normalize();
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive) continue;
+      // 所有敌人（enemy/spider/boss 均有 enemyType）+ 直升机
+      if (!rec.cfg.enemyType && rec.cfg.model !== 'helicopter') continue;
+      pTo.subVectors(rec.inst.position, origin);
+      // 水平面锥形判定（火焰喷射在水平方向扩散）
+      pToXZ.set(pTo.x, 0, pTo.z);
+      var t = pToXZ.dot(dirXZ);
+      if (t < 0.2 || t > gt.range) continue;
+      projXZ.copy(dirXZ).multiplyScalar(t);
+      // 锥形判定：越远伤害范围越宽（flameRadius=3.0 基础 2.0 +50%）
+      var hitR = 0.5 + radius * (t / gt.range);
+      if (pToXZ.distanceTo(projXZ) > hitR) continue;
+      // 竖直高度带：火焰喷射带高度 ±2.6m
+      if (Math.abs(pTo.y) > 2.6) continue;
+      ctx.currentDamage = dmg;
+      hitCount++;
+      if (rec.def && rec.def.onHit) {
+        try { rec.def.onHit(rec.inst, rec.inst.position.clone(), ctx); }
+        catch (e) { showError('喷火命中失败 (' + rec.cfg.id + '): ' + e.message); }
+      } else if (rec.inst.userData && typeof rec.inst.userData.takeDamage === 'function') {
+        rec.inst.userData.takeDamage(dmg);
+      }
+      if (player.berserk) explode(rec.inst.position, 1.8, dmg * 0.5, { noPlayer: true, noVisual: true, quiet: true });
+    }
+    _flameHitCount += hitCount;
   }
 
   function fireRocket(from, dir, damage, aoe) {
@@ -934,7 +992,7 @@
       );
       flame.position.copy(origin).addScaledVector(v, 0.3);
       scene.add(flame);
-      fx.push({ type: 'flame', obj: flame, vel: v.multiplyScalar(18 + Math.random() * 6), life: 0.25 + Math.random() * 0.15, maxLife: 0.4 });
+      fx.push({ type: 'flame', obj: flame, vel: v.multiplyScalar(90 + Math.random() * 25), life: 0.3 + Math.random() * 0.2, maxLife: 0.5 });
     }
   }
 
@@ -1062,8 +1120,8 @@
     radius = radius || 5;
     var pt = point.clone ? point.clone() : new THREE.Vector3(point[0], point[1], point[2]);
 
-    spawnExplosionVisual(pt, radius, opts);
-    if (sfx) sfx.playExplode();
+    if (!opts.noVisual) spawnExplosionVisual(pt, radius, opts);
+    if (sfx && !opts.quiet) sfx.playExplode();
     if (!opts.quiet) screenShake = Math.min(1.2, screenShake + (opts.nuke ? 1.2 : 0.4));
 
     var pendingChains = [];
@@ -1183,6 +1241,8 @@
     destroyEntity(rec);
     // 30% 概率同时掉落弹药
     if (Math.random() < 0.30) spawnAmmoDrop(rec.inst.position.clone());
+    // v6.2 开宝箱随机掉落喷火弹药补给（35%）
+    if (Math.random() < 0.35) spawnAmmoDrop(rec.inst.position.clone(), 'flame');
   }
 
   function applyPickup(rec) {
@@ -1190,10 +1250,11 @@
     if (rec.cfg.kind === 'chest') { applyChest(rec); return; }
     if (rec.cfg.kind === 'weapon' && rec.cfg.type) {
       if (rec.cfg.type === 'rocket') player.hasRocket = true;
+      if (rec.cfg.type === 'flamethrower') player.flameReserve = Math.min(60, player.flameReserve + 15);
       if (rec.cfg.type === player.gun) {
         var wgt = GUN_TYPES[player.gun];
         player.ammo = wgt.mag;
-        player.reserve = wgt.maxAmmo;
+        player.reserve = (rec.cfg.type === 'flamethrower') ? player.flameReserve : wgt.maxAmmo;
         sfx.playPickup();
       } else {
         switchGun(rec.cfg.type);
@@ -1204,8 +1265,14 @@
     if (rec.cfg.kind === 'health') {
       player.health = Math.min(player.maxHealth, player.health + 30);
     } else if (rec.cfg.kind === 'ammo') {
-      var gt = GUN_TYPES[player.gun];
-      player.reserve = Math.min(gt.maxAmmo, player.reserve + gt.mag * 1.5);
+      if (rec.cfg.type === 'flame') {
+        player.flameReserve = Math.min(60, player.flameReserve + 5);
+        if (GUN_TYPES[player.gun].flame) player.reserve = player.flameReserve;
+        showToast('🔥 喷火弹药 +5（备用 ' + player.flameReserve + '）', 0xff8844);
+      } else {
+        var gt = GUN_TYPES[player.gun];
+        player.reserve = Math.min(gt.maxAmmo, player.reserve + gt.mag * 1.5);
+      }
     }
     sfx.playPickup();
     respawnEntity(rec);
@@ -1238,8 +1305,8 @@
     spawnSparks(pos, 0x88ddff);
   }
 
-  /** 掉落弹药补给（30% 触发，在地面） */
-  function spawnAmmoDrop(pos) {
+  /** 掉落弹药补给（30% 触发，在地面）；type='flame' 为喷火器专用弹药 */
+  function spawnAmmoDrop(pos, type) {
     var cfg = {
       id: 'ammo-' + (++dynCounter),
       model: 'pickup',
@@ -1251,8 +1318,26 @@
       respawn: 0,
       dynamic: true
     };
+    if (type) cfg.type = type;
     buildEntity(cfg);
-    spawnSparks(pos, 0xffcc44);
+    spawnSparks(pos, type === 'flame' ? 0xff8844 : 0xffcc44);
+  }
+
+  /** v6.2 回血道具（击杀敌人 20% 概率掉落，+30 HP） */
+  function spawnHealthDrop(pos) {
+    var cfg = {
+      id: 'health-' + (++dynCounter),
+      model: 'pickup',
+      position: [pos.x, 0.8, pos.z],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      collision: false,
+      kind: 'health',
+      respawn: 0,
+      dynamic: true
+    };
+    buildEntity(cfg);
+    spawnSparks(pos, 0x66ff88);
   }
 
   function spawnChest(pos) {
@@ -1631,6 +1716,8 @@
     player.buffs = { speed: 0, damage: 0, healthTimer: undefined, healthMax: undefined };
     player.nukes = 0;
     player.hasRocket = false;
+    player.flameReserve = 30;
+    player.berserk = false;
     player.gun = 'pistol';
     var gt = GUN_TYPES.pistol;
     player.ammo = gt.mag;
@@ -1658,6 +1745,8 @@
       spawnAmmoDrop(pos);
     }
     if (Math.random() < 0.2) spawnWeaponDrop(pos);
+    // v6.2 击杀敌人 20% 概率掉落回血道具
+    if (Math.random() < 0.2) spawnHealthDrop(pos);
     checkMissionComplete();
   };
   ctx.onBossKilled = function () {
@@ -1667,7 +1756,13 @@
   ctx.onHelicopterKilled = function (pos) {
     score += 800;
     spawnWeaponDrop(pos, 'rocket');
-    showToast('击毁直升机！获得 火箭筒（5 发炮弹）', 0xffcc66);
+    // v6.2 打直升机随机掉落喷火弹药补给（50%）
+    var extra = '';
+    if (Math.random() < 0.5) {
+      spawnAmmoDrop(pos, 'flame');
+      extra = ' + 喷火弹药补给';
+    }
+    showToast('击毁直升机！获得 火箭筒（5 发炮弹）' + extra, 0xffcc66);
     if (sfx) sfx.playLevelUp();
   };
 
@@ -1697,6 +1792,18 @@
   var box = new THREE.Box3();
 
   function updatePlayer(dt) {
+    // v6.2 狂暴模式：生命值 ≤ 15% 自动触发（生命恢复后解除）
+    var hpRatio = player.maxHealth > 0 ? player.health / player.maxHealth : 1;
+    var wantBerserk = hpRatio <= 0.15 && !player.dead;
+    if (wantBerserk !== player.berserk) {
+      player.berserk = wantBerserk;
+      if (wantBerserk) {
+        showToast('🔥 狂暴模式！伤害+50% 爆炸弹 射速+50% 移速+200%', 0xff4422);
+        if (sfx) sfx.playLevelUp();
+      } else {
+        showToast('狂暴模式解除', 0x88ccff);
+      }
+    }
     // Buff 计时
     if (player.buffs.speed > 0) {
       player.buffs.speed -= dt;
@@ -1753,13 +1860,13 @@
       return;
     }
 
-    var speedMul = player.buffs.speed > 0 ? 2.0 : 1;
+    var speedMul = (player.buffs.speed > 0 ? 2.0 : 1) * (player.berserk ? 3 : 1);
     var speed = ((keys.ShiftLeft || keys.ShiftRight) ? (W.sprintSpeed || 9) : (W.playerSpeed || 6)) * speedMul;
 
     forward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
     tmpVec.set(0, 0, 0);
-    if (keys.KeyW) tmpVec.addScaledVector(forward, 1);
+    if (keys.KeyW || _testForward) tmpVec.addScaledVector(forward, 1);
     if (keys.KeyS) tmpVec.addScaledVector(forward, -1);
     if (keys.KeyD) tmpVec.addScaledVector(right, 1);
     if (keys.KeyA) tmpVec.addScaledVector(right, -1);
@@ -1977,9 +2084,9 @@
         f.obj.material.opacity = Math.max(0, f.life / f.maxLife) * 0.5;
       } else if (f.type === 'flame') {
         f.obj.position.addScaledVector(f.vel, dt);
-        f.vel.multiplyScalar(0.92);
+        f.vel.multiplyScalar(0.94);
         var k4 = f.life / f.maxLife;
-        f.obj.scale.setScalar(k4);
+        f.obj.scale.setScalar(0.5 + (1 - k4) * 1.0);
         f.obj.material.opacity = k4 * 0.8;
         // 火焰变色：黄→橙→红
         var c = new THREE.Color().setHSL(0.06 * k4, 1, 0.5);
@@ -2027,8 +2134,11 @@
       lines.push('击杀 ' + Math.min(levelKills, L.killTarget) + '/' + L.killTarget);
     }
     lines.push('HP   ' + Math.max(0, Math.round(player.health)) + '/' + player.maxHealth);
-    lines.push(gt.name + '  ' + player.ammo + '/' + player.reserve + (player.reloading ? '  [换弹中]' : ''));
+    lines.push(gt.name + '  ' + (gt.flame ? (Math.ceil(player.ammo * 100) / 100) : player.ammo) + '/' + player.reserve +
+      (gt.flame ? '发(≈' + Math.floor(player.ammo * 15) + '秒)' : '') +
+      (player.reloading ? '  [换弹中]' : ''));
     var buffs = [];
+    if (player.berserk) buffs.push('🔥狂暴(伤害+50% 爆炸 射速+50% 移速×3)');
     if (player.buffs.speed > 0) buffs.push('疾风 ' + Math.ceil(player.buffs.speed) + 's');
     if (player.buffs.damage > 0) buffs.push('狂暴 ' + Math.ceil(player.buffs.damage) + 's');
     if (player.buffs.healthTimer !== undefined) buffs.push('体魄 ' + Math.ceil(player.buffs.healthTimer) + 's');
@@ -2065,10 +2175,16 @@
 
   /* ================= 17. 主循环 ================= */
   var lastTime = performance.now();
+  var loopCount = 0;
+  var _lastDt = 0;
+  var _flameHitCount = 0;
+  var _testForward = false;
   function loop(now) {
     requestAnimationFrame(loop);
     var dt = Math.min(0.05, (now - lastTime) / 1000);
     lastTime = now;
+    _lastDt = dt;
+    loopCount++;
 
     try {
       if (state === 'playing') {
@@ -2119,14 +2235,55 @@
           state: state, levelIndex: levelIndex, levelKills: levelKills,
           levelCleared: levelCleared, waveQueueLen: waveQueue.length,
           enemyCount: entities.filter(function (e) { return e.cfg && e.cfg.enemyType; }).length, killTarget: getLevel().killTarget,
-          playerPos: player.pos ? { x: player.pos.x.toFixed(2), y: player.pos.y.toFixed(2), z: player.pos.z.toFixed(2) } : null
+          playerPos: player.pos ? { x: player.pos.x.toFixed(2), y: player.pos.y.toFixed(2), z: player.pos.z.toFixed(2) } : null,
+          gun: player.gun, ammo: Math.round(player.ammo * 100) / 100, reserve: player.reserve,
+          flameReserve: player.flameReserve, berserk: player.berserk,
+          hp: Math.round(player.health), maxHp: player.maxHealth, firing: !!player.firing,
+          fireCd: Math.round(player.fireCooldown * 100) / 100, reloading: !!player.reloading,
+          loopCount: loopCount, lastDt: Math.round(_lastDt * 1000), flameHits: _flameHitCount,
+          flameDiag: (function () {
+            try {
+              var o = getMuzzleWorld();
+              var d = new THREE.Vector3();
+              camera.getWorldDirection(d);
+              var arr = [];
+              for (var i = 0; i < entities.length; i++) {
+                var rec = entities[i];
+                if (!rec.alive) continue;
+                if (!rec.cfg.enemyType && rec.cfg.model !== 'helicopter') continue;
+                var E = rec.inst.position;
+                var pTo = new THREE.Vector3().subVectors(E, o);
+                var pToXZ = new THREE.Vector3(pTo.x, 0, pTo.z);
+                var dXZ = new THREE.Vector3(d.x, 0, d.z).normalize();
+                var t = pToXZ.dot(dXZ);
+                var hDist = pToXZ.distanceTo(dXZ.clone().multiplyScalar(t));
+                var hitR = 0.5 + (GUN_TYPES[player.gun].flameRadius || 3) * (t / GUN_TYPES[player.gun].range);
+                arr.push({ m: rec.cfg.model, p: [E.x.toFixed(1), E.y.toFixed(1), E.z.toFixed(1)], t: t.toFixed(2), hDist: hDist.toFixed(2), v: pTo.y.toFixed(2), hitR: hitR.toFixed(2) });
+              }
+              return { o: [o.x.toFixed(2), o.y.toFixed(2), o.z.toFixed(2)], d: [d.x.toFixed(3), d.y.toFixed(3), d.z.toFixed(3)], n: arr.length, e: arr.slice(0, 5) };
+            } catch (err) { return { err: err.message }; }
+          })(),
+          healthDrops: entities.filter(function (e) { return e.cfg && e.cfg.dynamic && e.cfg.kind === 'health'; }).length,
+          flameDrops: entities.filter(function (e) { return e.cfg && e.cfg.dynamic && e.cfg.kind === 'ammo' && e.cfg.type === 'flame'; }).length
         };
       }
     };
-    // 键盘触发（指针锁定下鼠标点击不可用）：K=击杀达标, L=complete 状态进下一关
+    // 键盘触发（指针锁定下鼠标点击不可用）：K=击杀达标+通关判定, L=complete 状态进下一关,
+    // F=持续开火开关, H=血量压到15%（触发狂暴）, M=满血（解除狂暴）
     document.addEventListener('keydown', function (e) {
       if (e.code === 'KeyK') { levelKills = getLevel().killTarget; checkMissionComplete(); }
       if (e.code === 'KeyL' && state === 'complete') nextLevel();
+      if (e.code === 'KeyF') player.firing = !player.firing;
+      if (e.code === 'KeyH') player.health = player.maxHealth * 0.15;
+      if (e.code === 'KeyM') player.health = player.maxHealth;
+      // J/I：正前方 10m/8m 刷 human/spider（测试火焰伤害）
+      if (e.code === 'KeyJ' || e.code === 'KeyI') {
+        var fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+        var p2 = player.pos.clone().addScaledVector(fwd, e.code === 'KeyJ' ? 10 : 8);
+        spawnEnemy(e.code === 'KeyJ' ? 'human' : 'spider', p2);
+      }
+      // V：自动前进开关（测试移动速度）
+      if (e.code === 'KeyV') _testForward = !_testForward;
     });
     setInterval(function () {
       var el = document.getElementById('tState');

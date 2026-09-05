@@ -11,11 +11,12 @@
     create: function (config) {
       const T = global.THREE;
       const kind = (config && config.kind) || 'health';
+      const isFlame = !!(config && config.type === 'flame');
       const g = new T.Group();
 
       const baseMat = new T.MeshStandardMaterial({
-        color: kind === 'health' ? 0x27ae60 : 0xf39c12,
-        emissive: kind === 'health' ? 0x1e8449 : 0xb9770e,
+        color: isFlame ? 0xe74c3c : (kind === 'health' ? 0x27ae60 : 0xf39c12),
+        emissive: isFlame ? 0xc0392b : (kind === 'health' ? 0x1e8449 : 0xb9770e),
         emissiveIntensity: 0.6,
         roughness: 0.4,
         metalness: 0.3
@@ -36,7 +37,7 @@
       // 光环
       const ring = new T.Mesh(
         new T.TorusGeometry(0.28, 0.025, 8, 24),
-        new T.MeshBasicMaterial({ color: kind === 'health' ? 0x7dffc0 : 0xffe08a })
+        new T.MeshBasicMaterial({ color: isFlame ? 0xff8844 : (kind === 'health' ? 0x7dffc0 : 0xffe08a) })
       );
       ring.rotation.x = Math.PI / 2;
       g.add(ring);
