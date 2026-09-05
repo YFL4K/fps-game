@@ -102,7 +102,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6.3</div>
+<div id="versionTag">v6.4</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -245,7 +245,7 @@
   var GUN_TYPES = {
     pistol:     { name: '手枪',     damage: 28, mag: 12,  maxAmmo: 96,  fireRate: 4.0,  reload: 0.78, spread: 0.012, pellets: 1,   range: 70,   auto: false },
     rifle:      { name: '步枪',     damage: 20, mag: 30,  maxAmmo: 240, fireRate: 9.0,  reload: 1.17, spread: 0.02,  pellets: 1,   range: 120,  auto: true },
-    flamethrower: { name: '喷火器', damage: 54, mag: 5,   maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 36,   auto: true, flame: true, flameRadius: 3.0 },  // v6.2: 伤害18→54(+200%) 射程18→36(+100%) 范围基础2.0+50%=3.0
+    flamethrower: { name: '喷火器', damage: 108, mag: 5,  maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 36,   auto: true, flame: true, flameRadius: 4.5 },  // v6.4: 伤害54→108(+100%) 射程18→36(+100%) 范围3.0→4.5(+50%)
     sniper:     { name: '狙击枪',   damage: 120, mag: 5,  maxAmmo: 40,  fireRate: 0.9,  reload: 1.82, spread: 0.003, pellets: 1,   range: 260,  auto: false },
     rocket:     { name: '火箭筒',   damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 240,  auto: false, aoe: { radius: 6, damage: 170 } }
   };
@@ -277,6 +277,9 @@
   var heliTimer = 20;
   var heliSpawnedCount = 0;
   var chestSpawnedCount = 0;
+  // v6.4 宝箱机制：每关 30% 几率出现宝箱（首杀敌人时在击杀点附近刷出），每关最多 1 个
+  var levelHasChest = false;
+  var chestSpawnedThisLevel = false;
   var dynCounter = 0;
   var currentLayout = null;  // 记录当前加载的布局版本
 
@@ -1245,7 +1248,7 @@
     { id: 'speed', name: '疾风', desc: '移动速度 +100%（30 秒）', color: 0x66ccff },
     { id: 'damage', name: '狂暴', desc: '伤害 +200%（30 秒）', color: 0xff6644 },
     { id: 'health', name: '体魄', desc: '最大生命 +200% 并回满血（30 秒）', color: 0x66ff88 },
-    { id: 'nuke', name: '核弹', desc: '按 G 引爆，毁灭全部敌人（1 发）', color: 0xffcc22 }
+    { id: 'nuke', name: '核弹', desc: '按 G 引爆，毁灭全场敌人（也会对你造成 30% 伤害）', color: 0xffcc22 }
   ];
 
   function showToast(text, color) {
@@ -1257,7 +1260,13 @@
   }
 
   function applyChest(rec) {
-    var item = ITEMS[Math.floor(Math.random() * ITEMS.length)];
+    // v6.4 道具随机出现：核弹 10%，移动速度 / 伤害 / 生命 各 30%
+    var r = Math.random();
+    var item;
+    if (r < 0.10) item = ITEMS[3];
+    else if (r < 0.40) item = ITEMS[0];
+    else if (r < 0.70) item = ITEMS[1];
+    else item = ITEMS[2];
     if (item.id === 'speed') {
       player.buffs.speed = 30;
     } else if (item.id === 'damage') {
@@ -1686,7 +1695,10 @@
     if (levelCleared) return;
     var L = getLevel();
     if (L.boss) {
-      if (!bossAlive) completeLevel();
+      // v6.4 修复：BOSS 关卡必须「BOSS 已现身且被击败」才过关
+      // （旧代码仅判断 !bossAlive，而 bossAlive 在 BOSS 出现前就是 false，
+      //   导致第3关起只击杀 1 名敌人就误判过关）
+      if (bossAppeared && !bossAlive) completeLevel();
     } else if (levelKills >= L.killTarget) {
       completeLevel();
     }
@@ -1716,6 +1728,9 @@
     bossAlive = false;
     heliSpawnedCount = 0;
     chestSpawnedCount = 0;
+    // v6.4 每关随机出宝箱几率 30%
+    levelHasChest = Math.random() < 0.30;
+    chestSpawnedThisLevel = false;
     clearAllDynamic();
     // 重建场景（如果切换到新关卡布局）
     rebuildFullScene(getTargetLayout());
@@ -1741,6 +1756,8 @@
     bossAlive = false;
     heliSpawnedCount = 0;
     chestSpawnedCount = 0;
+    levelHasChest = Math.random() < 0.30;
+    chestSpawnedThisLevel = false;
     currentLayout = getTargetLayout();
     score = 0;
     clearAllDynamic();
@@ -1771,9 +1788,10 @@
   ctx.onEnemyKilled = function (pos, type) {
     levelKills++;
     score += (type === 'boss' ? 2000 : (type === 'monster' ? 150 : 100));
-    if (Math.random() < (type === 'boss' ? 1 : 0.08)) {
-      chestSpawnedCount++;
-      spawnChest(randomSpawnPos());
+    // v6.4 宝箱机制：本关掷出 30% 则首杀敌人时在击杀点刷出宝箱（每关最多 1 个）
+    if (levelHasChest && !chestSpawnedThisLevel) {
+      chestSpawnedThisLevel = true;
+      spawnChest(pos);
     }
     // 30% 概率掉落弹药
     if (Math.random() < 0.30) {
@@ -2269,7 +2287,14 @@
         return {
           state: state, levelIndex: levelIndex, levelKills: levelKills,
           levelCleared: levelCleared, waveQueueLen: waveQueue.length,
+          boss: { appeared: bossAppeared, alive: bossAlive },
           enemyCount: entities.filter(function (e) { return e.cfg && e.cfg.enemyType; }).length, killTarget: getLevel().killTarget,
+          chest: { levelHasChest: levelHasChest, spawned: chestSpawnedThisLevel, count: chestSpawnedCount,
+                   chests: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'chest'; }).length },
+          buffs: { speed: Math.round((player.buffs.speed || 0) * 10) / 10, damage: Math.round((player.buffs.damage || 0) * 10) / 10,
+                   healthTimer: Math.round((player.buffs.healthTimer === undefined ? 0 : player.buffs.healthTimer) * 10) / 10,
+                   healthMax: player.buffs.healthMax },
+          nukes: player.nukes,
           playerPos: player.pos ? { x: player.pos.x.toFixed(2), y: player.pos.y.toFixed(2), z: player.pos.z.toFixed(2) } : null,
           gun: player.gun, ammo: Math.round(player.ammo * 100) / 100, reserve: player.reserve,
           flameReserve: player.flameReserve, berserk: player.berserk,
@@ -2317,6 +2342,13 @@
         var p2 = player.pos.clone().addScaledVector(fwd, e.code === 'KeyJ' ? 10 : 8);
         spawnEnemy(e.code === 'KeyJ' ? 'human' : 'spider', p2);
       }
+      // C：强制本关出宝箱（测试宝箱道具）；O：在正前方 3m 直接刷一个宝箱（测试拾取）；N：直接给 1 枚核弹（测试核弹）
+      if (e.code === 'KeyC') { levelHasChest = true; }
+      if (e.code === 'KeyO') {
+        var fwd2 = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+        spawnChest(player.pos.clone().addScaledVector(fwd2, 3));
+      }
+      if (e.code === 'KeyN') { player.nukes += 1; }
       // V：自动前进开关（测试移动速度）
       if (e.code === 'KeyV') _testForward = !_testForward;
     });
