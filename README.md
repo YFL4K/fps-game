@@ -6,7 +6,7 @@
 
 > 📌 所有模型（敌人、枪械、建筑、树木）全部由 three.js 代码程序化生成，**没有任何外部美术资源**。音效由 WebAudio 实时合成。
 
-![游戏截图](screenshot.png)
+![游戏截图](browser_screenshot_7fa03ab9.png)
 
 ## ✨ 功能特性
 
