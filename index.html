@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.5</div>
+<div id="versionTag">v7.6</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -152,7 +152,7 @@
     <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸（对敌伤害 +150% 群体伤害）· 击杀敌人掉落宝箱/金色护盾(20%) · 击落直升机获得火箭筒/喷火器/核弹(10%) · 蜘蛛会自爆！</span><br>
     <span class="warn">🎵 每关专属劲爆战斗 BGM（M 键静音）· 🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span><br>
     <span class="warn">📻 击杀 BOSS/直升机 10% 掉落对讲机（每关随机出现）——按 T 呼叫导弹空袭，1 次有效！</span><br>
-    <span class="warn">🛡 金色护盾（击杀敌人 20% 掉落）：拾取后 30 秒减伤 90%，期间每击杀一名敌人 +2 秒，超时消失！</span>
+    <span class="warn">🛡 金色护盾（击杀敌人 20% 掉落）：拾取后 30 秒减伤 90%，期间每击杀一名敌人 +0.5 秒，超时消失！</span>
   </div>
   <button id="startBtn">开始游戏（过关模式）</button>
 </div>
@@ -797,10 +797,12 @@
   var bgm = {
     idx: -1, track: null, playing: false, muted: false,
     master: null, timer: null, nextT: 0, step: 0,
+    // v7.6 所有 BGM 音量加大 50%：master 增益 0.16 → 0.24
+    masterVol: 0.24,
     init: function () {
       if (!AC || this.master) return;
       this.master = AC.createGain();
-      this.master.gain.value = 0.16;
+      this.master.gain.value = this.masterVol;
       this.master.connect(AC.destination);
     },
     playTrack: function (i) {
@@ -832,7 +834,7 @@
     },
     setMuted: function (m) {
       this.muted = m;
-      if (this.master) this.master.gain.setTargetAtTime(m ? 0.0001 : 0.16, AC.currentTime, 0.02);
+      if (this.master) this.master.gain.setTargetAtTime(m ? 0.0001 : this.masterVol, AC.currentTime, 0.02);
     },
     toggleMute: function () { this.setMuted(!this.muted); return this.muted; },
     schedule: function () {
@@ -1867,7 +1869,7 @@
   function applyShield() {
     player.shieldTime = 30;
     if (sfx) sfx.playPickup();
-    showToast('🛡 获得金色护盾！30 秒减伤 90%（击杀 +2 秒）', 0xffd700);
+    showToast('🛡 获得金色护盾！30 秒减伤 90%（击杀 +0.5 秒）', 0xffd700);
   }
 
   /** v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 生命值恢复满血（跨过关卡/无尽持续累计） */
@@ -2274,8 +2276,8 @@
       collision: false,
       dynamic: true,
       respawn: 0,
-      // v7.4 猪头佳血量提升 300%：1000 → 4000
-      health: 4000,
+      // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000
+      health: 12000,
       speed: 13,
       life: 30
     };
@@ -2323,7 +2325,7 @@
       enemyType: 'boss',
       bossKind: b.kind || 'mech',   // v6.5: 机甲 BOSS
       bossSkin: b.skin || 1,
-      health: 7500,      // v7.4 BOSS 机甲血量 +400%：1500→7500
+      health: 22500,      // v7.4 BOSS 血量 +400%：1500→7500；v7.6 再 +200%：7500→22500
       damage: bossDmg,
       speed: 1,
       defense: b.defense || 2,
@@ -2578,9 +2580,9 @@
       player.health = Math.min(player.maxHealth, player.health + 10);
       if (sfx) sfx.playPickup();
     }
-    // v6.9 护盾期间击杀敌人 +2 秒（上限 60 秒）
+    // v6.9 护盾期间击杀敌人 +2 秒 → v7.6 下调为 +0.5 秒（上限 60 秒）
     if (player.shieldTime > 0) {
-      player.shieldTime = Math.min(60, player.shieldTime + 2);
+      player.shieldTime = Math.min(60, player.shieldTime + 0.5);
     }
     // v7.1 图鉴表掉落：金盾 10%
     if (Math.random() < 0.10) {
@@ -3906,7 +3908,18 @@
       score = 0; nextAwardScore = savedNext; player.walkieBonus = 0; player.walkie = false;
       return out;
     };
-    window.__fpsTest.setPlayerPos = function (x, y, z) {
+      // v7.6 需求4：BGM 主音量比 v6.6 基线 0.16 提升 50% → 0.24
+      window.__fpsTest.bgmVolumeTest = function () {
+        var out = {};
+        window.bgm = window.bgm || bgm;   // 暴露给测试（同一闭包内可见）
+        out.masterVol = bgm.masterVol;
+        out.pct = Math.round((bgm.masterVol / 0.16) * 1000) / 10;
+        if (!bgm.master) bgm.init();
+        if (bgm.master) out.gain = Math.round(bgm.master.gain.value * 1000) / 1000;
+        out.ok = out.masterVol === 0.24 && out.pct === 150 && out.gain === 0.24;
+        return out;
+      };
+      window.__fpsTest.setPlayerPos = function (x, y, z) {
       player.pos.set(x, y === undefined ? 0.1 : y, z);
       player.vel.set(0, 0, 0);
       player.health = 100;              // v7.4 测试安全：避免狂暴/死亡干扰
@@ -3926,12 +3939,12 @@
       var pig = findPigRec();
       if (pig) { out.pig = pig.inst.userData.maxHealth || pig.inst.userData.health; removeEntity(pig); pigAlive = false; }
       // BOSS 机甲
-      var boCfg = { id: 'test-boss-' + (++dynCounter), model: 'enemy', position: [-20, 0, -20], rotation: [0, 0, 0], scale: [1.35, 1.35, 1.35], collision: false, dynamic: true, respawn: 0, enemyType: 'boss', bossKind: 'mech', bossSkin: 1, health: 7500, damage: 15, speed: 1, defense: 2, weapon: 'rocket', shootRange: 35, shootCooldown: 1, stopDist: 12, moveInterval: 1.5, pointValue: 2000 };
+      var boCfg = { id: 'test-boss-' + (++dynCounter), model: 'enemy', position: [-20, 0, -20], rotation: [0, 0, 0], scale: [1.35, 1.35, 1.35], collision: false, dynamic: true, respawn: 0, enemyType: 'boss', bossKind: 'mech', bossSkin: 1, health: 22500, damage: 15, speed: 1, defense: 2, weapon: 'rocket', shootRange: 35, shootCooldown: 1, stopDist: 12, moveInterval: 1.5, pointValue: 2000 };
       buildEntity(boCfg);
       var bo = null;
       for (var j = 0; j < entities.length; j++) if (entities[j].cfg.id === boCfg.id) { bo = entities[j]; break; }
       if (bo) { out.boss = bo.inst.userData.maxHealth || bo.inst.userData.health; removeEntity(bo); }
-      out.ok = out.he === 750 && out.pig === 4000 && out.boss === 7500;
+      out.ok = out.he === 750 && out.pig === 12000 && out.boss === 22500;
       return out;
     };
     // v7.4 需求4：狂暴模式 30% 阈值 + hitPlayer 伤害结算点立即触发
@@ -4025,10 +4038,21 @@
       var fl = document.getElementById('flashOverlay').style.opacity;   // 同步读：验证先闪光
       return { nukes: player.nukes, flash: fl };
     };
+    // v7.6 护盾击杀 +0.5 秒（覆盖 v6.9 的 +2 秒）
     window.__fpsTest.shieldKillTest = function () {
-      var before = player.shieldTime;
+      var out = {};
+      var savedKills = levelKills;
+      levelKills = 0;   // 防触发关卡完成
+      player.shieldTime = 30; player.berserk = false;
       ctx.onEnemyKilled(player.pos.clone(), 'human');
-      return { before: before, after: player.shieldTime };
+      out.after1 = player.shieldTime;
+      player.shieldTime = 59.9;
+      ctx.onEnemyKilled(player.pos.clone(), 'human');
+      out.capped = player.shieldTime;
+      levelKills = savedKills;
+      out.ok = Math.abs(out.after1 - 30.5) < 0.001 && out.capped <= 60;
+      player.shieldTime = 0;
+      return out;
     };
     window.__fpsTest.explodeEnemyDmgTest = function (dmg, mul) {
       // 确保有一个固定位置的测试敌人（health 高防死、speed 0 不动）
