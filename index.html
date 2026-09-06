@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.0</div>
+<div id="versionTag">v7.1</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -309,13 +309,13 @@
       killTarget: 30, boss: null, pool: { human: 4, monster: 2 }, stats: { damage: 0, health: 0 } },
     { name: '第 2 关', title: '火力围猎', mission: '击杀 50 名敌人',
       killTarget: 50, boss: null, pool: { human: 6, monster: 4 }, stats: { damage: 2, health: 20 } },
-    { name: '第 3 关', title: '机甲降临', mission: '击杀 70 名敌人后机甲 BOSS 现身，击败 BOSS 过关',
+    { name: '第 3 关', title: '机甲降临', mission: '每击杀 25 名普通敌人机甲 BOSS 随机现身，击败 BOSS 过关',
       killTarget: 70, boss: { trigger: 70, kind: 'mech', skin: 1, damage: 24, speed: 1.0, scale: 3.2, defense: 2, weapon: 'rocket' },
       pool: { human: 5, monster: 4 }, stats: { damage: 4, health: 40 } },
-    { name: '第 4 关', title: '钢铁洪流', mission: '击杀 90 名敌人后机甲 BOSS 现身，击败 BOSS 过关',
+    { name: '第 4 关', title: '钢铁洪流', mission: '每击杀 25 名普通敌人机甲 BOSS 随机现身，击败 BOSS 过关',
       killTarget: 90, boss: { trigger: 90, kind: 'mech', skin: 2, damage: 30, speed: 1.15, scale: 3.6, defense: 2, weapon: 'rocket' },
       pool: { human: 7, monster: 6 }, stats: { damage: 6, health: 60 } },
-    { name: '第 5 关', title: '终焉机甲', mission: '击杀 110 名敌人后机甲 BOSS 现身，击败 BOSS 过关',
+    { name: '第 5 关', title: '终焉机甲', mission: '每击杀 25 名普通敌人机甲 BOSS 随机现身，击败 BOSS 过关',
       killTarget: 110, boss: { trigger: 110, kind: 'mech', skin: 3, damage: 36, speed: 1.3, scale: 4.2, defense: 2, weapon: 'rocket' },
       pool: { human: 10, monster: 8 }, stats: { damage: 8, health: 90 } }
   ];
@@ -328,8 +328,7 @@
   };
   var gameMode = 'story';   // 'story' 过关模式 | 'endless' 无尽模式
   var endlessLayout = null; // 无尽模式随机地图（每次进入重新生成）
-  var endlessWave = 1;      // 无尽模式波次（每 25 杀 +1，用于敌人/BOSS 强度缩放）
-  var endlessBossTimer = 30;
+  var endlessWave = 1;      // 无尽模式波次（每 25 杀 +1，用于敌人强度缩放）
   var endlessBest = { kills: 0, score: 0 };  // 历史最高（localStorage）
   var levelIndex = 0;
   var levelKills = 0;
@@ -345,9 +344,11 @@
   var levelHasChest = false;
   var chestSpawnedThisLevel = false;
   var dynCounter = 0;
-  // v7.0 猪头佳小BOSS：击杀普通敌人计数（每 5 个触发出现），同屏最多 1 只
+  // v7.0 猪头佳小BOSS：击杀普通敌人计数（每 10 个触发出现），同屏最多 1 只
   var pigKills = 0;
   var pigAlive = false;
+  // v7.1 机甲 BOSS：每击杀 25 名普通敌人随机出现（所有关卡+无尽），同屏最多 1 只
+  var bossKills = 0;
   var currentLayout = null;  // 记录当前加载的布局版本
 
   /* ================= 2. 渲染器 / 场景 / 相机 ================= */
@@ -2207,9 +2208,9 @@
     var L = getLevel();
     var stats = L.stats || {};
     var base = {
-      human:   { health: 100, damage: 8,  speed: 1.5, range: 24, cd: 2.3, score: 100 },
-      monster: { health: 170, damage: 15, speed: 1.25, range: 20, cd: 3.2, score: 150 },
-      spider:  { health: 40, damage: 25, speed: 2.8, range: 1.5, cd: 0.3, score: 150, explode: true }
+      human:   { health: 60, damage: 8,  speed: 1,   range: 15, cd: 3.0, score: 100 },
+      monster: { health: 90, damage: 10, speed: 1.25, range: 20, cd: 4.0, score: 150 },
+      spider:  { health: 40, damage: 20, speed: 2.8, range: 1.5, cd: 4.0, score: 150, explode: true }
     }[type] || {};
     var cfg = {
       id: 'dyn-e-' + (++dynCounter),
@@ -2238,7 +2239,6 @@
     pigAlive = true;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(side * (20 + Math.random() * 14), 0, -28 - Math.random() * 10);
-    var hp = 800 + levelIndex * 150;
     var cfg = {
       id: 'dyn-pig-' + (++dynCounter),
       model: 'pig',
@@ -2248,7 +2248,7 @@
       collision: false,
       dynamic: true,
       respawn: 0,
-      health: hp,
+      health: 1000,
       speed: 13,
       life: 30
     };
@@ -2277,80 +2277,41 @@
     bossAppeared = true;
     bossAlive = true;
     var L = getLevel();
-    var b = L.boss;
-    // v6.5: 机甲 BOSS 血量 = 普通敌人血量 ×3（普通敌人 = 100 + 关卡 stats.health），防御 ×2（伤害减半）
-    var normalHp = 100 + ((L.stats && L.stats.health) || 0);
-    var bossHp = normalHp * 3;
+    var b = L.boss || {};
+    // v7.1 图鉴表：BOSS 血量 1500 固定；伤害按关 24/30/36（钳制 20）；速度 1；射程 35；攻击间隔 1s
+    var dmgTable = [24, 24, 24, 30, 36];
+    var bossDmg = (typeof b.damage === 'number' && b.damage > 0) ? b.damage : (dmgTable[levelIndex] || 24);
+    var bossScale = b.scale || 3.0;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(side * (22 + Math.random() * 12), 0, -30 - Math.random() * 8);
     var cfg = {
-      id: 'dyn-boss-' + levelIndex,
+      id: 'dyn-boss-' + levelIndex + '-' + (++dynCounter),
       model: 'enemy',
       position: [pos.x, 0, pos.z],
       rotation: [0, 0, 0],
-      scale: [b.scale, b.scale, b.scale],
+      scale: [bossScale, bossScale, bossScale],
       collision: false,
       dynamic: true,
       respawn: 0,
       enemyType: 'boss',
       bossKind: b.kind || 'mech',   // v6.5: 机甲 BOSS
       bossSkin: b.skin || 1,
-      health: bossHp,
-      damage: b.damage,
-      speed: b.speed,
+      health: 1500,
+      damage: bossDmg,
+      speed: 1,
       defense: b.defense || 2,
       weapon: b.weapon || 'rocket',
-      shootRange: 46,
-      shootCooldown: 2.6,
+      shootRange: 35,
+      shootCooldown: 1.0,
       stopDist: 12,
-      score: 2000 + levelIndex * 500
+      score: 2000
     };
     buildEntity(cfg);
-    showToast('⚠ 机甲 BOSS 出现！击败 BOSS 完成本关，奖励核弹', 0xff5f5f);
+    showToast('⚠ 机甲 BOSS 出现！击败 BOSS 奖励核弹+空袭对讲机', 0xff5f5f);
     levelBannerTitle.textContent = '⚠ 机甲 BOSS 现身';
-    levelBannerSub.textContent = '击败 BOSS 完成本关（火箭炮注意躲避！）';
+    levelBannerSub.textContent = '击败 BOSS 获得 核弹×1 + 空袭对讲机×1（火箭炮注意躲避！）';
     levelBannerEl.style.opacity = '1';
     setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 3000);
-    if (sfx) sfx.playBoss();
-  }
-
-  // v6.5 无尽模式 BOSS：随机出现（15% 概率），造型/强度随波次随机
-  function spawnEndlessBoss() {
-    bossAppeared = true;
-    bossAlive = true;
-    var stats = getLevel().stats || {};
-    var bossHp = 3 * (100 + stats.health) + endlessWave * 150;
-    var scale = Math.min(5.5, 3.0 + endlessWave * 0.35);
-    var side = Math.random() < 0.5 ? -1 : 1;
-    var pos = new THREE.Vector3(side * (22 + Math.random() * 12), 0, -30 - Math.random() * 8);
-    var cfg = {
-      id: 'dyn-boss-endless-' + (++dynCounter),
-      model: 'enemy',
-      position: [pos.x, 0, pos.z],
-      rotation: [0, 0, 0],
-      scale: [scale, scale, scale],
-      collision: false,
-      dynamic: true,
-      respawn: 0,
-      enemyType: 'boss',
-      bossKind: 'mech',
-      bossSkin: 1 + Math.floor(Math.random() * 3),  // 无尽模式随机 3 种配色（红/蓝/绿）
-      health: bossHp,
-      damage: 26 + endlessWave * 4,
-      speed: 1.0 + Math.min(0.4, endlessWave * 0.05),
-      defense: 2,
-      weapon: 'rocket',
-      shootRange: 46,
-      shootCooldown: 2.4,
-      stopDist: 12,
-      score: 2000 + endlessWave * 500
-    };
-    buildEntity(cfg);
-    showToast('⚠ 随机机甲 BOSS 出现！击败可获得核弹', 0xff5f5f);
-    levelBannerTitle.textContent = '⚠ 随机机甲 BOSS';
-    levelBannerSub.textContent = '击败 BOSS 获得核弹！';
-    levelBannerEl.style.opacity = '1';
-    setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 2600);
     if (sfx) sfx.playBoss();
   }
 
@@ -2367,8 +2328,8 @@
       collision: false,
       dynamic: true,
       respawn: 0,
-      health: 150 + levelIndex * 40,
-      damage: 14 + levelIndex * 2,
+      health: 250,
+      damage: 20,
       shootCooldown: Math.max(2.0, 3.4 - levelIndex * 0.25),
       hoverY: 11 + levelIndex * 0.8
     };
@@ -2406,28 +2367,16 @@
       }
     }
 
-    // BOSS 触发条件（过关模式）
-    if (L.boss && !bossAppeared && levelKills >= L.boss.trigger) {
-      spawnBoss();
-    }
-
-    // v6.5 无尽模式：BOSS 随机出现（每次判定 15% 概率），强度随波次缩放
+    // v7.1 机甲 BOSS 触发：所有关卡+无尽模式统一改为「每击杀 25 名普通敌人随机出现」（见 onEnemyKilled）
     if (gameMode === 'endless') {
       if (levelKills >= endlessWave * 25) endlessWave++;
-      endlessBossTimer -= dt;
-      if (endlessBossTimer <= 0) {
-        endlessBossTimer = 30 + Math.random() * 25;
-        if (!bossAlive && Math.random() < 0.15) spawnEndlessBoss();
-      }
     }
 
-    // 直升机随机出现（每关最多 2 次）
-    if (heliSpawnedCount < 2) {
-      heliTimer -= dt;
-      if (heliTimer <= 0) {
-        if (!helicopterAlive()) spawnHelicopter();
-        heliTimer = 32 + Math.random() * 18;
-      }
+    // v7.1 直升机随机出现（所有关卡+无尽模式，32~50 秒间隔持续来袭）
+    heliTimer -= dt;
+    if (heliTimer <= 0) {
+      if (!helicopterAlive()) spawnHelicopter();
+      heliTimer = 32 + Math.random() * 18;
     }
   }
 
@@ -2477,6 +2426,8 @@
     // v7.0 换关：猪头佳状态复位
     pigAlive = false;
     pigKills = 0;
+    // v7.1 换关：BOSS 击杀计数复位
+    bossKills = 0;
     // v6.4 每关随机出宝箱几率 30%
     levelHasChest = Math.random() < 0.30;
     chestSpawnedThisLevel = false;
@@ -2509,13 +2460,14 @@
     // v7.0 换关：猪头佳状态复位
     pigAlive = false;
     pigKills = 0;
+    // v7.1 换关：BOSS 击杀计数复位
+    bossKills = 0;
     levelHasChest = Math.random() < 0.30;
     chestSpawnedThisLevel = false;
     if (gameMode === 'endless') {
-      // 无尽模式：每次进入重新随机地图 + 重置波次/计时器
+      // 无尽模式：每次进入重新随机地图 + 重置波次
       endlessLayout = null;
       endlessWave = 1;
-      endlessBossTimer = 25 + Math.random() * 20;
     }
     currentLayout = getTargetLayout();
     score = 0;
@@ -2566,19 +2518,27 @@
       pigAlive = false;
       score += 1000;
       showToast('🐗 击败猪头佳！+1000', 0xffcc66);
+      // v7.1 图鉴表：猪头佳击毁掉落
+      if (Math.random() < 0.20) spawnWeaponDrop(pos, 'rocket');
+      if (Math.random() < 0.20) spawnAmmoDrop(pos, 'flame');
+      if (Math.random() < 0.10) spawnWalkieDrop(pos);
+      if (Math.random() < 0.10) player.nukes = (player.nukes || 0) + 1;
+      if (Math.random() < 0.30) spawnHealthDrop(pos);
+      if (Math.random() < 0.10) spawnShieldDrop(pos);
       if (sfx) sfx.playLevelUp();
       return;
     }
-    // v7.0 每击杀 5 名普通敌人 → 猪头佳随机出现（同屏最多 1 只）
+    // v7.1 每击杀 10 名普通敌人 → 猪头佳随机出现（同屏最多 1 只）
     if ((type === 'human' || type === 'monster' || type === 'spider') && !pigAlive) {
       pigKills++;
-      if (pigKills >= 5) {
+      if (pigKills >= 10) {
         pigKills = 0;
         spawnPig();
       }
     }
     levelKills++;
-    score += (type === 'boss' ? 2000 : (type === 'monster' ? 150 : 100));
+    // v7.1 击杀分：boss 2000 / monster 150 / spider 150 / human 100
+    score += (type === 'boss' ? 2000 : (type === 'monster' || type === 'spider' ? 150 : 100));
     // v6.8 狂暴模式击杀回血：狂暴期间每击杀 1 敌人恢复 10 HP（直到狂暴结束）
     if (player.berserk) {
       player.health = Math.min(player.maxHealth, player.health + 10);
@@ -2588,8 +2548,8 @@
     if (player.shieldTime > 0) {
       player.shieldTime = Math.min(60, player.shieldTime + 2);
     }
-    // v6.9 击杀任何敌人 20% 掉落金色盾牌
-    if (Math.random() < 0.20) {
+    // v7.1 图鉴表掉落：金盾 10%
+    if (Math.random() < 0.10) {
       spawnShieldDrop(pos);
     }
     // v6.4 宝箱机制：本关掷出 30% 则首杀敌人时在击杀点刷出宝箱（每关最多 1 个）
@@ -2597,49 +2557,65 @@
       chestSpawnedThisLevel = true;
       spawnChest(pos);
     }
-    // 30% 概率掉落弹药
-    if (Math.random() < 0.30) {
+    // v7.1 图鉴表掉落：弹药 60%
+    if (Math.random() < 0.60) {
       spawnAmmoDrop(pos);
     }
-    if (Math.random() < 0.2) spawnWeaponDrop(pos);
-    // v6.2 击杀敌人 20% 概率掉落回血道具
-    if (Math.random() < 0.2) spawnHealthDrop(pos);
+    // v7.1 图鉴表：蜘蛛额外掉落 火箭筒10% + 喷火弹药10%
+    if (type === 'spider') {
+      if (Math.random() < 0.10) spawnWeaponDrop(pos, 'rocket');
+      if (Math.random() < 0.10) spawnAmmoDrop(pos, 'flame');
+    }
+    // v7.1 图鉴表掉落：回血 30%
+    if (Math.random() < 0.30) spawnHealthDrop(pos);
+    // v7.1 每击杀 25 名普通敌人 → 机甲 BOSS 随机出现（所有关卡+无尽模式，同屏最多 1 只）
+    if ((type === 'human' || type === 'monster' || type === 'spider') && !bossAlive) {
+      bossKills++;
+      if (bossKills >= 25) {
+        bossKills = 0;
+        spawnBoss();
+      }
+    }
     checkMissionComplete();
   };
   ctx.onBossKilled = function (pos) {
     bossAlive = false;
+    // v7.1 图鉴表：击杀 BOSS +2000 分
+    score += 2000;
     // v6.5: 击杀 BOSS 奖励核弹 ×1（过关模式 + 无尽模式都适用）
     player.nukes = (player.nukes || 0) + 1;
     showToast('☢ 击败 BOSS！获得 核弹 ×1', 0xffcc66);
-    // v6.7 对讲机 10% 掉落
-    if (Math.random() < 0.10) {
-      spawnWalkieDrop(pos);
-      showToast('📻 空袭对讲机掉落！', 0x66ccff);
-    }
+    // v7.1 图鉴表：BOSS 必掉空袭对讲机 ×1
+    spawnWalkieDrop(pos);
+    showToast('📻 空袭对讲机掉落！', 0x66ccff);
     if (sfx) sfx.playLevelUp();
     if (gameMode === 'endless') return;  // 无尽模式不结束
     completeLevel();
   };
   ctx.onHelicopterKilled = function (pos) {
     score += 800;
-    spawnWeaponDrop(pos, 'rocket');
-    // v6.2 打直升机随机掉落喷火弹药补给（50%）
+    // v7.1 图鉴表：直升机掉落 火箭筒 30%
     var extra = '';
-    if (Math.random() < 0.5) {
+    if (Math.random() < 0.30) {
+      spawnWeaponDrop(pos, 'rocket');
+      extra = ' + 火箭筒（5 发炮弹）';
+    }
+    // v7.1 图鉴表：直升机掉落 喷火弹药 30%
+    if (Math.random() < 0.30) {
       spawnAmmoDrop(pos, 'flame');
       extra = ' + 喷火弹药补给';
     }
-    // v6.7 对讲机 10% 掉落
-    if (Math.random() < 0.10) {
+    // v7.1 图鉴表：直升机掉落 对讲机 20%
+    if (Math.random() < 0.20) {
       spawnWalkieDrop(pos);
       extra = ' + 📻 空袭对讲机';
     }
-    // v6.9 击毁直升机 10% 概率掉落核弹（原仅 BOSS）
-    if (Math.random() < 0.10) {
+    // v7.1 图鉴表：击毁直升机 20% 概率掉落核弹
+    if (Math.random() < 0.20) {
       player.nukes++;
       extra = ' + ☢ 核弹 ×1';
     }
-    showToast('击毁直升机！获得 火箭筒（5 发炮弹）' + extra, 0xffcc66);
+    showToast('击毁直升机！' + (extra ? '获得' + extra : '（无掉落）'), 0xffcc66);
     if (sfx) sfx.playLevelUp();
   };
 
@@ -3374,9 +3350,139 @@
       return false;
     };
     window.__fpsTest.triggerPigCounter = function (n) {
-      var c = n || 5;
+      var c = n || 10;
+      var sbA = bossAlive, sbK = bossKills;
+      bossAlive = true;  // 屏蔽 BOSS 计数干扰
       for (var i = 0; i < c; i++) ctx.onEnemyKilled(player.pos.clone(), 'human');
+      bossAlive = sbA; bossKills = sbK;
       return { alive: pigAlive, kills: pigKills };
+    };
+    // v7.1 计数隔离：清零猪/BOSS 触发计数（避免主循环敌人互杀污染测试）
+    window.__fpsTest.resetCounters = function () {
+      pigKills = 0;
+      bossKills = 0;
+      return true;
+    };
+    // v7.1 图鉴表参数测试
+    window.__fpsTest.spawnEnemyParamTest = function (type) {
+      var pos = new THREE.Vector3(40 + Math.random() * 10, 0, 40);
+      spawnEnemy(type, pos);
+      var out = null;
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (!rec.alive || !rec.cfg || !rec.inst || !rec.inst.userData) continue;
+        if (rec.cfg.enemyType !== type && rec.cfg.enemyType !== undefined) continue;
+        if (rec.inst.userData.health === undefined) continue;
+        if (rec.inst.position.distanceTo(pos) < 5) {
+          out = {
+            type: type,
+            health: rec.inst.userData.health,
+            damage: rec.inst.userData.damage,
+            speed: rec.inst.userData.speed,
+            range: rec.inst.userData.shootRange,
+            cd: rec.inst.userData.shootCooldown,
+            score: rec.inst.userData.score,
+            explodeRange: rec.inst.userData.explodeRange
+          };
+          rec.inst.userData.takeDamage(99999);   // 清掉测试敌人
+          break;
+        }
+      }
+      return out;
+    };
+    // v7.1 机甲 BOSS：25 杀触发
+    window.__fpsTest.triggerBossCounter = function (n) {
+      var c = n || 25;
+      var spA = pigAlive, spK = pigKills;
+      pigAlive = true;  // 屏蔽猪头佳计数干扰
+      for (var i = 0; i < c; i++) ctx.onEnemyKilled(player.pos.clone(), 'human');
+      pigAlive = spA; pigKills = spK;
+      return { alive: bossAlive, kills: bossKills, appeared: bossAppeared };
+    };
+    window.__fpsTest.bossState = function () {
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.enemyType === 'boss') {
+          var u = rec.inst.userData;
+          return { alive: bossAlive, health: u.health, damage: u.damage, speed: u.speed, range: u.shootRange, cd: u.shootCooldown, score: u.score, scale: rec.cfg.scale[0] };
+        }
+      }
+      return { alive: bossAlive, health: null };
+    };
+    window.__fpsTest.killBossTest = function () {
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.enemyType === 'boss' && rec.inst.userData.takeDamage) {
+          var n0 = player.nukes || 0;
+          player.walkie = false;
+          var before = { nukes: n0, walkie: false };
+          var walkieBefore = false;
+          for (var j = 0; j < entities.length; j++) {
+            if (entities[j].cfg && entities[j].cfg.id && entities[j].cfg.id.indexOf('walkie-') === 0) walkieBefore = true;
+          }
+          rec.inst.userData._ctx = ctx;   // 确保死亡回调可用（实体可能还没被主循环 update 赋值 _ctx）
+          rec.inst.userData.takeDamage(99999);
+          var walkieAfter = false;
+          for (var k = 0; k < entities.length; k++) {
+            if (entities[k].cfg && entities[k].cfg.id && entities[k].cfg.id.indexOf('walkie-') === 0) walkieAfter = true;
+          }
+          return { nukesDelta: (player.nukes || 0) - before.nukes, walkieDropped: walkieAfter && !walkieBefore, bossAlive: bossAlive };
+        }
+      }
+      return { err: 'no boss' };
+    };
+    // v7.1 直升机参数 + 每关 2 次限制移除
+    window.__fpsTest.spawnHelicopterTest = function () {
+      spawnHelicopter();
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.model === 'helicopter' && rec.inst.userData) {
+          return { health: rec.inst.userData.health, damage: rec.inst.userData.damage, hoverY: rec.cfg.hoverY, shootCd: rec.inst.userData.shootCooldown };
+        }
+      }
+      return { err: 'no heli' };
+    };
+    window.__fpsTest.heliMultiTest = function (n) {
+      var c = n || 3;
+      for (var i = 0; i < c; i++) spawnHelicopter();
+      var count = 0;
+      for (var j = 0; j < entities.length; j++) {
+        if (entities[j].alive && entities[j].cfg && entities[j].cfg.model === 'helicopter') count++;
+      }
+      return { spawnedCount: count, heliSpawnedCount: heliSpawnedCount };
+    };
+    // v7.1 掉落概率统计（循环调用击杀回调，验证各类掉落都会出现）
+    window.__fpsTest.dropCounters = function () {
+      var out = { weapon: 0, ammo: 0, health: 0, walkie: 0, shield: 0 };
+      for (var i = 0; i < entities.length; i++) {
+        var id = entities[i].cfg && entities[i].cfg.id;
+        if (!id) continue;
+        if (id.indexOf('wdrop-') === 0) out.weapon++;
+        else if (id.indexOf('ammo-') === 0) out.ammo++;
+        else if (id.indexOf('health-') === 0) out.health++;
+        else if (id.indexOf('walkie-') === 0) out.walkie++;
+        else if (id.indexOf('shield-') === 0) out.shield++;
+      }
+      return out;
+    };
+    window.__fpsTest.pigDropsTest = function (n) {
+      var c = n || 120;
+      var nukes0 = player.nukes || 0;
+      player.walkie = false;
+      for (var i = 0; i < c; i++) ctx.onEnemyKilled(player.pos.clone(), 'pig');
+      return { nukesDelta: (player.nukes || 0) - nukes0, drops: window.__fpsTest.dropCounters() };
+    };
+    window.__fpsTest.enemyDropsTest = function (n) {
+      var c = n || 120;
+      var before = window.__fpsTest.dropCounters();
+      var spA = pigAlive, spK = pigKills, sbA = bossAlive, sbK = bossKills, lk = levelKills;
+      pigAlive = true; bossAlive = true; levelKills = -100000;  // 屏蔽触发 & 防过关干扰
+      for (var i = 0; i < c; i++) ctx.onEnemyKilled(player.pos.clone(), 'human');
+      for (var j = 0; j < c; j++) ctx.onEnemyKilled(player.pos.clone(), 'monster');
+      for (var k = 0; k < c; k++) ctx.onEnemyKilled(player.pos.clone(), 'spider');
+      pigAlive = spA; pigKills = spK; bossAlive = sbA; bossKills = sbK; levelKills = lk;
+      var after = window.__fpsTest.dropCounters();
+      return { before: before, after: after };
     };
     window.__fpsTest.pigPos = function (x, z) {
       for (var i = 0; i < entities.length; i++) {
@@ -3480,7 +3586,7 @@
       var hp1 = player.health;
       restoreExplosives(moved);
       var dmg = hp0 - hp1;
-      return { ok: dmg >= 5 && dmg <= 10, dmg: dmg, hp0: hp0, hp1: hp1 };
+      return { ok: dmg >= 5 && dmg <= 20, dmg: dmg, hp0: hp0, hp1: hp1 };
     };
     window.__fpsTest.pigRamEnemyTest = function () {
       var pig = findPigRec(), enemy = findRecByIdPrefix('test-enemy');

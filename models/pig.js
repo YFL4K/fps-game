@@ -6,7 +6,7 @@
  * 行为（update 每帧由主程序调用）：
  *   1. 30 秒出场时间，超时自爆（调用 ctx.onPigSelfDestruct）
  *   2. 无差别冲撞：不断冲向最近目标（玩家/地面敌人/爆炸物）
- *   3. 撞玩家 → ctx.hitPlayer(5~10)（主程序钳制 5~20）
+ *   3. 撞玩家 → ctx.hitPlayer(5~20)（主程序钳制 5~20）
  *   4. 撞敌人 → takeDamage(30~50) + 击退
  *   5. 撞爆炸物（油桶/TNT）→ 触发 def.onHit 引爆（explode chain）
  *   6. 撞场景 → 由主程序 collideEnemies 推挤（不穿模）
@@ -235,12 +235,12 @@
       var s = inst.scale.x || 1;
       var contactR = 1.7 * s;
 
-      // 撞玩家：每次 5~10 伤害
+      // 撞玩家：每次 5~20 伤害（v7.1 图鉴表）
       if (ctx.hitPlayer && !ctx.player.dead && u.hitPlayerCd <= 0) {
         var pr = contactR + (ctx.playerRadius || 0.4);
         if (sqDist(px, pz, ctx.player.pos.x, ctx.player.pos.z) < pr * pr) {
           u.hitPlayerCd = 0.7;
-          ctx.hitPlayer(5 + Math.floor(Math.random() * 6));
+          ctx.hitPlayer(5 + Math.floor(Math.random() * 16));
         }
       }
 
