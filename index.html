@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.7</div>
+<div id="versionTag">v7.8</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -1686,7 +1686,7 @@
       player.maxHealth = Math.min(1200, Math.round(player.maxHealth * 3));
       player.health = player.maxHealth;
     } else if (item.id === 'nuke') {
-      player.nukes += 1;
+      grantNuke();   // v7.8 核弹上限 1，已有不重复
     }
     showToast('宝箱：' + item.name + ' — ' + item.desc, item.color);
     if (sfx) sfx.playChest();
@@ -1700,9 +1700,9 @@
   function applyPickup(rec) {
     if (!rec.cfg.kind) return;
     if (rec.cfg.kind === 'chest') { applyChest(rec); return; }
-    // v6.7 对讲机：1 次有效，重复拾取不累积
+    // v6.7 对讲机：1 次有效，重复拾取不累积；v7.8 与 5000 分奖励统一上限 1（已有空袭不再拾取）
     if (rec.cfg.kind === 'walkie') {
-      if (!player.walkie) {
+      if (!player.walkie && !(player.walkieBonus > 0)) {
         player.walkie = true;
         showToast('📻 获得对讲机！按 T 呼叫空中支援（1 次有效）', 0x66ccff);
         if (sfx) sfx.playPickup();
@@ -1827,9 +1827,9 @@
   }
 
   /* ================= v6.7 对讲机 / 空中支援 ================= */
-  /** 击杀 BOSS 或直升机 10% 掉落对讲机；已有对讲机则不重复掉落 */
+  /** 击杀 BOSS 或直升机 10% 掉落对讲机；已有空袭（对讲机或 5000 分奖励次数）则不重复掉落 */
   function spawnWalkieDrop(pos) {
-    if (player.walkie) return;
+    if (player.walkie || player.walkieBonus > 0) return;
     var cfg = {
       id: 'walkie-' + (++dynCounter),
       model: 'walkie',
@@ -1872,14 +1872,27 @@
     showToast('🛡 获得金色护盾！30 秒减伤 90%（击杀 +0.5 秒）', 0xffd700);
   }
 
-  /** v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 生命值恢复满血（跨过关卡/无尽持续累计） */
+  /** v7.8 核弹发放统一入口：上限 1，不使用不能累积，不能重复拾取
+   *  各掉落点（宝箱/猪头佳/BOSS/直升机）都走这里；已有 1 颗时不增加 */
+  function grantNuke() {
+    if (player.nukes >= 1) return false;   // 已有 → 不重复发放
+    player.nukes = 1;
+    return true;
+  }
+
+  /** v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 生命值恢复满血（跨过关卡/无尽持续累计）
+   *  v7.8 空中支援上限 1：已有空袭（对讲机或奖励次数）不重复累计，仅回满血 */
   function checkScoreMilestone() {
     while (score >= nextAwardScore) {
       var at = nextAwardScore;
       nextAwardScore += 5000;
-      player.walkieBonus = (player.walkieBonus || 0) + 1;
+      if (!player.walkie && !(player.walkieBonus > 0)) {
+        player.walkieBonus = 1;
+        showToast('🎁 达到 ' + at + ' 分！奖励：空中支援 ×1 + 生命全恢复', 0x66ffcc);
+      } else {
+        showToast('🎁 达到 ' + at + ' 分！生命全恢复（已持空袭，不重复累计）', 0x66ffcc);
+      }
       player.health = player.maxHealth;
-      showToast('🎁 达到 ' + at + ' 分！奖励：空中支援 ×1 + 生命全恢复', 0x66ffcc);
       if (sfx && sfx.playLevelUp) sfx.playLevelUp();
     }
   }
@@ -2559,7 +2572,7 @@
       if (Math.random() < 0.20) spawnWeaponDrop(pos, 'rocket');
       if (Math.random() < 0.20) spawnAmmoDrop(pos, 'flame');
       if (Math.random() < 0.30) spawnWalkieDrop(pos);
-      if (Math.random() < 0.30) player.nukes = (player.nukes || 0) + 1;
+      if (Math.random() < 0.30) grantNuke();   // v7.8 核弹上限 1，已有不重复
       if (Math.random() < 0.30) spawnHealthDrop(pos);
       if (Math.random() < 0.10) spawnShieldDrop(pos);
       if (sfx) sfx.playLevelUp();
@@ -2623,12 +2636,16 @@
     score += 2000;
     // v7.3 5000 分里程碑奖励检查
     checkScoreMilestone();
-    // v6.5: 击杀 BOSS 奖励核弹 ×1（过关模式 + 无尽模式都适用）
-    player.nukes = (player.nukes || 0) + 1;
-    showToast('☢ 击败 BOSS！获得 核弹 ×1', 0xffcc66);
-    // v7.1 图鉴表：BOSS 必掉空袭对讲机 ×1
+    // v6.5: 击杀 BOSS 奖励核弹 ×1（过关模式 + 无尽模式都适用）→ v7.8 核弹上限 1
+    if (grantNuke()) {
+      showToast('☢ 击败 BOSS！获得 核弹 ×1', 0xffcc66);
+    } else {
+      showToast('☢ 已持有核弹（上限 1，不重复累计）', 0xffaa22);
+    }
+    // v7.1 图鉴表：BOSS 必掉空袭对讲机 ×1（已有空袭则不掉落）
+    var hadAir = player.walkie || player.walkieBonus > 0;
     spawnWalkieDrop(pos);
-    showToast('📻 空袭对讲机掉落！', 0x66ccff);
+    if (!hadAir) showToast('📻 空袭对讲机掉落！', 0x66ccff);
     if (sfx) sfx.playLevelUp();
     if (gameMode === 'endless') return;  // 无尽模式不结束
     completeLevel();
@@ -2653,10 +2670,10 @@
       spawnWalkieDrop(pos);
       extra = ' + 📻 空袭对讲机';
     }
-    // v7.1 图鉴表：击毁直升机 20% 概率掉落核弹
+    // v7.1 图鉴表：击毁直升机 20% 概率掉落核弹 → v7.8 上限 1
     if (Math.random() < 0.20) {
-      player.nukes++;
-      extra = ' + ☢ 核弹 ×1';
+      if (grantNuke()) extra += ' + ☢ 核弹 ×1';
+      else extra += ' + ☢ 核弹（已有，上限 1 不重复）';
     }
     showToast('击毁直升机！' + (extra ? '获得' + extra : '（无掉落）'), 0xffcc66);
     if (sfx) sfx.playLevelUp();
@@ -3925,9 +3942,11 @@
       var ok = p40 >= 39 && p40 <= 41 && p50 >= 49 && p50 <= 51 && p30 >= 29 && p30 <= 31;
       return { ok: ok, p40: p40, p50: p50, p30: p30 };
     };
-    // v7.3 需求1：每 5000 分 → 空中支援 ×1（可累积）+ 满血；执行分跨多个门槛不重复漏发
+    // v7.3 需求1：每 5000 分 → 空中支援 ×1（可累积）+ 满血
+    // v7.8 修订：空中支援上限 1，已有空袭时不重复累计（仅回满血）
     window.__fpsTest.awardMilestoneTest = function () {
       var savedNext = nextAwardScore;
+      nextAwardScore = 5000;   // 固定门槛基准，避免环境初始值影响断言
       var out = {};
       player.walkie = false; player.walkieBonus = 0; player.health = 40; player.shieldTime = 0; player.dead = false;
       score = 4999;
@@ -3944,13 +3963,44 @@
       out.at15000 = { bonus: player.walkieBonus, hp: player.health };
       useAirSupport();
       out.afterUse = { bonus: player.walkieBonus, walkie: player.walkie };
+      // 跨门槛不累积（永远 ≤1）；使用后归零
       var ok = out.at4999.bonus === 0 && out.at4999.hp === 40 && out.at4999.walkie === false &&
                out.at5000.bonus === 1 && out.at5000.hp === 100 &&
                out.at9999.bonus === 1 &&
-               out.at15000.bonus === 3 && out.at15000.hp === 100 &&
-               out.afterUse.bonus === 2 && out.afterUse.walkie === false;
+               out.at15000.bonus === 1 && out.at15000.hp === 100 &&
+               out.afterUse.bonus === 0 && out.afterUse.walkie === false;
       out.ok = ok;
       score = 0; nextAwardScore = savedNext; player.walkieBonus = 0; player.walkie = false;
+      return out;
+    };
+    // v7.8 修订：空中支援/hhh核弹 上限 1、不使用不累积、不重复拾取
+    window.__fpsTest.itemCapTest = function () {
+      var out = {};
+      // --- 核弹上限 1 ---
+      player.nukes = 0;
+      out.nuke1 = grantNuke();
+      out.nukesAfter1 = player.nukes;
+      out.nuke2 = grantNuke();
+      out.nukesAfter2 = player.nukes;
+      // --- 空中支援：5000 分奖励不累积 ---
+      nextAwardScore = score + 0;
+      player.walkie = false; player.walkieBonus = 0;
+      score = 5000; nextAwardScore = 5000; player.health = 40;
+      checkScoreMilestone();
+      out.bonusAt5k = player.walkieBonus;
+      score = 10000; nextAwardScore = 10000;
+      checkScoreMilestone();
+      out.bonusAt10k = player.walkieBonus;      // 仍为 1，不累积
+      // --- 已持奖励时不重复掉落对讲机 ---
+      var had = entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length;
+      spawnWalkieDrop(new THREE.Vector3(2, 0.8, 2));
+      var after = entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length;
+      out.dropAfter = after;
+      // --- 清理 ---
+      for (var i = entities.length - 1; i >= 0; i--) if (entities[i].cfg && entities[i].cfg.kind === 'walkie') removeEntity(entities[i]);
+      player.walkie = false; player.walkieBonus = 0; player.nukes = 0;
+      out.ok = out.nuke1 === true && out.nukesAfter1 === 1 && out.nuke2 === false && out.nukesAfter2 === 1 &&
+               out.bonusAt5k === 1 && out.bonusAt10k === 1 && out.dropAfter === 0;
       return out;
     };
     // v7.7 需求1a：猪头佳移动速度 +40% → spawnPig cfg.speed 18.2
