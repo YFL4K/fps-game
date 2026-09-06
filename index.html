@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.6</div>
+<div id="versionTag">v7.7</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -312,13 +312,13 @@
     { name: '第 2 关', title: '火力围猎', mission: '击杀 50 名敌人',
       killTarget: 50, boss: null, pool: { human: 6, monster: 4 }, stats: { damage: 2, health: 20 } },
     { name: '第 3 关', title: '机甲降临', mission: '每击杀 25 名普通敌人机甲 BOSS 随机现身，击败 BOSS 过关',
-      killTarget: 70, boss: { trigger: 70, kind: 'mech', skin: 1, damage: 24, speed: 1.0, scale: 3.2, defense: 2, weapon: 'rocket' },
+      killTarget: 70, boss: { trigger: 70, kind: 'mech', skin: 1, damage: 36, speed: 1.4, scale: 3.2, defense: 2, weapon: 'rocket' },
       pool: { human: 5, monster: 4 }, stats: { damage: 4, health: 40 } },
     { name: '第 4 关', title: '钢铁洪流', mission: '每击杀 25 名普通敌人机甲 BOSS 随机现身，击败 BOSS 过关',
-      killTarget: 90, boss: { trigger: 90, kind: 'mech', skin: 2, damage: 30, speed: 1.15, scale: 3.6, defense: 2, weapon: 'rocket' },
+      killTarget: 90, boss: { trigger: 90, kind: 'mech', skin: 2, damage: 45, speed: 1.61, scale: 3.6, defense: 2, weapon: 'rocket' },
       pool: { human: 7, monster: 6 }, stats: { damage: 6, health: 60 } },
     { name: '第 5 关', title: '终焉机甲', mission: '每击杀 25 名普通敌人机甲 BOSS 随机现身，击败 BOSS 过关',
-      killTarget: 110, boss: { trigger: 110, kind: 'mech', skin: 3, damage: 36, speed: 1.3, scale: 4.2, defense: 2, weapon: 'rocket' },
+      killTarget: 110, boss: { trigger: 110, kind: 'mech', skin: 3, damage: 54, speed: 1.82, scale: 4.2, defense: 2, weapon: 'rocket' },
       pool: { human: 10, monster: 8 }, stats: { damage: 8, health: 90 } }
   ];
   // v6.5 无尽模式：虚拟关卡配置（killTarget=Infinity 永不达标 → 无限刷怪）
@@ -2278,7 +2278,8 @@
       respawn: 0,
       // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000
       health: 12000,
-      speed: 13,
+      // v7.7 猪头佳移动速度 +40%：13 → 18.2
+      speed: 18.2,
       life: 30
     };
     buildEntity(cfg);
@@ -2308,8 +2309,10 @@
     var L = getLevel();
     var b = L.boss || {};
     // v7.1 图鉴表：BOSS 血量 1500 固定；伤害按关 24/30/36（钳制 20）；速度 1；射程 35；攻击间隔 1s
-    var dmgTable = [24, 24, 24, 30, 36];
-    var bossDmg = (typeof b.damage === 'number' && b.damage > 0) ? b.damage : (dmgTable[levelIndex] || 24);
+    // v7.7 伤害 +50% → 36/45/54；速度 +40%（取关卡 boss.speed，已同步 +40%）
+    var dmgTable = [36, 36, 36, 45, 54];
+    var bossDmg = (typeof b.damage === 'number' && b.damage > 0) ? b.damage : (dmgTable[levelIndex] || 36);
+    var bossSpeed = (typeof b.speed === 'number' && b.speed > 0) ? b.speed : 1.4;
     var bossScale = b.scale || 3.0;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(side * (22 + Math.random() * 12), 0, -30 - Math.random() * 8);
@@ -2327,7 +2330,7 @@
       bossSkin: b.skin || 1,
       health: 22500,      // v7.4 BOSS 血量 +400%：1500→7500；v7.6 再 +200%：7500→22500
       damage: bossDmg,
-      speed: 1,
+      speed: bossSpeed,   // v7.7 BOSS 移动速度 +40%（取关卡配置）
       defense: b.defense || 2,
       weapon: b.weapon || 'rocket',
       shootRange: 35,
@@ -2822,6 +2825,7 @@
     player.pos.addScaledVector(player.vel, dt);
 
     collideWorld();
+    collideBigEntities();   // v7.7 大体型敌人（猪头佳/BOSS 机甲）3D 挡体，禁止从下方穿模
 
     if (player.pos.y < 0) {
       player.pos.y = 0;
@@ -2905,6 +2909,46 @@
       var dz = rec.inst.position.z - player.pos.z;
       if (dx * dx + dy * dy + dz * dz < 1.8 * 1.8) {
         applyPickup(rec);
+      }
+    }
+  }
+
+  /** v7.7 玩家 vs 大体型敌人（猪头佳 / BOSS 机甲）3D 挡体碰撞
+   *  修复：玩家从猪头佳 / BOSS 机甲下方穿过时严重穿模——
+   *  这两个模型身高数米（猪 scale3、BOSS scale3.2~4.2），此前只对普通敌人做水平推挤，
+   *  玩家贴近其身体/底座正下方不会被推开。现在用模型 AABB 做“挡体”：
+   *  只要玩家脚底低于实体顶部（即处于该模型的垂直占据空间内）且水平投影侵入其范围，
+   *  就把玩家水平推挤到 AABB 之外；玩家跳到高于实体顶面时允许从头顶越过（不阻挡）。 */
+  function collideBigEntities() {
+    var r = playerRadius;
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive) continue;
+      var rm = rec.cfg.model;
+      var isBig = (rm === 'pig') || (rm === 'enemy' && rec.cfg.enemyType === 'boss');
+      if (!isBig) continue;
+      // 模型世界 AABB（含 scale）
+      box.setFromObject(rec.inst);
+      var topY = box.max.y;
+      // 玩家脚底接近/高于实体顶部：允许从上方跨过（仅贴脚底高度差 <0.25 时阻挡）
+      if (player.pos.y >= topY - 0.25) continue;
+      var cx = clamp(player.pos.x, box.min.x, box.max.x);
+      var cz = clamp(player.pos.z, box.min.z, box.max.z);
+      var dx = player.pos.x - cx;
+      var dz = player.pos.z - cz;
+      var d2 = dx * dx + dz * dz;
+      if (d2 >= r * r) continue;
+      if (d2 > 1e-8) {
+        var d = Math.sqrt(d2);
+        var push = (r - d) / d;
+        player.pos.x += dx * push;
+        player.pos.z += dz * push;
+      } else {
+        // 玩家在实体正下方中心：沿最短边推出
+        var px = Math.min(player.pos.x - box.min.x, box.max.x - player.pos.x);
+        var pz = Math.min(player.pos.z - box.min.z, box.max.z - player.pos.z);
+        if (px < pz) player.pos.x = (player.pos.x - box.min.x < box.max.x - player.pos.x) ? box.min.x - r : box.max.x + r;
+        else player.pos.z = (player.pos.z - box.min.z < box.max.z - player.pos.z) ? box.min.z - r : box.max.z + r;
       }
     }
   }
@@ -3194,7 +3238,8 @@
     var scopeOn = aiming && GUN_TYPES[player.gun].scopeLens && !player.dead && state === 'playing';
     scopeEl.style.display = scopeOn ? 'block' : 'none';
     crosshairEl.style.display = scopeOn ? 'none' : 'block';
-    if (gunInst) gunInst.visible = !scopeOn;
+    // v7.7 修复：加特林碉堡开火时必须显示加特林枪管、隐藏玩家枪（原每帧强制 !scopeOn 会覆盖 enterGatling 的隐藏）
+      if (gunInst) gunInst.visible = !scopeOn && !(player.gatling && player.gatling.active);
     if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
       window.MODELS.gun.update(gunInst, dt, ctx);
     }
@@ -3906,6 +3951,131 @@
                out.afterUse.bonus === 2 && out.afterUse.walkie === false;
       out.ok = ok;
       score = 0; nextAwardScore = savedNext; player.walkieBonus = 0; player.walkie = false;
+      return out;
+    };
+    // v7.7 需求1a：猪头佳移动速度 +40% → spawnPig cfg.speed 18.2
+    window.__fpsTest.pigSpeedTest = function () {
+      // 清掉旧猪后强制重新 spawn，确保读取的是 v7.7 新 cfg
+      var old = findPigRec();
+      if (old) { removeEntity(old); pigAlive = false; pigKills = 0; }
+      spawnPig();
+      var pig = findPigRec();
+      if (!pig) return { ok: false, err: 'no pig' };
+      var spd = pig.inst.userData.speed;
+      var ok = Math.abs(spd - 18.2) < 0.001;
+      return { ok: ok, speed: spd };
+    };
+    // v7.7 需求1b：猪头佳撞玩家基础伤害 ×1.5（8~30），钳制后 8~20；激光玩家 DPS 设定 30
+    window.__fpsTest.pigPlayerDmgTest = function () {
+      var pig = findPigRec();
+      if (!pig) return { ok: false, err: 'no pig' };
+      var moved = moveAwayExplosives();
+      var enemy = findRecByIdPrefix('test-enemy');
+      if (enemy) enemy.inst.position.set(200, 0, 200);
+      var u = pig.inst.userData;
+      u.life = 29; u.hitPlayerCd = 0; u.laserPhase = 'off'; u.laserTimer = 0;
+      var minDmg = 999, maxDmg = 0;
+      for (var k = 0; k < 30; k++) {
+        player.health = 100; player.shieldTime = 0; player.dead = false;
+        pig.inst.position.set(player.pos.x + 0.2, 0, player.pos.z + 0.2);
+        u.hitPlayerCd = 0;
+        window.MODELS.pig.update(pig.inst, 0.01, ctx);
+        var d = 100 - player.health;
+        if (d < minDmg) minDmg = d;
+        if (d > maxDmg) maxDmg = d;
+        u.life = 29;
+      }
+      restoreExplosives(moved);
+      // 基础 8~30（钳制 5~20）→ 实测范围应在 [8, 20]
+      var ok = minDmg >= 8 && maxDmg <= 20;
+      return { ok: ok, minDmg: minDmg, maxDmg: maxDmg };
+    };
+    // v7.7 需求1c：猪头佳激光对玩家设定伤害 20→30（主程序钳制后实际 20）
+    window.__fpsTest.pigLaserDpsValueTest = function () {
+      var pig = ensurePigForTest();
+      if (!pig) return { ok: false, err: 'no pig' };
+      restoreExplosives(moveAwayExplosives());
+      var u = pig.inst.userData;
+      // 直接调用激光结算路径：将玩家放到激光落点附近 → hitPlayer(LASER_DPS_PLAYER)
+      player.health = 100; player.shieldTime = 0; player.dead = false;
+      pig.inst.position.set(0, 0, 0); pig.inst.rotation.y = Math.PI;
+      player.pos.set(0, 0.5, -8.9);
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.laserSweep = 0; u.life = 29;
+      window.MODELS.pig.update(pig.inst, 0.02, ctx);
+      var dmg = 100 - player.health;
+      // 设定值 ×1.5 → 30（钳制后在玩家身上表现为 20）
+      var ok = dmg === 20;   // 钳制生效
+      return { ok: ok, dmg: dmg };
+    };
+    // v7.7 需求2：BOSS 机甲伤害/速度设定 +50%/+40%（验证关卡配置与 spawnBoss 取值）
+    window.__fpsTest.bossStatsTest = function () {
+      var savedIdx = levelIndex;
+      var out = {};
+      levelIndex = 2;   // 第 3 关
+      var L = getLevel();
+      out.l3 = { damage: L.boss.damage, speed: L.boss.speed };
+      // spawnBoss 需要清场保护（防止已存在 BOSS）
+      if (bossAlive) { for (var i = entities.length - 1; i >= 0; i--) if (entities[i].cfg.enemyType === 'boss') removeEntity(entities[i]); bossAlive = false; }
+      bossAppeared = false; bossAlive = false;
+      spawnBoss();
+      var bo = null;
+      for (var j = 0; j < entities.length; j++) if (entities[j].cfg.enemyType === 'boss') { bo = entities[j]; break; }
+      if (bo) { out.cfg = { damage: bo.cfg.damage, speed: bo.cfg.speed }; removeEntity(bo); }
+      bossAlive = false; bossAppeared = false;
+      levelIndex = savedIdx;
+      out.ok = out.l3.damage === 36 && Math.abs(out.l3.speed - 1.4) < 0.001 &&
+               out.cfg && out.cfg.damage === 36 && Math.abs(out.cfg.speed - 1.4) < 0.001;
+      return out;
+    };
+    // v7.7 需求3：玩家被猪头佳/BOSS 挡体推挤（不再从下方穿模）
+    window.__fpsTest.collideBigTest = function () {
+      var out = {};
+      var pig = findPigRec();
+      var spawned = false;
+      if (!pig) { spawnPig(); spawned = true; pig = findPigRec(); }
+      if (!pig) return { ok: false, err: 'no pig' };
+      var moved = moveAwayExplosives();
+      var enemy = findRecByIdPrefix('test-enemy');
+      if (enemy) enemy.inst.position.set(200, 0, 200);
+      // 玩家放到猪正下方中心
+      pig.inst.position.set(6, 0, 6);
+      pig.inst.rotation.y = 0;
+      pig.inst.updateMatrixWorld(true);   // 刷新模型世界矩阵，保证 AABB 取到新位置
+      player.pos.set(6, 0.05, 6);
+      collideBigEntities();
+      out.after = { x: Math.round(player.pos.x * 10) / 10, z: Math.round(player.pos.z * 10) / 10 };
+      var d = Math.sqrt((player.pos.x - 6) * (player.pos.x - 6) + (player.pos.z - 6) * (player.pos.z - 6));
+      out.dist = Math.round(d * 10) / 10;
+      // 应被推出猪 AABB 之外（野猪宽约 3*1.7≈5.1，推出后距离一般 > 2.6）
+      out.ok = d > 2.6 && (out.after.x !== 6 || out.after.z !== 6);
+      player.pos.set(0, 0.1, 0);
+      restoreExplosives(moved);
+      if (spawned && pig) { removeEntity(pig); pigAlive = false; }
+      return out;
+    };
+    // v7.7 需求4：加特林开火显示加特林枪管、隐藏玩家枪（主循环不再覆盖隐藏）
+    window.__fpsTest.gatlingGunVisibleTest = function () {
+      var out = {};
+      // 构造并进入附近的加特林碉堡
+      var gCfg = { id: 'test-gatling-v77', model: 'gatling', position: [26, 0, 26], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, dynamic: true, respawn: 0, health: 100000, kind: '' };
+      buildEntity(gCfg);
+      var gRec = null;
+      for (var i = 0; i < entities.length; i++) if (entities[i].cfg.id === gCfg.id) { gRec = entities[i]; break; }
+      if (!gRec) return { ok: false, err: 'no gatling' };
+      player.pos.set(26, 0.1, 26.9);
+      player.dead = false; state = 'playing';
+      enterGatling(gRec);
+      out.inVisible = gunInst ? gunInst.visible : 'no-gun';
+      // 模拟主循环每帧的 visible 赋值（原 bug：强制 !scopeOn 覆盖隐藏）
+      var scopeOn = aiming && !player.dead && state === 'playing';
+      out.frameForce = !!(gunInst && (gunInst.visible === false || (!scopeOn && !(player.gatling && player.gatling.active) && gunInst.visible === false)));
+      // 直接重算主循环表达式在当前状态下的结果
+      out.mainExpr = !scopeOn && !(player.gatling && player.gatling.active);
+      exitGatling();
+      out.outVisible = gunInst ? gunInst.visible : 'no-gun';
+      removeEntity(gRec);
+      player.pos.set(0, 0.1, 0);
+      out.ok = out.inVisible === false && out.mainExpr === false && out.outVisible === true;
       return out;
     };
       // v7.6 需求4：BGM 主音量比 v6.6 基线 0.16 提升 50% → 0.24

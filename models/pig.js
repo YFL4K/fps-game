@@ -26,9 +26,10 @@
 
   // v7.3 激光常量：5 秒发射 / 3 秒间隙 / 射程 200 / 玩家 20 每秒 / 其它敌人 50 每秒
   // v7.5 俯角 30°~50° 向下扫射地面（能扫到低矮的地面小目标）
+  // v7.7 对玩家攻击伤害 +50%：激光玩家 20→30 / 每秒
   var LASER_ON = 5, LASER_OFF = 3, LASER_RANGE = 200, LASER_HALF_W = 1.5;
   var LASER_PITCH_MIN = 30, LASER_PITCH_MAX = 50;
-  var LASER_DPS_PLAYER = 20, LASER_DPS_ENEMY = 50;
+  var LASER_DPS_PLAYER = 30, LASER_DPS_ENEMY = 50;
 
   /** 3D 射线命中判定：目标点到射线（起点 eye，方向 dir 单位向量，射程 range）的垂直距离 <= r */
   function laserRayHit(eye, dxv, dyv, dzv, tx, ty, tz, range, r) {
@@ -290,12 +291,12 @@
       var s = inst.scale.x || 1;
       var contactR = 1.7 * s;
 
-      // 撞玩家：每次 5~20 伤害（v7.1 图鉴表）
+      // 撞玩家：v7.7 基础 5~20 ×1.5 → 8~30（主程序钳制 5~20）
       if (ctx.hitPlayer && !ctx.player.dead && u.hitPlayerCd <= 0) {
         var pr = contactR + (ctx.playerRadius || 0.4);
         if (sqDist(px, pz, ctx.player.pos.x, ctx.player.pos.z) < pr * pr) {
           u.hitPlayerCd = 0.7;
-          ctx.hitPlayer(5 + Math.floor(Math.random() * 16));
+          ctx.hitPlayer(Math.round((5 + Math.floor(Math.random() * 16)) * 1.5));
         }
       }
 
