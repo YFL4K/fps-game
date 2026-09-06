@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.3</div>
+<div id="versionTag">v7.4</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -579,6 +579,8 @@
       dmg = Math.max(1, Math.round(dmg * 0.1));
     }
     player.health -= dmg;
+    // v7.4 伤害结算后立即评估狂暴（不再等下帧 updatePlayer，修复偶发延迟不触发）
+    if (state === 'playing' && !player.dead) updateBerserkState();
     hurtEl.style.opacity = '1';
     setTimeout(function () { hurtEl.style.opacity = '0'; }, 150);
     if (sfx) sfx.playHurt();
@@ -2272,7 +2274,8 @@
       collision: false,
       dynamic: true,
       respawn: 0,
-      health: 1000,
+      // v7.4 猪头佳血量提升 300%：1000 → 4000
+      health: 4000,
       speed: 13,
       life: 30
     };
@@ -2320,7 +2323,7 @@
       enemyType: 'boss',
       bossKind: b.kind || 'mech',   // v6.5: 机甲 BOSS
       bossSkin: b.skin || 1,
-      health: 1500,
+      health: 7500,      // v7.4 BOSS 机甲血量 +400%：1500→7500
       damage: bossDmg,
       speed: 1,
       defense: b.defense || 2,
@@ -2352,7 +2355,7 @@
       collision: false,
       dynamic: true,
       respawn: 0,
-      health: 250,
+      health: 750,      // v7.4 直升机血量 +200%：250→750
       damage: 20,
       shootCooldown: Math.max(2.0, 3.4 - levelIndex * 0.25),
       hoverY: 11 + levelIndex * 0.8
@@ -2689,19 +2692,25 @@
   var right = new THREE.Vector3();
   var box = new THREE.Box3();
 
-  function updatePlayer(dt) {
-    // v6.2 狂暴模式：生命值 ≤ 15% 自动触发（生命恢复后解除）
+  /** v7.4 狂暴模式状态机：生命值 ≤ 30% 触发（伤害+50% 爆炸弹 射速+50% 移速×3），生命恢复后解除
+   *  修复 v6.8 偶发不触发：伤害结算点（hitPlayer）立即评估 + 主循环帧评估双保险 */
+  function updateBerserkState() {
     var hpRatio = player.maxHealth > 0 ? player.health / player.maxHealth : 1;
-    var wantBerserk = hpRatio <= 0.15 && !player.dead;
-    if (wantBerserk !== player.berserk) {
-      player.berserk = wantBerserk;
-      if (wantBerserk) {
-        showToast('🔥 狂暴模式！伤害+50% 爆炸弹 射速+50% 移速+200%', 0xff4422);
+    var want = hpRatio <= 0.30 && !player.dead;
+    if (want !== player.berserk) {
+      player.berserk = want;
+      if (want) {
+        showToast('🔥 狂暴模式！伤害+50% 爆炸弹 射速+50% 移速×3', 0xff4422);
         if (sfx) sfx.playLevelUp();
       } else {
         showToast('狂暴模式解除', 0x88ccff);
       }
     }
+  }
+
+  function updatePlayer(dt) {
+    updateBerserkState();   // v7.4 帧循环评估（回血后解除/死亡状态）
+    if (player.dead) return;
     // Buff 计时
     if (player.buffs.speed > 0) {
       player.buffs.speed -= dt;
@@ -2820,6 +2829,11 @@
       player.vel.y = 0;
     }
 
+    // v7.4 世界边界硬钳制：绝不穿过围墙（墙内界 ≈ ±44.7，留玩家半径余量）
+    var WL = 43.9;
+    player.pos.x = clamp(player.pos.x, -WL, WL);
+    player.pos.z = clamp(player.pos.z, -WL, WL);
+
     checkPickups();
   }
 
@@ -2893,17 +2907,22 @@
     }
   }
 
-  /** 敌人与静态碰撞体（建筑/墙/车辆/箱子等）的水平推挤，防止穿模 */
+  /** 敌人与静态碰撞体（建筑/墙/车辆/箱子等）的水平推挤，防止穿模
+   *  v7.4 修复：蜘蛛（spider 模型）/ BOSS 机甲（enemy 模型）一并纳入，不再穿墙 */
   function collideEnemies() {
     var ab = new THREE.Box3();
     for (var i = 0; i < entities.length; i++) {
       var rec = entities[i];
-      if (!rec.alive || (rec.cfg.model !== 'enemy' && rec.cfg.model !== 'pig')) continue;
+      var rm = rec.cfg.model;
+      if (!rec.alive || (rm !== 'enemy' && rm !== 'spider' && rm !== 'pig')) continue;
       var u = rec.inst.userData;
       if (u && u.dead) continue;
       rec.inst.updateMatrixWorld(true);
-      // v7.0 猪头佳体型大：碰撞推挤半径按模型放大（普通敌人 0.38，野猪 0.85）
-      var r = (rec.inst.scale.x || 1) * (rec.cfg.model === 'pig' ? 0.85 : 0.38);
+      // v7.4 碰撞推挤半径：普通敌人/蜘蛛 0.38，BOSS 1.1，猪头佳 0.85×scale
+      var r;
+      if (rm === 'pig') r = (rec.inst.scale.x || 1) * 0.85;
+      else if (rec.cfg.enemyType === 'boss') r = (rec.inst.scale.x || 1) * 1.1;
+      else r = 0.38;
       for (var j = 0; j < colliders.length; j++) {
         var c = colliders[j];
         if (!c.alive) continue;
@@ -2926,6 +2945,10 @@
           else rec.inst.position.z = (rec.inst.position.z - ab.min.z < ab.max.z - rec.inst.position.z) ? ab.min.z - r : ab.max.z + r;
         }
       }
+      // v7.4 世界边界硬钳制：敌人（蜘蛛/陆行敌人/猪/BOSS）绝不越过围墙
+      var wl = rm === 'pig' ? 41.5 : 43.9;
+      rec.inst.position.x = clamp(rec.inst.position.x, -wl, wl);
+      rec.inst.position.z = clamp(rec.inst.position.z, -wl, wl);
     }
   }
 
@@ -3862,7 +3885,108 @@
     window.__fpsTest.setPlayerPos = function (x, y, z) {
       player.pos.set(x, y === undefined ? 0.1 : y, z);
       player.vel.set(0, 0, 0);
+      player.health = 100;              // v7.4 测试安全：避免狂暴/死亡干扰
       return { x: x, z: z };
+    };
+    // v7.4 需求1/2/3：血量提升验证（直升机 +200%=750 / 猪头佳 +300%=4000 / BOSS +400%=7500）
+    window.__fpsTest.enemyHealthTest = function () {
+      var out = { he: null, pig: null, boss: null };
+      // 直升机
+      var heCfg = { id: 'test-he-' + (++dynCounter), model: 'helicopter', position: [30, 12, 30], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, dynamic: true, respawn: 0, health: 750, damage: 20, shootCooldown: 3, hoverY: 11 };
+      buildEntity(heCfg);
+      var he = null;
+      for (var i = 0; i < entities.length; i++) if (entities[i].cfg.id === heCfg.id) { he = entities[i]; break; }
+      if (he) { out.he = he.inst.userData.maxHealth || he.inst.userData.health; removeEntity(he); }
+      // 猪头佳
+      pigAlive = false; pigKills = 0; spawnPig();
+      var pig = findPigRec();
+      if (pig) { out.pig = pig.inst.userData.maxHealth || pig.inst.userData.health; removeEntity(pig); pigAlive = false; }
+      // BOSS 机甲
+      var boCfg = { id: 'test-boss-' + (++dynCounter), model: 'enemy', position: [-20, 0, -20], rotation: [0, 0, 0], scale: [1.35, 1.35, 1.35], collision: false, dynamic: true, respawn: 0, enemyType: 'boss', bossKind: 'mech', bossSkin: 1, health: 7500, damage: 15, speed: 1, defense: 2, weapon: 'rocket', shootRange: 35, shootCooldown: 1, stopDist: 12, moveInterval: 1.5, pointValue: 2000 };
+      buildEntity(boCfg);
+      var bo = null;
+      for (var j = 0; j < entities.length; j++) if (entities[j].cfg.id === boCfg.id) { bo = entities[j]; break; }
+      if (bo) { out.boss = bo.inst.userData.maxHealth || bo.inst.userData.health; removeEntity(bo); }
+      out.ok = out.he === 750 && out.pig === 4000 && out.boss === 7500;
+      return out;
+    };
+    // v7.4 需求4：狂暴模式 30% 阈值 + hitPlayer 伤害结算点立即触发
+    window.__fpsTest.berserkTest = function () {
+      var out = {};
+      player.maxHealth = 100; player.dead = false; player.berserk = false; player.shieldTime = 0;
+      player.health = 31;
+      updateBerserkState();
+      out.at31 = !!player.berserk;
+      player.health = 30;
+      updateBerserkState();
+      out.at30 = !!player.berserk;
+      player.health = 29;
+      updateBerserkState();
+      out.at29 = !!player.berserk;
+      player.health = 50;
+      updateBerserkState();
+      out.back50 = !!player.berserk;
+      // hitPlayer 结算点立即触发（不等帧）
+      player.health = 31; player.berserk = false;
+      hitPlayer(5);   // 31-5=26 ≤30 → 同一调用内立即狂暴
+      out.afterHit = { hp: player.health, berserk: !!player.berserk };
+      out.ok = out.at31 === false && out.at30 === true && out.at29 === true && out.back50 === false &&
+               out.afterHit.hp === 26 && out.afterHit.berserk === true;
+      player.health = 100; player.berserk = false;   // 清理恢复
+      return out;
+    };
+    // v7.4 需求5：玩家世界边界硬钳制（围墙内 ±43.9）
+    window.__fpsTest.worldBoundPlayerTest = function () {
+      var out = {};
+      player.health = 100; player.dead = false;
+      player.pos.set(60, 0.1, 60);
+      updatePlayer(0.016);
+      out.corner = { x: Math.round(player.pos.x * 10) / 10, z: Math.round(player.pos.z * 10) / 10 };
+      player.pos.set(0, 0.1, -70);
+      updatePlayer(0.016);
+      out.north = Math.round(player.pos.z * 10) / 10;
+      player.pos.set(70, 0.1, 20);
+      updatePlayer(0.016);
+      out.east = Math.round(player.pos.x * 10) / 10;
+      out.ok = Math.abs(out.corner.x) <= 43.9 && Math.abs(out.corner.z) <= 43.9 && out.north >= -43.9 && out.east <= 43.9;
+      player.pos.set(0, 0.1, 0);
+      return out;
+    };
+    // v7.4 需求5：蜘蛛穿墙修复（collideEnemies 纳入 spider + 边界钳制）
+    window.__fpsTest.worldBoundSpiderTest = function () {
+      var spCfg = { id: 'test-sp-' + (++dynCounter), model: 'spider', position: [50, 0, 60], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, dynamic: true, respawn: 0, enemyType: 'spider', health: 40, damage: 20, speed: 2.8, explodeRange: 1.5, explodeDamage: 45, explodeRadius: 2.5, score: 150 };
+      buildEntity(spCfg);
+      var sp = null;
+      for (var k = 0; k < entities.length; k++) if (entities[k].cfg.id === spCfg.id) { sp = entities[k]; break; }
+      if (!sp) return { ok: false, err: 'no spider' };
+      sp.inst.position.set(55, 0, 55);
+      collideEnemies();
+      var after = { x: Math.round(sp.inst.position.x * 10) / 10, z: Math.round(sp.inst.position.z * 10) / 10 };
+      removeEntity(sp);
+      return { ok: Math.abs(after.x) <= 43.9 && Math.abs(after.z) <= 43.9, after: after };
+    };
+    // v7.4 需求6：加特林新模型结构（明显枪身/6管/支架/弹链，分层布局不穿模）
+    window.__fpsTest.gatlingModelTest = function () {
+      if (!window.MODELS.gatling) return { ok: false, err: 'no gatling model' };
+      var gl = window.MODELS.gatling.create({});
+      var T = window.THREE;
+      var bbox = new T.Box3().setFromObject(gl);
+      var u = gl.userData || {};
+      var tubeCount = 0;
+      if (u.barrels) {
+        u.barrels.children.forEach(function (ch) {
+          if (ch.geometry && ch.geometry.type === 'CylinderGeometry' && (ch.geometry.parameters.radiusTop || 0) < 0.06) tubeCount++;
+        });
+      }
+      var size = {
+        x: Math.round((bbox.max.x - bbox.min.x) * 10) / 10,
+        y: Math.round((bbox.max.y - bbox.min.y) * 10) / 10,
+        z: Math.round((bbox.max.z - bbox.min.z) * 10) / 10
+      };
+      var meshCount = 0;
+      gl.traverse(function (o) { if (o.isMesh) meshCount++; });
+      var ok = !!u.turret && !!u.barrels && !!u.light && tubeCount >= 6 && bbox.min.y >= -0.01 && size.y <= 2.2 && size.x <= 2.6 && size.z <= 3.4;
+      return { ok: ok, tubeCount: tubeCount, meshCount: meshCount, size: size, barrels: u.barrels ? u.barrels.children.length : 0, hasTurret: !!u.turret, hasLight: !!u.light };
     };
     // v6.9 护盾/核弹/爆炸/弹壳测试
     window.__fpsTest.spawnShieldDropTest = function () { var p = player.pos.clone(); p.x += 6; p.z += 6; spawnShieldDrop(p); return true; };
