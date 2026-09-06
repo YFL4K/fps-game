@@ -25,16 +25,18 @@
   function sqDist(ax, az, bx, bz) { var dx = ax - bx, dz = az - bz; return dx * dx + dz * dz; }
 
   // v7.3 激光常量：5 秒发射 / 3 秒间隙 / 射程 200 / 玩家 20 每秒 / 其它敌人 50 每秒
+  // v7.5 俯角 30°~50° 向下扫射地面（能扫到低矮的地面小目标）
   var LASER_ON = 5, LASER_OFF = 3, LASER_RANGE = 200, LASER_HALF_W = 1.5;
+  var LASER_PITCH_MIN = 30, LASER_PITCH_MAX = 50;
   var LASER_DPS_PLAYER = 20, LASER_DPS_ENEMY = 50;
 
-  /** 2D 射线命中判定：目标在起点正前方、投影距离 <= range、垂距 <= halfW */
-  function laserHitTest(px, pz, tx, tz, fx, fz, range, halfW) {
-    var dx = tx - px, dz = tz - pz;
-    var t = dx * fx + dz * fz;
-    if (t < 0 || t > range) return false;
-    var ox = dx - fx * t, oz = dz - fz * t;
-    return (ox * ox + oz * oz) <= halfW * halfW;
+  /** 3D 射线命中判定：目标点到射线（起点 eye，方向 dir 单位向量，射程 range）的垂直距离 <= r */
+  function laserRayHit(eye, dxv, dyv, dzv, tx, ty, tz, range, r) {
+    var ax = tx - eye.x, ay = ty - eye.y, az = tz - eye.z;
+    var t = ax * dxv + ay * dyv + az * dzv;
+    if (t < -0.01 || t > range) return false;
+    var ox = ax - dxv * t, oy = ay - dyv * t, oz = az - dzv * t;
+    return (ox * ox + oy * oy + oz * oz) <= r * r;
   }
 
   /** 创建两条激光光束（挂在 scene 层级，不受猪 3 倍 scale 影响） */
@@ -189,7 +191,10 @@
         laserDmgTick: 0,
         laserBeams: null,
         laserEyeL: new T.Vector3(-0.42, 1.44, 1.26),
-        laserEyeR: new T.Vector3(0.42, 1.44, 1.26)
+        laserEyeR: new T.Vector3(0.42, 1.44, 1.26),
+        // v7.5 俯角扫射状态
+        laserSweep: 0,
+        laserPitch: 40
       };
       g.userData = u;
 
@@ -329,34 +334,48 @@
         }
       }
 
-      /* ================= v7.3 激光武器：双眼向前方地面发射绿色激光 ================= */
+      /* ============ v7.5 激光武器：双眼以 30°~50° 俯角向正前方地面扫射（能扫到低矮地面目标） ============ */
       u.laserTimer += dt;
       if (u.laserPhase === 'on' && u.laserTimer >= LASER_ON) {
         u.laserPhase = 'off'; u.laserTimer = 0;
       } else if (u.laserPhase === 'off' && u.laserTimer >= LASER_OFF) {
         u.laserPhase = 'on'; u.laserTimer = 0;
       }
-      var fx = Math.sin(inst.rotation.y), fz = Math.cos(inst.rotation.y);
+      // 俯角在 30°~50° 之间往复摆动（扫射动画）
+      u.laserSweep += dt * 1.2;   // rad/s
+      var pitchRad = (LASER_PITCH_MIN + (LASER_PITCH_MAX - LASER_PITCH_MIN) * (0.5 + 0.5 * Math.sin(u.laserSweep))) * Math.PI / 180;
+      u.laserPitch = Math.round((pitchRad * 180 / Math.PI) * 10) / 10;   // 供测试/调试读取
+      // 光束世界方向（水平朝猪面向 + 向下俯角）
+      var hx = Math.sin(inst.rotation.y), hz = Math.cos(inst.rotation.y);
+      var dxv = hx * Math.cos(pitchRad);
+      var dyv = -Math.sin(pitchRad);
+      var dzv = hz * Math.cos(pitchRad);
+
       ensureBeams(u, ctx);
       inst.updateMatrixWorld(true);
+      // 双眼间中轴线（世界）作为伤害判定射线起点
+      var eyeMid = new T.Vector3(0, 1.44, 1.26).applyMatrix4(inst.matrixWorld);
       for (var bi = 0; bi < u.laserBeams.length; bi++) {
         var bm = u.laserBeams[bi];
         var eye = bi === 0 ? u.laserEyeL : u.laserEyeR;
         var ew = new T.Vector3().copy(eye).applyMatrix4(inst.matrixWorld);
         var st = new T.Vector3(ew.x, Math.max(0.25, ew.y), ew.z);
-        var en = new T.Vector3(ew.x + fx * LASER_RANGE, 0.15, ew.z + fz * LASER_RANGE);
+        // 落点：光束沿俯角方向打到地面（y=0.15），随俯角摆动在地面来回扫动
+        var tGround = ew.y > 0.15 ? (ew.y - 0.15) / Math.sin(pitchRad) : LASER_RANGE;
+        var en = new T.Vector3(ew.x + dxv * tGround, 0.15, ew.z + dzv * tGround);
         bm.position.addVectors(st, en).multiplyScalar(0.5);
         bm.lookAt(en);
-        bm.scale.set(0.4, 0.06, st.distanceTo(en));
+        bm.scale.set(0.4, 0.06, Math.max(0.5, st.distanceTo(en)));
         bm.visible = (u.laserPhase === 'on');
       }
-      // 伤害：每秒结算一次（玩家 20/s，其它敌人 50/s，射程 200，宽度判定）
+      // 伤害：每秒结算一次（玩家 20/s，其它敌人 50/s；3D 射线判定，命中光束附近的低矮地面目标）
       if (u.laserPhase === 'on') {
         u.laserDmgTick += dt;
         while (u.laserDmgTick >= 1) {
           u.laserDmgTick -= 1;
           if (ctx.hitPlayer && !ctx.player.dead &&
-              laserHitTest(inst.position.x, inst.position.z, ctx.player.pos.x, ctx.player.pos.z, fx, fz, LASER_RANGE, LASER_HALF_W)) {
+              laserRayHit(eyeMid, dxv, dyv, dzv,
+                ctx.player.pos.x, ctx.player.pos.y + 0.5, ctx.player.pos.z, LASER_RANGE, LASER_HALF_W)) {
             ctx.hitPlayer(LASER_DPS_PLAYER);
           }
           for (var li = 0; li < list.length; li++) {
@@ -366,9 +385,11 @@
             if (!cuL) continue;
             if (cuL.kind === 'pig') continue;
             var mL = recL.cfg.model;
-            if (mL === 'helicopter') continue;                    // 直升机在空中，激光贴地不扫
+            if (mL === 'helicopter') continue;                    // 直升机在空中，俯角激光只扫地面
             if (!(recL.cfg.dynamic && typeof cuL.takeDamage === 'function' && !cuL.dead)) continue;
-            if (laserHitTest(inst.position.x, inst.position.z, recL.inst.position.x, recL.inst.position.z, fx, fz, LASER_RANGE, LASER_HALF_W)) {
+            var tyL = recL.inst.position.y + (mL === 'spider' ? 0.15 : 0.5);
+            if (laserRayHit(eyeMid, dxv, dyv, dzv,
+                recL.inst.position.x, tyL, recL.inst.position.z, LASER_RANGE, LASER_HALF_W)) {
               cuL.takeDamage(LASER_DPS_ENEMY);
             }
           }

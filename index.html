@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.4</div>
+<div id="versionTag">v7.5</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -3795,7 +3795,7 @@
       return { ok: s0.phase === 'on' && s1.phase === 'on' && s2.phase === 'off' && s3.phase === 'off' && s4.phase === 'on' && beamVisible === true,
         s0: s0, s1: s1, s2: s2, s3: s3, s4: s4, beams: u.laserBeams ? u.laserBeams.length : 0, beamVisible: beamVisible };
     };
-    // v7.3 需求3b：激光对玩家每秒 20 伤害（钳制上限，无护盾）
+    // v7.3 需求3b→v7.5：激光俯角 40°（sweep=0 固定）落到前方地面约 -8.9 处，玩家站在落点附近被照中
     window.__fpsTest.pigLaserPlayerTest = function () {
       var pig = ensurePigForTest();
       if (!pig) return { ok: false, err: 'no pig' };
@@ -3804,37 +3804,37 @@
       if (enemy) enemy.inst.position.set(200, 0, 200);
       pig.inst.position.set(0, 0, 0);
       pig.inst.rotation.y = Math.PI;               // 面向 -Z（朝玩家）
-      player.pos.set(0, 0.1, -50);                 // 射程内、激光路径上
+      player.pos.set(0, 0.5, -8.9);                // 40° 俯角落点附近（地面低矮目标）
       player.health = 100; player.shieldTime = 0;
       var u = pig.inst.userData;
-      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.life = 29;
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.laserSweep = 0; u.life = 29;
       var hp0 = player.health;
       window.MODELS.pig.update(pig.inst, 0.02, ctx);
       var hp1 = player.health;
       restoreExplosives(moved);
       var dmg = hp0 - hp1;
-      return { ok: dmg === 20 && hp1 === 80, dmg: dmg, hp0: hp0, hp1: hp1 };
+      return { ok: dmg === 20 && hp1 === 80, dmg: dmg, hp0: hp0, hp1: hp1, pitch: u.laserPitch };
     };
-    // v7.3 需求3c：激光对其它敌人每秒 50 无差别伤害
+    // v7.3 需求3c→v7.5：激光俯角扫到前方地面的低矮小目标（蜘蛛高度），每秒 50 无差别伤害
     window.__fpsTest.pigLaserEnemyTest = function () {
       var pig = ensurePigForTest(), enemy = ensureTestEnemy();
       if (!pig || !enemy) return { ok: false, err: 'missing' };
       var moved = moveAwayExplosives();
       player.pos.set(300, 0.1, 300);
-      enemy.inst.position.set(0, 0, -60);          // 激光路径上
+      enemy.inst.position.set(0, 0.15, -8.9);      // 40° 俯角落点附近（低矮小目标）
       enemy.inst.userData.health = 500; enemy.inst.userData.dead = false;
       pig.inst.position.set(0, 0, 0);
       pig.inst.rotation.y = Math.PI;
       var u = pig.inst.userData;
-      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.life = 29;
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.laserSweep = 0; u.life = 29;
       var hp0 = enemy.inst.userData.health;
       window.MODELS.pig.update(pig.inst, 0.02, ctx);
       var hp1 = enemy.inst.userData.health;
       restoreExplosives(moved);
       var dmg = hp0 - hp1;
-      return { ok: dmg === 50, dmg: dmg, hp0: hp0, hp1: hp1 };
+      return { ok: dmg === 50, dmg: dmg, hp0: hp0, hp1: hp1, pitch: u.laserPitch };
     };
-    // v7.3 需求3d：射程 200 外不受激光伤害
+    // v7.3 需求3d→v7.5：远处目标不在 30°~50° 俯角光束路径上不受伤害（落点在猪前方 ~6.5~8.9 米）
     window.__fpsTest.pigLaserRangeTest = function () {
       var pig = ensurePigForTest();
       if (!pig) return { ok: false, err: 'no pig' };
@@ -3843,16 +3843,40 @@
       if (enemy) enemy.inst.position.set(200, 0, 200);
       pig.inst.position.set(0, 0, 0);
       pig.inst.rotation.y = Math.PI;
-      player.pos.set(0, 0.1, -250);                // 250 > 200
+      player.pos.set(0, 0.5, -120);                // 远超落点 → 不中
       player.health = 100; player.shieldTime = 0;
       var u = pig.inst.userData;
-      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.life = 29;
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.laserSweep = 0; u.life = 29;
       var hp0 = player.health;
       window.MODELS.pig.update(pig.inst, 0.02, ctx);
       var hp1 = player.health;
       restoreExplosives(moved);
       var dmg = hp0 - hp1;
-      return { ok: dmg === 0, dmg: dmg, hp0: hp0, hp1: hp1, dist: 250 };
+      return { ok: dmg === 0, dmg: dmg, hp0: hp0, hp1: hp1, pitch: u.laserPitch };
+    };
+    // v7.5 需求：俯角在 30°~50° 之间往复摆动（laserPitch 可读）
+    window.__fpsTest.pigLaserPitchSweepTest = function () {
+      var pig = ensurePigForTest();
+      if (!pig) return { ok: false, err: 'no pig' };
+      var moved = moveAwayExplosives();
+      var enemy = findRecByIdPrefix('test-enemy');
+      if (enemy) enemy.inst.position.set(200, 0, 200);
+      player.pos.set(0, 0.5, -8.9); player.health = 100; player.shieldTime = 0;
+      pig.inst.position.set(180, 0, 180); pig.inst.rotation.y = 0;
+      var u = pig.inst.userData;
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0; u.life = 29;
+      u.laserSweep = 0;          // sin0=0 → 40°
+      window.MODELS.pig.update(pig.inst, 0.0001, ctx);
+      var p40 = u.laserPitch;
+      u.laserSweep = Math.PI / 2;   // sin=1 → 50°
+      window.MODELS.pig.update(pig.inst, 0.0001, ctx);
+      var p50 = u.laserPitch;
+      u.laserSweep = Math.PI * 3 / 2;   // sin=-1 → 30°
+      window.MODELS.pig.update(pig.inst, 0.0001, ctx);
+      var p30 = u.laserPitch;
+      restoreExplosives(moved);
+      var ok = p40 >= 39 && p40 <= 41 && p50 >= 49 && p50 <= 51 && p30 >= 29 && p30 <= 31;
+      return { ok: ok, p40: p40, p50: p50, p30: p30 };
     };
     // v7.3 需求1：每 5000 分 → 空中支援 ×1（可累积）+ 满血；执行分跨多个门槛不重复漏发
     window.__fpsTest.awardMilestoneTest = function () {
