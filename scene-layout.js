@@ -168,6 +168,16 @@
         collision: true
       });
     }
+    // v8.0 蘑菇装饰：不同尺寸/颜色随机分布，提升画面美感（不参与碰撞）
+    for (var msi = 0; msi < randInt(6, 12); msi++) {
+      var ms = rand(0.4, 1.6);
+      entities.push({
+        id: nextId('mushroom'), model: 'mushroom',
+        position: [rand(-36, 36), 0, rand(-36, 36)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [ms, ms, ms],
+        collision: false,
+        variant: randChoice(['red', 'flyagaric', 'brown', 'orange', 'purple', 'teal', 'yellow', 'pink', 'white'])
+      });
+    }
     // v6.7 空中飞鸟：2 种（白鸥/深灰猎鸟）随机 2~4 群绕地图上空盘旋
     for (var bri = 0; bri < randInt(2, 4); bri++) {
       var birc = rand(-20, 20), bircc = rand(-20, 20);

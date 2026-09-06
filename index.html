@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.9</div>
+<div id="versionTag">v8.0</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -195,6 +195,7 @@
 <script src="models/ferriswheel.js" onerror="window.__modErr('models/ferriswheel.js')"></script>
 <script src="models/grass.js" onerror="window.__modErr('models/grass.js')"></script>
 <script src="models/boulder.js" onerror="window.__modErr('models/boulder.js')"></script>
+<script src="models/mushroom.js" onerror="window.__modErr('models/mushroom.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
 <script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
 <script src="models/shield.js" onerror="window.__modErr('models/shield.js')"></script>
@@ -626,7 +627,16 @@
       return;
     }
     gunInst = gunDef.create({ type: type || player.gun });
-    gunInst.traverse(function (o) { o.userData.noHit = true; });
+    // v8.0 修复枪械残缺（常规/瞄准都正常）：枪挂在相机下，必须
+    //  ① frustumCulled=false —— 避免相机移动时枪模被误视锥剔除
+    //  ② material.depthTest=false —— 避免被近处场景物体(墙/箱子/地面)深度遮挡导致残缺
+    //  ③ renderOrder=999 —— 最后渲染，永远显示在最前
+    gunInst.traverse(function (o) {
+      o.userData.noHit = true;
+      o.frustumCulled = false;
+      o.renderOrder = 999;
+      if (o.isMesh && o.material) o.material.depthTest = false;
+    });
     camera.add(gunInst);
     gunInst.position.copy(gunInst.userData.basePos);
     // v7.9 枪模整体微缩，确保默认 FOV 75° 下完整落在相机视锥内（配合 gunClipTest 钩子）
@@ -4157,33 +4167,60 @@
       out.ok = out.inVisible === false && out.mainExpr === false && out.outVisible === true;
       return out;
     };
-    // v7.9 需求2：枪模残缺彻底修复——所有部件必须在相机前方（z<0）且 NDC 投影落在视锥内
-    window.__fpsTest.gunClipTest = function () {
-      var out = { types: {}, fails: [] };
+    // v8.0 枪模残缺修复验证：残缺的真正根因是「未关 depthTest/frustumCulled + 未设 renderOrder」，
+    //  导致枪被近处场景物体遮挡或被视锥剔除误裁。故验证三件事：
+    //  ① 三件套齐备（depthTest=false / frustumCulled=false / renderOrder=999）
+    //  ② 所有部件在相机前方（z<0，枪托不翻转残缺）
+    //  ③ 常规 hip（FOV75）下 NDC 完整（枪整体落在视锥内）
+    //  注：瞄准 aim（小 FOV）时枪模下移/放大、部分出屏是正常 ADS 表现（狙击开镜更是直接隐藏枪模），
+    //      因此 aim 状态只验证「相机前方 z<0」，不要求 NDC 全在视锥内。
+    function __gunNDC(gi) {
+      gi.updateMatrixWorld(true);
       camera.updateMatrixWorld(true);
       camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
-      var pv = new THREE.Matrix4();
-      var ndc = new THREE.Vector4();
-      var v = new THREE.Vector3();
+      var ndc = new THREE.Vector4(), v = new THREE.Vector3();
+      var bad = 0, total = 0, behind = 0, firstBad = null;
+      gi.traverse(function (o) {
+        if (!o.isMesh) return;
+        total++;
+        v.setFromMatrixPosition(o.matrixWorld);
+        ndc.set(v.x, v.y, v.z, 1).applyMatrix4(camera.matrixWorldInverse);
+        if (ndc.z >= -0.02) { behind++; bad++; if (!firstBad) firstBad = { geo: o.geometry.type, z: Math.round(ndc.z * 100) / 100 }; return; }
+        ndc.applyMatrix4(camera.projectionMatrix);
+        if (Math.abs(ndc.x / ndc.w) > 1.05 || Math.abs(ndc.y / ndc.w) > 1.05) { bad++; if (!firstBad) firstBad = { geo: o.geometry.type, x: Math.round(ndc.x / ndc.w * 100) / 100, y: Math.round(ndc.y / ndc.w * 100) / 100 }; }
+      });
+      return { total: total, bad: bad, behind: behind, firstBad: firstBad };
+    }
+    window.__fpsTest.gunClipTest = function () {
+      var out = { types: {}, fails: [] };
       var types = ['pistol', 'rifle', 'shotgun', 'flamethrower', 'sniper', 'rocket'];
+      var aimFovs = { pistol: 50, rifle: 45, flamethrower: 55, sniper: 18, rocket: 35 };
+      var savedFov = camera.fov;
+      var savedGun = player.gun;
       for (var t = 0; t < types.length; t++) {
-        var gi = window.MODELS.gun.create({ type: types[t] });
-        gi.position.copy(gi.userData.basePos);
-        gi.scale.set(0.92, 0.92, 0.92);
-        gi.updateMatrixWorld(true);
-        var bad = 0, total = 0, behind = 0;
+        buildGun(types[t]);   // 真实创建（含三件套 + scale 0.92 + 挂 camera）
+        var gi = gunInst;
+        // 三件套验证
+        var kit = { depthTest: 0, frustum: 0, renderOrder: 0, mesh: 0 };
         gi.traverse(function (o) {
           if (!o.isMesh) return;
-          total++;
-          v.setFromMatrixPosition(o.matrixWorld);
-          ndc.set(v.x, v.y, v.z, 1).applyMatrix4(camera.matrixWorldInverse);
-          if (ndc.z >= -0.02) { behind++; bad++; return; }   // 相机后方
-          ndc.applyMatrix4(camera.projectionMatrix);
-          if (Math.abs(ndc.x / ndc.w) > 1.05 || Math.abs(ndc.y / ndc.w) > 1.05) bad++;
+          kit.mesh++;
+          if (o.material && o.material.depthTest === false) kit.depthTest++;
+          if (o.frustumCulled === false) kit.frustum++;
+          if (o.renderOrder >= 999) kit.renderOrder++;
         });
-        out.types[types[t]] = { total: total, bad: bad, behind: behind };
-        if (bad > 0) out.fails.push(types[t]);
+        camera.fov = 75; camera.updateProjectionMatrix();
+        var hip = __gunNDC(gi);
+        camera.fov = aimFovs[types[t]] || 50; camera.updateProjectionMatrix();
+        var aim = __gunNDC(gi);
+        var kitOk = kit.depthTest === kit.mesh && kit.frustum === kit.mesh && kit.renderOrder === kit.mesh;
+        var hipOk = hip.bad === 0;
+        var aimOk = aim.behind === 0;
+        out.types[types[t]] = { hip: { bad: hip.bad, firstBad: hip.firstBad }, aim: { behind: aim.behind, bad: aim.bad }, kit: kit };
+        if (!(kitOk && hipOk && aimOk)) out.fails.push(types[t]);
       }
+      buildGun(savedGun);   // 恢复原武器
+      camera.fov = savedFov; camera.updateProjectionMatrix();
       out.ok = out.fails.length === 0;
       return out;
     };
@@ -4202,6 +4239,21 @@
       var g = GUN_TYPES;
       out.rocket = { dmg: g.rocket.damage, aoe: g.rocket.aoe.damage };
       out.ok = g.rocket.damage === 210 && g.rocket.aoe.damage === 255;
+      return out;
+    };
+    // v8.0 蘑菇装饰：地图随机生成（不同尺寸/颜色）
+    window.__fpsTest.mushroomTest = function () {
+      var out = {};
+      var list = entities.filter(function (e) { return e.cfg && e.cfg.model === 'mushroom'; });
+      out.count = list.length;
+      out.variants = {};
+      out.scales = [];
+      for (var i = 0; i < list.length; i++) {
+        var v = list[i].cfg.variant || 'red';
+        out.variants[v] = (out.variants[v] || 0) + 1;
+        out.scales.push(Math.round(list[i].cfg.scale[0] * 10) / 10);
+      }
+      out.ok = out.count >= 6 && out.count <= 12;
       return out;
     };
       // v7.6 需求4：BGM 主音量比 v6.6 基线 0.16 提升 50% → 0.24

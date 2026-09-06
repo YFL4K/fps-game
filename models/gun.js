@@ -23,35 +23,36 @@
   global.MODELS = global.MODELS || {};
 
   // v7.9：枪身整体前移（z 更浅）+ 上抬（y 更高），全部部件保持在相机前方视锥内
+  // v8.0：进一步上抬 basePos（y +0.04）并缩短深握把，确保常规 FOV75 下握把/弹匣不超出屏幕下边缘
   var STYLES = {
     pistol: {
       bodyColor: 0x3a3f4a, accentColor: 0xd35400,
-      len: 0.38, barrelLen: 0.2, pos: [0.24, -0.2, -0.38],
+      len: 0.38, barrelLen: 0.2, pos: [0.24, -0.15, -0.38],
       scope: false, recoilKick: 1.0, casing: true
     },
     rifle: {
       bodyColor: 0x3a2f23, accentColor: 0x8b5a2b,
-      len: 0.5, barrelLen: 0.26, pos: [0.26, -0.21, -0.4],
+      len: 0.5, barrelLen: 0.26, pos: [0.26, -0.17, -0.4],
       scope: false, recoilKick: 0.75, casing: true
     },
     shotgun: {
       bodyColor: 0x3a2f23, accentColor: 0x6b4a2f,
-      len: 0.54, barrelLen: 0.32, pos: [0.26, -0.22, -0.42],
+      len: 0.54, barrelLen: 0.32, pos: [0.26, -0.18, -0.42],
       scope: false, recoilKick: 1.5, casing: true, pump: true
     },
     flamethrower: {
       bodyColor: 0x4a4a4a, accentColor: 0xff6600,
-      len: 0.5, barrelLen: 0.4, pos: [0.26, -0.21, -0.4],
+      len: 0.5, barrelLen: 0.4, pos: [0.26, -0.17, -0.4],
       scope: false, recoilKick: 0.8, casing: false
     },
     sniper: {
       bodyColor: 0x2b3550, accentColor: 0x1e90ff,
-      len: 0.6, barrelLen: 0.34, pos: [0.24, -0.22, -0.42],
+      len: 0.6, barrelLen: 0.34, pos: [0.24, -0.18, -0.42],
       scope: true, recoilKick: 2.2, casing: true
     },
     rocket: {
       bodyColor: 0x3a3a26, accentColor: 0xd4a017,
-      len: 0.56, barrelLen: 0.32, pos: [0.26, -0.24, -0.42],
+      len: 0.56, barrelLen: 0.32, pos: [0.26, -0.20, -0.42],
       scope: true, recoilKick: 3.4, casing: true, tubeReload: true
     }
   };
@@ -114,9 +115,9 @@
     muzzleRing.rotation.x = Math.PI / 2;
     muzzleRing.position.set(0, -0.005, -L * 0.42 - 0.25);
     g.add(muzzleRing);
-    // 大型握把（沙鹰标志，整体前移）
-    const grip = new T.Mesh(new T.BoxGeometry(0.076, 0.15, 0.085), M.dark);
-    grip.position.set(0, -0.095, -0.03);
+    // 大型握把（沙鹰标志，整体前移；v8.0 缩短高度避免 FOV75 下超出屏幕下边缘）
+    const grip = new T.Mesh(new T.BoxGeometry(0.076, 0.11, 0.085), M.dark);
+    grip.position.set(0, -0.085, -0.03);
     grip.rotation.x = 0.18;
     g.add(grip);
     // 握把防滑纹
