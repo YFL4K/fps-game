@@ -180,6 +180,14 @@
       });
     }
 
+    // v6.8 加特林机枪碉堡：每关随机位置固定 1 座（站桩火力点）
+    entities.push({
+      id: nextId('gatling'), model: 'gatling',
+      position: [rand(-34, 34), 0, rand(-34, 34)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+      collision: true,
+      kind: 'gatling'
+    });
+
     // ---- 车辆 ----
     for (var vi = 0; vi < randInt(3, 6); vi++) {
       entities.push({

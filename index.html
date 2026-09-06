@@ -117,7 +117,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6.7</div>
+<div id="versionTag">v6.8</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -145,7 +145,7 @@
     <b>Enter</b> 开始 / 下一关 &nbsp;·&nbsp; <b>W A S D</b> 移动 &nbsp;·&nbsp; <b>Shift</b> 冲刺 &nbsp;·&nbsp; <b>空格</b> 跳跃<br>
     <b>鼠标左键</b> 射击（可按住连发） &nbsp;·&nbsp; <b>鼠标右键</b> 瞄准（狙击 4 倍镜） &nbsp;·&nbsp; <b>滚轮</b> 切换武器 &nbsp;·&nbsp; <b>R</b> 换弹<br>
     <b>1-5</b> 切换武器（手枪/步枪/喷火器/狙击枪/火箭筒）<br>
-    <b>T</b> 对讲机·呼叫空中支援 &nbsp;·&nbsp; <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>M</b> 背景音乐开关 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
+    <b>T</b> 对讲机·呼叫空中支援 &nbsp;·&nbsp; <b>E</b> 加特林碉堡（30 秒无限子弹，超温冷却 30 秒）&nbsp;·&nbsp; <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>M</b> 背景音乐开关 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
     <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸 · 击杀敌人掉落宝箱 · 击落直升机获得火箭筒/喷火器 · 蜘蛛会自爆！</span><br>
     <span class="warn">🎵 每关专属劲爆战斗 BGM（M 键静音）· 🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span><br>
     <span class="warn">📻 击杀 BOSS/直升机 10% 掉落对讲机（每关随机出现）——按 T 呼叫导弹空袭，1 次有效！</span>
@@ -193,6 +193,7 @@
 <script src="models/boulder.js" onerror="window.__modErr('models/boulder.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
 <script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
+<script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
 <script src="scene-layout.js" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
@@ -288,7 +289,7 @@
   var GUN_TYPES = {
     pistol:     { name: '手枪',     damage: 28, mag: 12,  maxAmmo: 96,  fireRate: 4.0,  reload: 0.78, spread: 0.012, pellets: 1,   range: 70,   auto: false, aimFov: 50, scopeLens: false },
     rifle:      { name: '步枪',     damage: 20, mag: 30,  maxAmmo: 240, fireRate: 9.0,  reload: 1.17, spread: 0.02,  pellets: 1,   range: 120,  auto: true,  aimFov: 45, scopeLens: false },
-    flamethrower: { name: '喷火器', damage: 108, mag: 5,  maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 36,   auto: true, flame: true, flameRadius: 4.5, aimFov: 55, scopeLens: false },  // v6.4: 伤害54→108(+100%) 射程18→36(+100%) 范围3.0→4.5(+50%)
+    flamethrower: { name: '喷火器', damage: 216, mag: 5,  maxAmmo: 30,  fireRate: 12.0, reload: 2.0,  spread: 0.08,  pellets: 1,   range: 80,   auto: true, flame: true, flameRadius: 9, aimFov: 55, scopeLens: false },  // v6.8: 近战突围武器 伤害108→216 射程36→80 范围4.5→9
     sniper:     { name: '狙击枪',   damage: 120, mag: 5,  maxAmmo: 40,  fireRate: 0.9,  reload: 1.82, spread: 0.003, pellets: 1,   range: 260,  auto: false, aimFov: 18, scopeLens: true },   // v6.7: 狙击右键 4 倍镜
     rocket:     { name: '火箭筒',   damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 240,  auto: false, aoe: { radius: 6, damage: 170 }, aimFov: 35, scopeLens: false }
   };
@@ -523,7 +524,8 @@
     hasRocket: false,
     flameReserve: 30,
     berserk: false,
-    walkie: false      // v6.7 对讲机（1 次有效，不累积）
+    walkie: false,      // v6.7 对讲机（1 次有效，不累积）
+    gatling: null       // v6.8 加特林碉堡状态 {active,heat,cooldown,posBackup}
   };
   var score = 0;
   var debugMode = false;
@@ -556,6 +558,7 @@
     if (player.health <= 0) {
       player.health = 0;
       player.dead = true;
+      exitGatling();   // v6.8 死亡退出加特林站桩
       state = 'dead';
       bgm.stop();
       if (gameMode === 'endless') {
@@ -993,6 +996,15 @@
     }
     // v6.7 对讲机：呼叫空中支援
     if (e.code === 'KeyT') { useAirSupport(); return; }
+    // v6.8 加特林碉堡：按 E 进入/退出站桩射击
+    if (e.code === 'KeyE') {
+      if (player.gatling && player.gatling.active) { exitGatling(); }
+      else {
+        var nearG = findNearGatling();
+        if (nearG) enterGatling(nearG);
+      }
+      return;
+    }
     var gi = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(e.code);
     if (gi >= 0) { switchGun(GUN_ORDER[gi]); return; }
     keys[e.code] = true;
@@ -1813,6 +1825,98 @@
     }
   }
 
+  /* ================= v6.8 加特林机枪碉堡 ================= */
+  var gatlingRec = null;   // 当前碉堡实体引用
+
+  function findNearGatling() {
+    var best = null, bestD = 3.6;
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive || rec.cfg.model !== 'gatling') continue;
+      var dx = rec.inst.position.x - player.pos.x;
+      var dz = rec.inst.position.z - player.pos.z;
+      var d2 = dx * dx + dz * dz;
+      if (d2 < bestD * bestD) { best = rec; bestD = Math.sqrt(d2); }
+    }
+    return best;
+  }
+
+  function enterGatling(rec) {
+    if (!rec || !rec.alive || player.dead || state !== 'playing') return;
+    if (player.gatling && player.gatling.active) return;
+    if (player.gatling && player.gatling.cooldown > 0) {
+      showToast('🔥 加特林超温冷却中：' + Math.ceil(player.gatling.cooldown) + ' 秒', 0xff8866);
+      return;
+    }
+    if (!player.gatling) player.gatling = { active: false, heat: 0, cooldown: 0 };
+    gatlingRec = rec;
+    player.gatling.active = true;
+    player.gatling.heat = 0;
+    player.gatling.posBackup = player.pos.clone();
+    // 朝向碉堡前方（略微下压视角）
+    player.yaw = rec.inst.rotation.y;
+    player.pitch = -0.06;
+    aiming = false;
+    if (gunInst) gunInst.visible = false;
+    showToast('🔫 加特林碉堡！左键扫射（30 秒 · 子弹无限），按 E 退出', 0xffcc44);
+    if (sfx) sfx.playLevelUp();
+  }
+
+  function exitGatling() {
+    if (!player.gatling || !player.gatling.active) return;
+    player.gatling.active = false;
+    if (player.gatling.posBackup) {
+      player.pos.copy(player.gatling.posBackup);
+      player.vel.set(0, 0, 0);
+    }
+    if (gunInst) gunInst.visible = true;
+  }
+
+  function gatlingFire() {
+    if (!player.gatling || !player.gatling.active) return;
+    if (player.fireCooldown > 0) return;
+    if (!gatlingRec || !gatlingRec.alive) { exitGatling(); return; }
+    player.fireCooldown = 1 / 22;   // 射速 22 发/秒
+    var origin = gatlingRec.inst.position.clone();
+    origin.y += 1.5;
+    var dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    // 大面积扫射：加大散布（近处扇形覆盖）
+    dir.x += (Math.random() - 0.5) * 2 * 0.045;
+    dir.y += (Math.random() - 0.5) * 2 * 0.03;
+    dir.z += (Math.random() - 0.5) * 2 * 0.045;
+    dir.normalize();
+    ctx.currentDamage = 16;
+    ctx.oneShotKill = false;
+    muzzleLight.intensity = 3;
+    var hit = raycastShot(dir);
+    if (hit.point && origin.distanceTo(hit.point) <= 90) {
+      if (hit.rec) {
+        if (hit.rec.def && hit.rec.def.onHit) {
+          try { hit.rec.def.onHit(hit.rec.inst, hit.point, ctx); }
+          catch (e) { showError('加特林命中失败 (' + hit.rec.cfg.id + '): ' + e.message); }
+        } else if (hit.rec.inst.userData && typeof hit.rec.inst.userData.takeDamage === 'function') {
+          hit.rec.inst.userData.takeDamage(ctx.currentDamage);
+        }
+        score += hit.rec.cfg.score || 0;
+        if (hit.rec.inst.userData && hit.rec.inst.userData.destroyed) {
+          spawnDebris(hit.rec);
+          destroyEntity(hit.rec);
+        } else if (hit.rec.inst.userData && hit.rec.inst.userData.respawnReady) {
+          respawnEntity(hit.rec);
+        }
+        if (hit.rec.cfg.kind) applyPickup(hit.rec);
+        spawnSparks(hit.point, 0xffcc44);
+      } else {
+        spawnSparks(hit.point, 0xdddddd);
+      }
+      spawnTracer(origin, hit.point, 0xffcc44);
+    } else {
+      spawnTracer(origin, origin.clone().addScaledVector(dir, 45), 0xffcc44);
+    }
+    if (sfx) sfx.playShot('rifle');
+  }
+
   /* ================= 11. 关卡系统（v3） ================= */
   function getLevel() {
     if (gameMode === 'endless') {
@@ -2266,6 +2370,8 @@
     player.flameReserve = 30;
     player.berserk = false;
     player.walkie = false;   // v6.7 对讲机重开归零
+    player.gatling = null;   // v6.8 加特林状态重开归零
+    gatlingRec = null;
     player.gun = 'pistol';
     var gt = GUN_TYPES.pistol;
     player.ammo = gt.mag;
@@ -2296,6 +2402,11 @@
   ctx.onEnemyKilled = function (pos, type) {
     levelKills++;
     score += (type === 'boss' ? 2000 : (type === 'monster' ? 150 : 100));
+    // v6.8 狂暴模式击杀回血：狂暴期间每击杀 1 敌人恢复 10 HP（直到狂暴结束）
+    if (player.berserk) {
+      player.health = Math.min(player.maxHealth, player.health + 10);
+      if (sfx) sfx.playPickup();
+    }
     // v6.4 宝箱机制：本关掷出 30% 则首杀敌人时在击杀点刷出宝箱（每关最多 1 个）
     if (levelHasChest && !chestSpawnedThisLevel) {
       chestSpawnedThisLevel = true;
@@ -2423,6 +2534,27 @@
     if (player.fireCooldown > 0) player.fireCooldown -= dt;
 
     if (player.dead) return;
+
+    // v6.8 加特林站桩模式：不移动，只扫射 + 超温/冷却计时
+    if (player.gatling && player.gatling.active) {
+      player.gatling.heat += dt;
+      if (player.gatling.heat >= 30) {
+        player.gatling.active = false;
+        player.gatling.cooldown = 30;
+        if (gunInst) gunInst.visible = true;
+        showToast('🔥 加特林超温警告！冷却 30 秒', 0xff4422);
+        if (sfx) sfx.playReload();
+      }
+      if (player.firing && player.fireCooldown <= 0) gatlingFire();
+      return;
+    }
+    if (player.gatling && player.gatling.cooldown > 0) {
+      player.gatling.cooldown -= dt;
+      if (player.gatling.cooldown <= 0) {
+        player.gatling.cooldown = 0;
+        showToast('✅ 加特林已冷却，可再次使用', 0x66ffaa);
+      }
+    }
 
     if (player.firing && player.fireCooldown <= 0) tryShoot();
 
@@ -2734,6 +2866,12 @@
     if (buffs.length) lines.push('Buff: ' + buffs.join('  |  '));
     if (player.nukes > 0) lines.push('☢ 核弹 ×' + player.nukes + '  — 按 G 引爆');
     if (player.walkie) lines.push('📻 对讲机 ×1  — 按 T 呼叫空中支援');
+    // v6.8 加特林碉堡状态
+    if (player.gatling) {
+      if (player.gatling.active) lines.push('🔫 加特林碉堡 使用中 ' + Math.floor(player.gatling.heat) + '/' + 30 + ' 秒  — 按 E 退出');
+      else if (player.gatling.cooldown > 0) lines.push('🔥 加特林 超温冷却 ' + Math.ceil(player.gatling.cooldown) + ' 秒');
+      else if (findNearGatling()) lines.push('🔫 加特林碉堡（附近）— 按 E 使用（30 秒无限子弹）');
+    }
     if (debugMode) lines.push('DEBUG 飞行模式');
     lines.push('SCORE ' + score);
     statsEl.textContent = lines.join('\n');
@@ -2756,8 +2894,15 @@
       shakeX = (Math.random() - 0.5) * s;
       shakeY = (Math.random() - 0.5) * s;
     }
-    camera.position.set(player.pos.x + shakeX, player.pos.y + (W.eyeHeight || 1.6) + shakeY, player.pos.z);
-    camera.rotation.set(player.pitch, player.yaw, 0);
+    // v6.8 加特林站桩：相机锁定碉堡机位
+    if (player.gatling && player.gatling.active && gatlingRec && gatlingRec.alive) {
+      var gp = gatlingRec.inst.position;
+      camera.position.set(gp.x, gp.y + 1.5, gp.z);
+      camera.rotation.set(player.pitch, player.yaw, 0);
+    } else {
+      camera.position.set(player.pos.x + shakeX, player.pos.y + (W.eyeHeight || 1.6) + shakeY, player.pos.z);
+      camera.rotation.set(player.pitch, player.yaw, 0);
+    }
     // v6.7 右键瞄准：FOV 平滑缩放（狙击 4 倍镜 ≈ 18°，其余 35~55°）
     var baseFov = 75;
     var targetFov = baseFov;
@@ -2794,6 +2939,9 @@
     try {
       if (state === 'playing') {
         ctx.time += dt;
+        // v6.8 碉堡模型读取加特林状态（转管旋转/指示灯）
+        ctx.gatlingActive = !!(player.gatling && player.gatling.active);
+        ctx.gatlingCooldown = !!(player.gatling && player.gatling.cooldown > 0);
         updatePlayer(dt);
         updateRockets(dt);
         updateAirstrikes(dt);
@@ -2863,6 +3011,13 @@
           fov: Math.round(camera.fov * 10) / 10,
           airstrikes: airstrikes.length,
           hasRocket: !!player.hasRocket,
+          berserk: !!player.berserk,
+          gatlingActive: !!(player.gatling && player.gatling.active),
+          gatlingHeat: player.gatling ? Math.round(player.gatling.heat * 10) / 10 : 0,
+          gatlingCooldown: player.gatling ? Math.round(player.gatling.cooldown * 10) / 10 : 0,
+          flameRange: GUN_TYPES.flamethrower.range,
+          flameDamage: GUN_TYPES.flamethrower.damage,
+          flameRadius: GUN_TYPES.flamethrower.flameRadius,
           scenery: {
             birds: entities.filter(function (e) { return e.cfg && e.cfg.model === 'birds'; }).length,
             bigtree: entities.filter(function (e) { return e.cfg && e.cfg.model === 'bigtree'; }).length,
@@ -2870,7 +3025,8 @@
             ferris: entities.filter(function (e) { return e.cfg && e.cfg.model === 'ferriswheel'; }).length,
             grass: entities.filter(function (e) { return e.cfg && e.cfg.model === 'grass'; }).length,
             boulder: entities.filter(function (e) { return e.cfg && e.cfg.model === 'boulder'; }).length,
-            walkies: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length
+            walkies: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length,
+            gatlings: entities.filter(function (e) { return e.cfg && e.cfg.model === 'gatling'; }).length
           },
           playerPos: player.pos ? { x: player.pos.x.toFixed(2), y: player.pos.y.toFixed(2), z: player.pos.z.toFixed(2) } : null,
           gun: player.gun, ammo: Math.round(player.ammo * 100) / 100, reserve: player.reserve,
@@ -2913,6 +3069,33 @@
       for (var i = 0; i < f; i++) updateAirstrikes(0.05);
       return airstrikes.length;
     };
+    // v6.8 加特林/狂暴回血测试
+    window.__fpsTest.enterGatlingTest = function () {
+      var g = findNearGatling();
+      if (!g) {
+        for (var i = 0; i < entities.length; i++) {
+          var rec = entities[i];
+          if (rec.alive && rec.cfg && rec.cfg.model === 'gatling') { g = rec; break; }
+        }
+        if (g) { player.pos.set(g.inst.position.x, 0.1, g.inst.position.z + 2.5); player.vel.set(0, 0, 0); }
+      }
+      if (!g) return false;
+      var wasActive = !!(player.gatling && player.gatling.active);
+      enterGatling(g);
+      return !!(player.gatling && player.gatling.active) && !wasActive;
+    };
+    window.__fpsTest.exitGatlingTest = function () { exitGatling(); };
+    window.__fpsTest.gatlingFireTest = function (n) {
+      var c = 0;
+      for (var i = 0; i < (n || 5); i++) { gatlingFire(); player.fireCooldown = 0; c++; }
+      return c;
+    };
+    window.__fpsTest.advanceGatling = function (secs) {
+      var s = secs || 1;
+      for (var i = 0; i < s * 20; i++) updatePlayer(0.05);
+      return { active: !!(player.gatling && player.gatling.active), heat: player.gatling ? Math.round(player.gatling.heat * 10) / 10 : 0, cooldown: player.gatling ? Math.round(player.gatling.cooldown * 10) / 10 : 0 };
+    };
+    window.__fpsTest.simulateEnemyKill = function () { ctx.onEnemyKilled(player.pos.clone(), 'human'); return player.health; };
     document.addEventListener('keydown', function (e) {
       if (e.code === 'KeyK' && gameMode !== 'endless') { levelKills = getLevel().killTarget; checkMissionComplete(); }
       if (e.code === 'KeyL' && state === 'complete') nextLevel();
