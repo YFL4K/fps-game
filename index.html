@@ -69,7 +69,7 @@
     margin: 0 0 4px;
     font-family: "STHupo", "华文琥珀", "STXingkai", "华文行楷", "KaiTi", "楷体", "Microsoft YaHei", "SimHei", sans-serif;
     font-size: 56px;
-    font-weight: 900;
+    font-weight: 500;
     letter-spacing: 10px;
     line-height: 1.15;
     background: linear-gradient(180deg, #fff7c8 5%, #ffd94a 38%, #ff8a2a 72%, #ff4a2a 100%);
@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6.9</div>
+<div id="versionTag">v7.0</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -199,6 +199,7 @@
 <script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
 <script src="models/shield.js" onerror="window.__modErr('models/shield.js')"></script>
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
+<script src="models/pig.js" onerror="window.__modErr('models/pig.js')"></script>
 <script src="scene-layout.js" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
@@ -344,6 +345,9 @@
   var levelHasChest = false;
   var chestSpawnedThisLevel = false;
   var dynCounter = 0;
+  // v7.0 猪头佳小BOSS：击杀普通敌人计数（每 5 个触发出现），同屏最多 1 只
+  var pigKills = 0;
+  var pigAlive = false;
   var currentLayout = null;  // 记录当前加载的布局版本
 
   /* ================= 2. 渲染器 / 场景 / 相机 ================= */
@@ -1594,6 +1598,8 @@
     }
   }
   ctx.explode = explode;
+  ctx.entities = entities;
+  ctx.colliders = colliders;
 
   function showHitmark(head) {
     hitmarkEl.classList.remove('show', 'head');
@@ -2226,6 +2232,47 @@
     buildEntity(cfg);
   }
 
+  // v7.0 猪头佳小BOSS：巨型野猪冲撞，每击杀 5 名普通敌人随机出现，30 秒超时自爆
+  function spawnPig() {
+    if (pigAlive || player.dead || state !== 'playing') return false;
+    pigAlive = true;
+    var side = Math.random() < 0.5 ? -1 : 1;
+    var pos = new THREE.Vector3(side * (20 + Math.random() * 14), 0, -28 - Math.random() * 10);
+    var hp = 800 + levelIndex * 150;
+    var cfg = {
+      id: 'dyn-pig-' + (++dynCounter),
+      model: 'pig',
+      position: [pos.x, 0, pos.z],
+      rotation: [0, 0, 0],
+      scale: [3, 3, 3],
+      collision: false,
+      dynamic: true,
+      respawn: 0,
+      health: hp,
+      speed: 13,
+      life: 30
+    };
+    buildEntity(cfg);
+    // 自爆回调：爆炸 + 对玩家范围伤害（钳制 5~20）+ 状态复位
+    ctx.onPigSelfDestruct = function (ppos) {
+      pigAlive = false;
+      var p = ppos.clone ? ppos.clone() : new THREE.Vector3(ppos.x, 1, ppos.z);
+      p.y = 1;
+      explode(p, 10, 130, { chain: true });
+      var d = player.pos.distanceTo(p);
+      if (d < 14) hitPlayer(Math.round(5 + 15 * (1 - d / 14)));
+      showToast('💥 猪头佳自爆了！', 0xff6a3a);
+      if (sfx && sfx.playRocket) sfx.playRocket();
+    };
+    showToast('🐗 猪头佳出现！30 秒内击败它！', 0xff8a2a);
+    levelBannerTitle.textContent = '🐗 猪头佳现身';
+    levelBannerSub.textContent = '巨型野猪冲撞全场 — 30 秒内击败它，否则自爆！';
+    levelBannerEl.style.opacity = '1';
+    setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 3000);
+    if (sfx && sfx.playBoss) sfx.playBoss();
+    return true;
+  }
+
   function spawnBoss() {
     bossAppeared = true;
     bossAlive = true;
@@ -2427,6 +2474,9 @@
     bossAlive = false;
     heliSpawnedCount = 0;
     chestSpawnedCount = 0;
+    // v7.0 换关：猪头佳状态复位
+    pigAlive = false;
+    pigKills = 0;
     // v6.4 每关随机出宝箱几率 30%
     levelHasChest = Math.random() < 0.30;
     chestSpawnedThisLevel = false;
@@ -2456,6 +2506,9 @@
     bossAlive = false;
     heliSpawnedCount = 0;
     chestSpawnedCount = 0;
+    // v7.0 换关：猪头佳状态复位
+    pigAlive = false;
+    pigKills = 0;
     levelHasChest = Math.random() < 0.30;
     chestSpawnedThisLevel = false;
     if (gameMode === 'endless') {
@@ -2508,6 +2561,22 @@
   }
 
   ctx.onEnemyKilled = function (pos, type) {
+    // v7.0 猪头佳：'pig' 类型单独处理（小BOSS 击杀奖励，不计普通击杀数）
+    if (type === 'pig') {
+      pigAlive = false;
+      score += 1000;
+      showToast('🐗 击败猪头佳！+1000', 0xffcc66);
+      if (sfx) sfx.playLevelUp();
+      return;
+    }
+    // v7.0 每击杀 5 名普通敌人 → 猪头佳随机出现（同屏最多 1 只）
+    if ((type === 'human' || type === 'monster' || type === 'spider') && !pigAlive) {
+      pigKills++;
+      if (pigKills >= 5) {
+        pigKills = 0;
+        spawnPig();
+      }
+    }
     levelKills++;
     score += (type === 'boss' ? 2000 : (type === 'monster' ? 150 : 100));
     // v6.8 狂暴模式击杀回血：狂暴期间每击杀 1 敌人恢复 10 HP（直到狂暴结束）
@@ -2818,11 +2887,12 @@
     var ab = new THREE.Box3();
     for (var i = 0; i < entities.length; i++) {
       var rec = entities[i];
-      if (!rec.alive || rec.cfg.model !== 'enemy') continue;
+      if (!rec.alive || (rec.cfg.model !== 'enemy' && rec.cfg.model !== 'pig')) continue;
       var u = rec.inst.userData;
       if (u && u.dead) continue;
       rec.inst.updateMatrixWorld(true);
-      var r = (rec.inst.scale.x || 1) * 0.38;
+      // v7.0 猪头佳体型大：碰撞推挤半径按模型放大（普通敌人 0.38，野猪 0.85）
+      var r = (rec.inst.scale.x || 1) * (rec.cfg.model === 'pig' ? 0.85 : 0.38);
       for (var j = 0; j < colliders.length; j++) {
         var c = colliders[j];
         if (!c.alive) continue;
@@ -3166,6 +3236,19 @@
                     }
                     return null;
                   })() },
+          pig: (function () {
+            var pig = null;
+            for (var i = 0; i < entities.length; i++) {
+              var r = entities[i];
+              if (r.alive && r.cfg && r.cfg.model === 'pig') { pig = r; break; }
+            }
+            return {
+              alive: pigAlive, kills: pigKills, count: entities.filter(function (e) { return e.cfg && e.cfg.model === 'pig' && e.alive; }).length,
+              health: pig ? Math.round(pig.inst.userData.health) : null,
+              life: pig ? Math.round(pig.inst.userData.life * 10) / 10 : null,
+              scale: pig ? pig.inst.scale.x : null
+            };
+          })(),
           bgm: { idx: bgm.idx, name: bgm.idx >= 0 ? BGM_TRACKS[bgm.idx].name : null, playing: bgm.playing, muted: bgm.muted },
           enemyCount: entities.filter(function (e) { return e.cfg && e.cfg.enemyType; }).length, killTarget: getLevel().killTarget,
           chest: { levelHasChest: levelHasChest, spawned: chestSpawnedThisLevel, count: chestSpawnedCount,
@@ -3269,6 +3352,173 @@
       return { active: !!(player.gatling && player.gatling.active), heat: player.gatling ? Math.round(player.gatling.heat * 10) / 10 : 0, cooldown: player.gatling ? Math.round(player.gatling.cooldown * 10) / 10 : 0 };
     };
     window.__fpsTest.simulateEnemyKill = function () { ctx.onEnemyKilled(player.pos.clone(), 'human'); return player.health; };
+    // v7.0 猪头佳小BOSS测试
+    window.__fpsTest.spawnPigTest = function () {
+      var before = pigAlive;
+      var ok = spawnPig();
+      return { ok: ok, alive: pigAlive, spawned: ok && !before };
+    };
+    window.__fpsTest.advancePig = function (secs) {
+      var s = secs || 1;
+      for (var i = 0; i < s * 20; i++) updateEntities(0.05);
+      return true;
+    };
+    window.__fpsTest.killPigTest = function () {
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.model === 'pig' && rec.inst.userData.takeDamage) {
+          rec.inst.userData.takeDamage(99999);
+          return true;
+        }
+      }
+      return false;
+    };
+    window.__fpsTest.triggerPigCounter = function (n) {
+      var c = n || 5;
+      for (var i = 0; i < c; i++) ctx.onEnemyKilled(player.pos.clone(), 'human');
+      return { alive: pigAlive, kills: pigKills };
+    };
+    window.__fpsTest.pigPos = function (x, z) {
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.model === 'pig') { rec.inst.position.set(x, 0, z); return true; }
+      }
+      return false;
+    };
+    window.__fpsTest.pigHp = function () {
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.model === 'pig') return rec.inst.userData.health;
+      }
+      return null;
+    };
+    window.__fpsTest.testEnemyHp = function () {
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.id && rec.cfg.id.indexOf('test-enemy') === 0) {
+          return { hp: rec.inst.userData.health, x: rec.inst.position.x, z: rec.inst.position.z };
+        }
+      }
+      return null;
+    };
+    window.__fpsTest.testEnemyPos = function (x, z) {
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.id && rec.cfg.id.indexOf('test-enemy') === 0) {
+          rec.inst.position.set(x, 0, z);
+          return true;
+        }
+      }
+      return false;
+    };
+    window.__fpsTest.spawnBarrelTest = function (x, z) {
+      var cfg = { id: 'test-barrel-' + (++dynCounter), model: 'barrel', position: [x, 0, z], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, dynamic: true, respawn: 0 };
+      buildEntity(cfg);
+      return true;
+    };
+    window.__fpsTest.barrelState = function () {
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.cfg && rec.cfg.id && rec.cfg.id.indexOf('test-barrel') === 0) {
+          return { exploded: !!(rec.inst.userData.exploded), destroyed: !!(rec.inst.userData.destroyed), alive: rec.alive };
+        }
+      }
+      return null;
+    };
+    window.__fpsTest.pigDiag = function () {
+      var pig = null, barrel = null;
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (rec.alive && rec.cfg && rec.cfg.model === 'pig') pig = rec;
+        if (rec.cfg && rec.cfg.id && rec.cfg.id.indexOf('test-barrel') === 0) barrel = rec;
+      }
+      var out = { pig: null, barrel: null, dist: null, hitEnemyCd: null, hitPlayerCd: null };
+      if (pig) out.pig = { x: +pig.inst.position.x.toFixed(2), z: +pig.inst.position.z.toFixed(2), cd: +pig.inst.userData.hitEnemyCd.toFixed(2), life: +pig.inst.userData.life.toFixed(2), dead: !!pig.inst.userData.dead };
+      if (barrel) out.barrel = { x: +barrel.inst.position.x.toFixed(2), z: +barrel.inst.position.z.toFixed(2), exploded: !!barrel.inst.userData.exploded, destroyed: !!barrel.inst.userData.destroyed, alive: barrel.alive };
+      if (pig && barrel) out.dist = +pig.inst.position.distanceTo(barrel.inst.position).toFixed(2);
+      return out;
+    };
+    // v7.0 确定性冲撞测试：单次 evaluate 内完成放置 + 单帧手动推进（不受主循环帧时序/场景爆炸物干扰）
+    function findPigRec() {
+      for (var i = 0; i < entities.length; i++) {
+        if (entities[i].alive && entities[i].cfg && entities[i].cfg.model === 'pig') return entities[i];
+      }
+      return null;
+    }
+    function findRecByIdPrefix(pre) {
+      for (var i = 0; i < entities.length; i++) {
+        if (entities[i].cfg && entities[i].cfg.id && entities[i].cfg.id.indexOf(pre) === 0) return entities[i];
+      }
+      return null;
+    }
+    function moveAwayExplosives() {
+      var moved = [];
+      for (var i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (!rec.alive || !rec.cfg) continue;
+        if (rec.cfg.model === 'barrel' || rec.cfg.model === 'tnt') {
+          if (rec.cfg.id && rec.cfg.id.indexOf('test-barrel') === 0) continue;
+          moved.push({ rec: rec, x: rec.inst.position.x, z: rec.inst.position.z });
+          rec.inst.position.set(200, 0, 200);
+        }
+      }
+      return moved;
+    }
+    function restoreExplosives(moved) {
+      for (var i = 0; i < moved.length; i++) moved[i].rec.inst.position.set(moved[i].x, 0, moved[i].z);
+    }
+    window.__fpsTest.pigRamPlayerTest = function () {
+      var pig = findPigRec();
+      if (!pig) return { ok: false, err: 'no pig' };
+      var moved = moveAwayExplosives();
+      player.pos.set(0, 0.1, 0);
+      player.health = 100;
+      pig.inst.position.set(0, 0, -5);
+      pig.inst.userData.hitPlayerCd = 0;
+      var hp0 = player.health;
+      window.MODELS.pig.update(pig.inst, 0.05, ctx);
+      var hp1 = player.health;
+      restoreExplosives(moved);
+      var dmg = hp0 - hp1;
+      return { ok: dmg >= 5 && dmg <= 10, dmg: dmg, hp0: hp0, hp1: hp1 };
+    };
+    window.__fpsTest.pigRamEnemyTest = function () {
+      var pig = findPigRec(), enemy = findRecByIdPrefix('test-enemy');
+      if (!pig || !enemy) return { ok: false, err: 'missing' };
+      var moved = moveAwayExplosives();
+      player.pos.set(300, 0.1, 300);
+      enemy.inst.position.set(10, 0, 10);
+      pig.inst.position.set(6, 0, 10);
+      pig.inst.userData.hitEnemyCd = 0;
+      var hp0 = enemy.inst.userData.health;
+      window.MODELS.pig.update(pig.inst, 0.05, ctx);
+      var hp1 = enemy.inst.userData.health;
+      restoreExplosives(moved);
+      var dmg = hp0 - hp1;
+      return { ok: dmg >= 30 && dmg <= 50, dmg: dmg, hp0: hp0, hp1: hp1 };
+    };
+    window.__fpsTest.pigRamBarrelTest = function () {
+      var pig = findPigRec(), barrel = findRecByIdPrefix('test-barrel');
+      if (!pig || !barrel) return { ok: false, err: 'missing' };
+      var moved = moveAwayExplosives();
+      var enemy = findRecByIdPrefix('test-enemy');
+      if (enemy) enemy.inst.position.set(200, 0, 200);  // 挪开测试敌人，避免比油桶更近
+      player.pos.set(300, 0.1, 300);
+      barrel.inst.position.set(20, 0, 10);
+      pig.inst.position.set(16, 0, 10);
+      pig.inst.userData.hitEnemyCd = 0;
+      var ph0 = pig.inst.userData.health;
+      window.MODELS.pig.update(pig.inst, 0.05, ctx);
+      var exploded = !!barrel.inst.userData.exploded;
+      var ph1 = pig.inst.userData.health;
+      restoreExplosives(moved);
+      return { ok: exploded && ph1 < ph0, exploded: exploded, ph0: Math.round(ph0), ph1: Math.round(ph1) };
+    };
+    window.__fpsTest.setPlayerPos = function (x, y, z) {
+      player.pos.set(x, y === undefined ? 0.1 : y, z);
+      player.vel.set(0, 0, 0);
+      return { x: x, z: z };
+    };
     // v6.9 护盾/核弹/爆炸/弹壳测试
     window.__fpsTest.spawnShieldDropTest = function () { var p = player.pos.clone(); p.x += 6; p.z += 6; spawnShieldDrop(p); return true; };
     window.__fpsTest.pickupShieldTest = function () { applyShield(); return player.shieldTime; };
