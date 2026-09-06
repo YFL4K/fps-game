@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.2</div>
+<div id="versionTag">v7.3</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -492,6 +492,13 @@
       });
       rec.inst.userData.projectiles.length = 0;
     }
+    // v7.3 猪头佳激光光束兜底清理（挂在 scene 层级，pig.js 死亡自清 + 此处防泄漏）
+    if (rec.inst.userData && Array.isArray(rec.inst.userData.laserBeams)) {
+      rec.inst.userData.laserBeams.forEach(function (b) {
+        if (b && b.parent) b.parent.remove(b);
+      });
+      rec.inst.userData.laserBeams = null;
+    }
     scene.remove(rec.inst);
     rec.alive = false;
   }
@@ -538,10 +545,12 @@
     flameReserve: 30,
     berserk: false,
     walkie: false,      // v6.7 对讲机（1 次有效，不累积）
+    walkieBonus: 0,     // v7.3 每 5000 分奖励的空中支援次数（可累积，优先消耗）
     gatling: null,      // v6.8 加特林碉堡状态 {active,heat,cooldown,posBackup}
     shieldTime: 0       // v6.9 金色护盾剩余秒数（30 秒上限 60）
   };
   var score = 0;
+  var nextAwardScore = 5000;   // v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 满血
   var debugMode = false;
   var state = 'menu';   // menu | playing | paused | complete | dead | victory
   var aiming = false;   // v6.7 右键瞄准
@@ -1859,10 +1868,23 @@
     showToast('🛡 获得金色护盾！30 秒减伤 90%（击杀 +2 秒）', 0xffd700);
   }
 
-  /** 呼叫空中支援：多枚导弹从空中轰击敌人区域（1 次有效） */
+  /** v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 生命值恢复满血（跨过关卡/无尽持续累计） */
+  function checkScoreMilestone() {
+    while (score >= nextAwardScore) {
+      var at = nextAwardScore;
+      nextAwardScore += 5000;
+      player.walkieBonus = (player.walkieBonus || 0) + 1;
+      player.health = player.maxHealth;
+      showToast('🎁 达到 ' + at + ' 分！奖励：空中支援 ×1 + 生命全恢复', 0x66ffcc);
+      if (sfx && sfx.playLevelUp) sfx.playLevelUp();
+    }
+  }
+
+  /** 呼叫空中支援：多枚导弹从空中轰击敌人区域（v7.3 优先消耗 5000 分奖励次数，再消耗拾取对讲机） */
   function useAirSupport() {
-    if (!player.walkie || player.dead || state !== 'playing') return;
-    player.walkie = false;
+    if ((!player.walkie && !(player.walkieBonus > 0)) || player.dead || state !== 'playing') return;
+    if (player.walkieBonus > 0) player.walkieBonus--;
+    else player.walkie = false;
     if (sfx) sfx.playRocket();
     showToast('☁ 空中支援已呼叫！导弹从天而降', 0x99ccff);
 
@@ -2474,6 +2496,7 @@
     }
     currentLayout = getTargetLayout();
     score = 0;
+    nextAwardScore = 5000;   // v7.3 重开归零
     clearAllDynamic();
     rebuildFullScene(currentLayout);
     player.dead = false;
@@ -2485,6 +2508,7 @@
     player.flameReserve = 30;
     player.berserk = false;
     player.walkie = false;   // v6.7 对讲机重开归零
+    player.walkieBonus = 0;  // v7.3 5000 分奖励次数重开归零
     player.gatling = null;   // v6.8 加特林状态重开归零
     player.shieldTime = 0;   // v6.9 护盾重开归零
     gatlingRec = null;
@@ -2521,6 +2545,8 @@
       pigAlive = false;
       score += 1000;
       showToast('🐗 击败猪头佳！+1000', 0xffcc66);
+      // v7.3 5000 分里程碑奖励检查
+      checkScoreMilestone();
       // v7.1 图鉴表：猪头佳击毁掉落（v7.2：对讲机/核弹 10%→30%）
       if (Math.random() < 0.20) spawnWeaponDrop(pos, 'rocket');
       if (Math.random() < 0.20) spawnAmmoDrop(pos, 'flame');
@@ -2542,6 +2568,8 @@
     levelKills++;
     // v7.1 击杀分：boss 2000 / monster 150 / spider 150 / human 100
     score += (type === 'boss' ? 2000 : (type === 'monster' || type === 'spider' ? 150 : 100));
+    // v7.3 5000 分里程碑奖励检查
+    checkScoreMilestone();
     // v6.8 狂暴模式击杀回血：狂暴期间每击杀 1 敌人恢复 10 HP（直到狂暴结束）
     if (player.berserk) {
       player.health = Math.min(player.maxHealth, player.health + 10);
@@ -2585,6 +2613,8 @@
     bossAlive = false;
     // v7.1 图鉴表：击杀 BOSS +2000 分
     score += 2000;
+    // v7.3 5000 分里程碑奖励检查
+    checkScoreMilestone();
     // v6.5: 击杀 BOSS 奖励核弹 ×1（过关模式 + 无尽模式都适用）
     player.nukes = (player.nukes || 0) + 1;
     showToast('☢ 击败 BOSS！获得 核弹 ×1', 0xffcc66);
@@ -2597,6 +2627,8 @@
   };
   ctx.onHelicopterKilled = function (pos) {
     score += 800;
+    // v7.3 5000 分里程碑奖励检查
+    checkScoreMilestone();
     // v7.1 图鉴表：直升机掉落 火箭筒 30%
     var extra = '';
     if (Math.random() < 0.30) {
@@ -3084,6 +3116,8 @@
     else statsEl.classList.remove('shielded');
     if (player.nukes > 0) lines.push('☢ 核弹 ×' + player.nukes + '  — 按 G 引爆');
     if (player.walkie) lines.push('📻 对讲机 ×1  — 按 T 呼叫空中支援');
+      // v7.3 5000 分奖励的空袭次数（可累积，优先消耗）
+      if (player.walkieBonus > 0) lines.push('🎁 空中支援奖励 ×' + player.walkieBonus + '  — 按 T 呼叫');
     // v6.8 加特林碉堡状态
     if (player.gatling) {
       if (player.gatling.active) lines.push('🔫 加特林碉堡 使用中 ' + Math.floor(player.gatling.heat) + '/' + 30 + ' 秒  — 按 E 退出');
@@ -3672,6 +3706,158 @@
       var ph1 = pig.inst.userData.health;
       restoreExplosives(moved);
       return { ok: exploded && ph1 < ph0, exploded: exploded, ph0: Math.round(ph0), ph1: Math.round(ph1) };
+    };
+    // v7.3 确保测试场景有猪头佳
+    function ensurePigForTest() {
+      var pig = findPigRec();
+      if (!pig) {
+        pigAlive = false; pigKills = 0;
+        try { spawnPig(); } catch (e) {}
+        pig = findPigRec();
+      }
+      return pig;
+    }
+    // v7.3 确保测试敌人存在（health 高防死、speed 0 不动）
+    function ensureTestEnemy() {
+      var e = findRecByIdPrefix('test-enemy');
+      if (!e) {
+        var cfg = { id: 'test-enemy-' + (++dynCounter), model: 'enemy', position: [10, 0, 10], rotation: [0, Math.PI, 0], scale: [1, 1, 1], collision: false, kind: 'enemy', respawn: 0, dynamic: true, health: 500, speed: 0 };
+        buildEntity(cfg);
+        for (var j = 0; j < entities.length; j++) {
+          if (entities[j].cfg.id === cfg.id) { e = entities[j]; break; }
+        }
+      }
+      if (e) { e.inst.userData.health = 500; e.inst.userData.dead = false; }
+      return e;
+    }
+    // v7.3 需求2：猪头佳出现时机（所有关卡+无尽共用 onEnemyKilled 逻辑）——每击杀 10 名普通敌人随机出现
+    window.__fpsTest.pigTriggerTest = function () {
+      var before = pigAlive;
+      var savedKills = levelKills;
+      levelKills = 0;                        // 避免累计到关卡目标触发 checkMissionComplete
+      pigAlive = false; pigKills = 0;
+      for (var i = 0; i < 9; i++) ctx.onEnemyKilled(new THREE.Vector3(10 + i, 0, 30), 'human');
+      var after9 = { alive: pigAlive, kills: pigKills };
+      ctx.onEnemyKilled(new THREE.Vector3(20, 0, 30), 'monster');
+      var after10 = { alive: pigAlive, spawned: !!findPigRec() };
+      var spawnedPig = findPigRec();
+      if (spawnedPig) { removeEntity(spawnedPig); }
+      pigAlive = false; pigKills = 0;
+      levelKills = savedKills;
+      return { ok: before === false && after9.alive === false && after9.kills === 9 && after10.alive === true && after10.spawned === true,
+        before: before, after9: after9, after10: after10 };
+    };
+    // v7.3 需求3a：激光状态机 5s on / 3s off 循环
+    window.__fpsTest.pigLaserStateTest = function () {
+      var pig = ensurePigForTest();
+      if (!pig) return { ok: false, err: 'no pig' };
+      var u = pig.inst.userData, moved = moveAwayExplosives();
+      var enemy = findRecByIdPrefix('test-enemy');
+      if (enemy) enemy.inst.position.set(200, 0, 200);
+      player.pos.set(0, 0.1, 0);
+      pig.inst.position.set(180, 0, 180);
+      pig.inst.rotation.y = 0;
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0; u.life = 29;
+      var s0 = { phase: u.laserPhase, t: u.laserTimer };
+      window.MODELS.pig.update(pig.inst, 4.9, ctx);
+      var s1 = { phase: u.laserPhase, t: Math.round(u.laserTimer * 10) / 10 };
+      window.MODELS.pig.update(pig.inst, 0.2, ctx);
+      var s2 = { phase: u.laserPhase, t: Math.round(u.laserTimer * 10) / 10 };
+      window.MODELS.pig.update(pig.inst, 2.8, ctx);
+      var s3 = { phase: u.laserPhase, t: Math.round(u.laserTimer * 10) / 10 };
+      window.MODELS.pig.update(pig.inst, 0.3, ctx);
+      var s4 = { phase: u.laserPhase, t: Math.round(u.laserTimer * 10) / 10 };
+      restoreExplosives(moved);
+      var beamVisible = u.laserBeams ? u.laserBeams[0].visible : null;
+      return { ok: s0.phase === 'on' && s1.phase === 'on' && s2.phase === 'off' && s3.phase === 'off' && s4.phase === 'on' && beamVisible === true,
+        s0: s0, s1: s1, s2: s2, s3: s3, s4: s4, beams: u.laserBeams ? u.laserBeams.length : 0, beamVisible: beamVisible };
+    };
+    // v7.3 需求3b：激光对玩家每秒 20 伤害（钳制上限，无护盾）
+    window.__fpsTest.pigLaserPlayerTest = function () {
+      var pig = ensurePigForTest();
+      if (!pig) return { ok: false, err: 'no pig' };
+      var moved = moveAwayExplosives();
+      var enemy = findRecByIdPrefix('test-enemy');
+      if (enemy) enemy.inst.position.set(200, 0, 200);
+      pig.inst.position.set(0, 0, 0);
+      pig.inst.rotation.y = Math.PI;               // 面向 -Z（朝玩家）
+      player.pos.set(0, 0.1, -50);                 // 射程内、激光路径上
+      player.health = 100; player.shieldTime = 0;
+      var u = pig.inst.userData;
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.life = 29;
+      var hp0 = player.health;
+      window.MODELS.pig.update(pig.inst, 0.02, ctx);
+      var hp1 = player.health;
+      restoreExplosives(moved);
+      var dmg = hp0 - hp1;
+      return { ok: dmg === 20 && hp1 === 80, dmg: dmg, hp0: hp0, hp1: hp1 };
+    };
+    // v7.3 需求3c：激光对其它敌人每秒 50 无差别伤害
+    window.__fpsTest.pigLaserEnemyTest = function () {
+      var pig = ensurePigForTest(), enemy = ensureTestEnemy();
+      if (!pig || !enemy) return { ok: false, err: 'missing' };
+      var moved = moveAwayExplosives();
+      player.pos.set(300, 0.1, 300);
+      enemy.inst.position.set(0, 0, -60);          // 激光路径上
+      enemy.inst.userData.health = 500; enemy.inst.userData.dead = false;
+      pig.inst.position.set(0, 0, 0);
+      pig.inst.rotation.y = Math.PI;
+      var u = pig.inst.userData;
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.life = 29;
+      var hp0 = enemy.inst.userData.health;
+      window.MODELS.pig.update(pig.inst, 0.02, ctx);
+      var hp1 = enemy.inst.userData.health;
+      restoreExplosives(moved);
+      var dmg = hp0 - hp1;
+      return { ok: dmg === 50, dmg: dmg, hp0: hp0, hp1: hp1 };
+    };
+    // v7.3 需求3d：射程 200 外不受激光伤害
+    window.__fpsTest.pigLaserRangeTest = function () {
+      var pig = ensurePigForTest();
+      if (!pig) return { ok: false, err: 'no pig' };
+      var moved = moveAwayExplosives();
+      var enemy = findRecByIdPrefix('test-enemy');
+      if (enemy) enemy.inst.position.set(200, 0, 200);
+      pig.inst.position.set(0, 0, 0);
+      pig.inst.rotation.y = Math.PI;
+      player.pos.set(0, 0.1, -250);                // 250 > 200
+      player.health = 100; player.shieldTime = 0;
+      var u = pig.inst.userData;
+      u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0.99; u.life = 29;
+      var hp0 = player.health;
+      window.MODELS.pig.update(pig.inst, 0.02, ctx);
+      var hp1 = player.health;
+      restoreExplosives(moved);
+      var dmg = hp0 - hp1;
+      return { ok: dmg === 0, dmg: dmg, hp0: hp0, hp1: hp1, dist: 250 };
+    };
+    // v7.3 需求1：每 5000 分 → 空中支援 ×1（可累积）+ 满血；执行分跨多个门槛不重复漏发
+    window.__fpsTest.awardMilestoneTest = function () {
+      var savedNext = nextAwardScore;
+      var out = {};
+      player.walkie = false; player.walkieBonus = 0; player.health = 40; player.shieldTime = 0; player.dead = false;
+      score = 4999;
+      checkScoreMilestone();
+      out.at4999 = { bonus: player.walkieBonus, hp: player.health, walkie: player.walkie };
+      score = 5000; player.health = 40;
+      checkScoreMilestone();
+      out.at5000 = { bonus: player.walkieBonus, hp: player.health };
+      score = 9999;
+      checkScoreMilestone();
+      out.at9999 = { bonus: player.walkieBonus };
+      score = 15000; player.health = 40;
+      checkScoreMilestone();
+      out.at15000 = { bonus: player.walkieBonus, hp: player.health };
+      useAirSupport();
+      out.afterUse = { bonus: player.walkieBonus, walkie: player.walkie };
+      var ok = out.at4999.bonus === 0 && out.at4999.hp === 40 && out.at4999.walkie === false &&
+               out.at5000.bonus === 1 && out.at5000.hp === 100 &&
+               out.at9999.bonus === 1 &&
+               out.at15000.bonus === 3 && out.at15000.hp === 100 &&
+               out.afterUse.bonus === 2 && out.afterUse.walkie === false;
+      out.ok = ok;
+      score = 0; nextAwardScore = savedNext; player.walkieBonus = 0; player.walkie = false;
+      return out;
     };
     window.__fpsTest.setPlayerPos = function (x, y, z) {
       player.pos.set(x, y === undefined ? 0.1 : y, z);

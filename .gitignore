@@ -20,3 +20,10 @@ package-lock.json
 .idea/
 V65_TODO.md
 V66_TODO.md
+
+# ---- Python ----
+__pycache__/
+*.pyc
+
+# ---- 交付统计表 ----
+*.xlsx

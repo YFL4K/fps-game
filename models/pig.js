@@ -24,6 +24,47 @@
 
   function sqDist(ax, az, bx, bz) { var dx = ax - bx, dz = az - bz; return dx * dx + dz * dz; }
 
+  // v7.3 激光常量：5 秒发射 / 3 秒间隙 / 射程 200 / 玩家 20 每秒 / 其它敌人 50 每秒
+  var LASER_ON = 5, LASER_OFF = 3, LASER_RANGE = 200, LASER_HALF_W = 1.5;
+  var LASER_DPS_PLAYER = 20, LASER_DPS_ENEMY = 50;
+
+  /** 2D 射线命中判定：目标在起点正前方、投影距离 <= range、垂距 <= halfW */
+  function laserHitTest(px, pz, tx, tz, fx, fz, range, halfW) {
+    var dx = tx - px, dz = tz - pz;
+    var t = dx * fx + dz * fz;
+    if (t < 0 || t > range) return false;
+    var ox = dx - fx * t, oz = dz - fz * t;
+    return (ox * ox + oz * oz) <= halfW * halfW;
+  }
+
+  /** 创建两条激光光束（挂在 scene 层级，不受猪 3 倍 scale 影响） */
+  function ensureBeams(u, ctx) {
+    if (u.laserBeams) return;
+    var outer = new T.MeshBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 0.8 });
+    var core = new T.MeshBasicMaterial({ color: 0xd2ffd2, transparent: true, opacity: 0.95 });
+    u.laserBeams = [];
+    for (var i = 0; i < 2; i++) {
+      var beam = new T.Mesh(new T.BoxGeometry(1, 1, 1), outer);
+      var c = new T.Mesh(new T.BoxGeometry(1, 1, 1), core);
+      c.scale.set(0.42, 1, 1);
+      beam.add(c);
+      beam.visible = false;
+      beam.frustumCulled = false;
+      if (ctx && ctx.scene) ctx.scene.add(beam);
+      u.laserBeams.push(beam);
+    }
+  }
+
+  function removeBeams(u) {
+    if (u.laserBeams) {
+      for (var i = 0; i < u.laserBeams.length; i++) {
+        var b = u.laserBeams[i];
+        if (b && b.parent) b.parent.remove(b);
+      }
+      u.laserBeams = null;
+    }
+  }
+
   global.MODELS.pig = {
     name: 'pig',
 
@@ -141,7 +182,14 @@
         _rec: null,
         legs: legs,
         head: head,
-        respawnReady: false
+        respawnReady: false,
+        // v7.3 激光状态机（先发射 5 秒 → 停 3 秒 → 循环）
+        laserPhase: 'on',
+        laserTimer: 0,
+        laserDmgTick: 0,
+        laserBeams: null,
+        laserEyeL: new T.Vector3(-0.42, 1.44, 1.26),
+        laserEyeR: new T.Vector3(0.42, 1.44, 1.26)
       };
       g.userData = u;
 
@@ -153,6 +201,7 @@
         if (c && c.sfx) c.sfx.playHit();
         if (u.health <= 0) {
           u.dead = true;
+          removeBeams(u);
           if (c && c.sfx) c.sfx.playDeath();
           if (c && c.onEnemyKilled) c.onEnemyKilled(g.position.clone(), 'pig');
           u.respawnReady = true;
@@ -183,6 +232,7 @@
       if (u.life <= 0) {
         u.life = 0;
         u.dead = true;
+        removeBeams(u);
         if (ctx.onPigSelfDestruct) ctx.onPigSelfDestruct(inst.position.clone());
         u.respawnReady = true;
         return;
@@ -274,6 +324,52 @@
             if (kn.lengthSq() > 1e-6) {
               kn.normalize().multiplyScalar(3.0);
               hit.inst.position.add(kn);
+            }
+          }
+        }
+      }
+
+      /* ================= v7.3 激光武器：双眼向前方地面发射绿色激光 ================= */
+      u.laserTimer += dt;
+      if (u.laserPhase === 'on' && u.laserTimer >= LASER_ON) {
+        u.laserPhase = 'off'; u.laserTimer = 0;
+      } else if (u.laserPhase === 'off' && u.laserTimer >= LASER_OFF) {
+        u.laserPhase = 'on'; u.laserTimer = 0;
+      }
+      var fx = Math.sin(inst.rotation.y), fz = Math.cos(inst.rotation.y);
+      ensureBeams(u, ctx);
+      inst.updateMatrixWorld(true);
+      for (var bi = 0; bi < u.laserBeams.length; bi++) {
+        var bm = u.laserBeams[bi];
+        var eye = bi === 0 ? u.laserEyeL : u.laserEyeR;
+        var ew = new T.Vector3().copy(eye).applyMatrix4(inst.matrixWorld);
+        var st = new T.Vector3(ew.x, Math.max(0.25, ew.y), ew.z);
+        var en = new T.Vector3(ew.x + fx * LASER_RANGE, 0.15, ew.z + fz * LASER_RANGE);
+        bm.position.addVectors(st, en).multiplyScalar(0.5);
+        bm.lookAt(en);
+        bm.scale.set(0.4, 0.06, st.distanceTo(en));
+        bm.visible = (u.laserPhase === 'on');
+      }
+      // 伤害：每秒结算一次（玩家 20/s，其它敌人 50/s，射程 200，宽度判定）
+      if (u.laserPhase === 'on') {
+        u.laserDmgTick += dt;
+        while (u.laserDmgTick >= 1) {
+          u.laserDmgTick -= 1;
+          if (ctx.hitPlayer && !ctx.player.dead &&
+              laserHitTest(inst.position.x, inst.position.z, ctx.player.pos.x, ctx.player.pos.z, fx, fz, LASER_RANGE, LASER_HALF_W)) {
+            ctx.hitPlayer(LASER_DPS_PLAYER);
+          }
+          for (var li = 0; li < list.length; li++) {
+            var recL = list[li];
+            if (!recL.alive || recL === u._rec) continue;
+            var cuL = recL.inst.userData;
+            if (!cuL) continue;
+            if (cuL.kind === 'pig') continue;
+            var mL = recL.cfg.model;
+            if (mL === 'helicopter') continue;                    // 直升机在空中，激光贴地不扫
+            if (!(recL.cfg.dynamic && typeof cuL.takeDamage === 'function' && !cuL.dead)) continue;
+            if (laserHitTest(inst.position.x, inst.position.z, recL.inst.position.x, recL.inst.position.z, fx, fz, LASER_RANGE, LASER_HALF_W)) {
+              cuL.takeDamage(LASER_DPS_ENEMY);
             }
           }
         }
