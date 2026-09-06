@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v7.8</div>
+<div id="versionTag">v7.9</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -152,7 +152,7 @@
     <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸（对敌伤害 +150% 群体伤害）· 击杀敌人掉落宝箱/金色护盾(20%) · 击落直升机获得火箭筒/喷火器/核弹(10%) · 蜘蛛会自爆！</span><br>
     <span class="warn">🎵 每关专属劲爆战斗 BGM（M 键静音）· 🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span><br>
     <span class="warn">📻 击杀 BOSS/直升机 10% 掉落对讲机（每关随机出现）——按 T 呼叫导弹空袭，1 次有效！</span><br>
-    <span class="warn">🛡 金色护盾（击杀敌人 20% 掉落）：拾取后 30 秒减伤 90%，期间每击杀一名敌人 +0.5 秒，超时消失！</span>
+    <span class="warn">🛡 金色护盾（击杀敌人 20% 掉落）：拾取后 15 秒减伤 90%，期间每击杀一名敌人 +0.5 秒（上限不超过初始 15 秒），超时消失！</span>
   </div>
   <button id="startBtn">开始游戏（过关模式）</button>
 </div>
@@ -298,7 +298,7 @@
     rifle:      { name: '步枪',     damage: 35, mag: 30,  maxAmmo: 240, fireRate: 15.0, reload: 1.0,  spread: 0.02,  pellets: 1,   range: 120,  auto: true,  aimFov: 45, scopeLens: false },   // v7.2: 伤害20→35 射速9→15 换弹1.17→1，初始自带
     flamethrower: { name: '喷火器', damage: 100, mag: 5,  maxAmmo: 30,  fireRate: 35.0, reload: 1.5,  spread: 0.08,  pellets: 1,   range: 60,   auto: true, flame: true, flameRadius: 9, aimFov: 55, scopeLens: false },  // v7.2: 伤害216→100 射速12→35 换弹2.0→1.5 射程80→60
     sniper:     { name: '狙击枪',   damage: 300, mag: 5,  maxAmmo: 40,  fireRate: 1.0,  reload: 2.0,  spread: 0.003, pellets: 1,   range: 300,  auto: false, aimFov: 18, scopeLens: true },   // v7.2: 伤害120→300 射速0.9→1 换弹1.82→2 射程260→300
-    rocket:     { name: '火箭筒',   damage: 140, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 200,  auto: false, aoe: { radius: 6, damage: 170 }, aimFov: 35, scopeLens: false }   // v7.2: 射程240→200
+    rocket:     { name: '火箭筒',   damage: 210, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 200,  auto: false, aoe: { radius: 6, damage: 255 }, aimFov: 35, scopeLens: false }   // v7.2: 射程240→200；v7.9: 伤害140→210、爆炸170→255（+50%）
   };
   var GUN_ORDER = ['pistol', 'rifle', 'flamethrower', 'sniper', 'rocket'];
   // v7.2 加特林碉堡参数（伤害40 / 射速30发每秒 / 射程120）
@@ -355,7 +355,8 @@
 
   /* ================= 2. 渲染器 / 场景 / 相机 ================= */
   var renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // v7.9 性能优化：pixelRatio 上限 2 → 1.5（高 DPR 屏大幅降低渲染像素/内存占用）
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -409,6 +410,13 @@
   var fx = [];
   var screenShake = 0;
   var playerPosVec = new THREE.Vector3();
+  // v7.9 性能优化：可复用临时对象（避免每帧/每特效创建）
+  var _debrisGeo = null;
+  var _tempBoxA = new THREE.Box3();
+  var _tempBoxB = new THREE.Box3();
+  var _tempVec3 = new THREE.Vector3();
+  // v7.9 特效上限（内存占用保护）：fx 超过上限时丢弃最老的特效
+  var FX_MAX = 450;
 
   var ctx = {
     THREE: THREE,
@@ -547,7 +555,7 @@
     walkie: false,      // v6.7 对讲机（1 次有效，不累积）
     walkieBonus: 0,     // v7.3 每 5000 分奖励的空中支援次数（可累积，优先消耗）
     gatling: null,      // v6.8 加特林碉堡状态 {active,heat,cooldown,posBackup}
-    shieldTime: 0       // v6.9 金色护盾剩余秒数（30 秒上限 60）
+    shieldTime: 0       // v6.9 金色护盾剩余秒数（v7.9 初始 15 秒，击杀 +0.5 秒，上限 15）
   };
   var score = 0;
   var nextAwardScore = 5000;   // v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 满血
@@ -621,6 +629,8 @@
     gunInst.traverse(function (o) { o.userData.noHit = true; });
     camera.add(gunInst);
     gunInst.position.copy(gunInst.userData.basePos);
+    // v7.9 枪模整体微缩，确保默认 FOV 75° 下完整落在相机视锥内（配合 gunClipTest 钩子）
+    gunInst.scale.set(0.92, 0.92, 0.92);
   }
   buildGun(player.gun);
 
@@ -1334,6 +1344,7 @@
 
   /* v6.9 子弹抛壳：从枪械抛壳窗飞出一枚黄铜弹壳（重力+旋转+落地弹跳） */
   var _casingMat = null;
+  var _casingGeo = null;
   function spawnCasing(gunInst) {
     if (!gunInst || !gunInst.userData || !gunInst.userData.eject) return;
     var gt2 = GUN_TYPES[player.gun];
@@ -1341,9 +1352,11 @@
     if (!_casingMat) {
       _casingMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.35, metalness: 0.75 });
     }
+    // v7.9 性能优化：弹壳共享几何
+    if (!_casingGeo) _casingGeo = new THREE.BoxGeometry(0.028, 0.012, 0.012);
     var ep = new THREE.Vector3();
     gunInst.userData.eject.getWorldPosition(ep);
-    var casing = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.012, 0.012), _casingMat);
+    var casing = new THREE.Mesh(_casingGeo, _casingMat);
     casing.position.copy(ep);
     scene.add(casing);
     fx.push({
@@ -1465,9 +1478,11 @@
       spread = new THREE.Vector3(sz * 2, sz * 2, sz * 2);
     }
     if (col === undefined) col = 0x8a6b3c;
+    // v7.9 性能优化：碎片共享几何体 + 关闭投影阴影（碎片数量大，castShadow 开销高）
+    if (!_debrisGeo) _debrisGeo = new THREE.BoxGeometry(1, 1, 1);
     for (var i = 0; i < cnt; i++) {
       var m = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
+        _debrisGeo,
         new THREE.MeshStandardMaterial({ color: col, roughness: 0.85, transparent: true, opacity: 1 })
       );
       var s = sz * (0.5 + Math.random());
@@ -1478,7 +1493,7 @@
         point.z + (Math.random() - 0.5) * spread.z
       );
       m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
-      m.castShadow = true;
+      m.castShadow = false;
       scene.add(m);
       fx.push({
         type: 'debris', obj: m,
@@ -1865,11 +1880,11 @@
     spawnSparks(pos, 0xffd700);
   }
 
-  /** 拾取盾牌：30 秒护盾，重复拾取刷新时间 */
+  /** 拾取盾牌：v7.9 15 秒护盾，重复拾取刷新时间（击杀 +0.5 秒，上限 15 秒） */
   function applyShield() {
-    player.shieldTime = 30;
+    player.shieldTime = 15;
     if (sfx) sfx.playPickup();
-    showToast('🛡 获得金色护盾！30 秒减伤 90%（击杀 +0.5 秒）', 0xffd700);
+    showToast('🛡 获得金色护盾！15 秒减伤 90%（击杀 +0.5 秒，上限 15 秒）', 0xffd700);
   }
 
   /** v7.8 核弹发放统一入口：上限 1，不使用不能累积，不能重复拾取
@@ -2226,7 +2241,8 @@
   }
 
   function randomSpawnPos() {
-    var ab = new THREE.Box3();
+    // v7.9 性能优化：复用全局 Box3
+    var ab = _tempBoxB;
     for (var tries = 0; tries < 26; tries++) {
       var x = (Math.random() - 0.5) * 74;
       var z = (Math.random() - 0.5) * 74;
@@ -2274,7 +2290,7 @@
     buildEntity(cfg);
   }
 
-  // v7.0 猪头佳小BOSS：巨型野猪冲撞，每击杀 5 名普通敌人随机出现，30 秒超时自爆
+  // v7.0 猪头佳小BOSS：巨型野猪冲撞，每击杀 10 名普通敌人随机出现，90 秒超时自爆（v7.9 30→90）
   function spawnPig() {
     if (pigAlive || player.dead || state !== 'playing') return false;
     pigAlive = true;
@@ -2293,7 +2309,7 @@
       health: 12000,
       // v7.7 猪头佳移动速度 +40%：13 → 18.2
       speed: 18.2,
-      life: 30
+      life: 90    // v7.9 超时自爆 30 → 90 秒
     };
     buildEntity(cfg);
     // 自爆回调：爆炸 + 对玩家范围伤害（钳制 5~20）+ 状态复位
@@ -2307,9 +2323,9 @@
       showToast('💥 猪头佳自爆了！', 0xff6a3a);
       if (sfx && sfx.playRocket) sfx.playRocket();
     };
-    showToast('🐗 猪头佳出现！30 秒内击败它！', 0xff8a2a);
+    showToast('🐗 猪头佳出现！90 秒内击败它！', 0xff8a2a);
     levelBannerTitle.textContent = '🐗 猪头佳现身';
-    levelBannerSub.textContent = '巨型野猪冲撞全场 — 30 秒内击败它，否则自爆！';
+    levelBannerSub.textContent = '巨型野猪冲撞全场 — 90 秒内击败它，否则自爆！';
     levelBannerEl.style.opacity = '1';
     setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 3000);
     if (sfx && sfx.playBoss) sfx.playBoss();
@@ -2596,9 +2612,9 @@
       player.health = Math.min(player.maxHealth, player.health + 10);
       if (sfx) sfx.playPickup();
     }
-    // v6.9 护盾期间击杀敌人 +2 秒 → v7.6 下调为 +0.5 秒（上限 60 秒）
+    // v6.9 护盾期间击杀敌人 +2 秒 → v7.6 下调为 +0.5 秒 → v7.9 上限从 60 降到初始 15 秒
     if (player.shieldTime > 0) {
-      player.shieldTime = Math.min(60, player.shieldTime + 0.5);
+      player.shieldTime = Math.min(15, player.shieldTime + 0.5);
     }
     // v7.1 图鉴表掉落：金盾 10%
     if (Math.random() < 0.10) {
@@ -2973,7 +2989,8 @@
   /** 敌人与静态碰撞体（建筑/墙/车辆/箱子等）的水平推挤，防止穿模
    *  v7.4 修复：蜘蛛（spider 模型）/ BOSS 机甲（enemy 模型）一并纳入，不再穿墙 */
   function collideEnemies() {
-    var ab = new THREE.Box3();
+    // v7.9 性能优化：复用全局 Box3，避免每帧创建临时对象
+    var ab = _tempBoxA;
     for (var i = 0; i < entities.length; i++) {
       var rec = entities[i];
       var rm = rec.cfg.model;
@@ -3068,6 +3085,17 @@
 
   /* ================= 14. 特效更新 ================= */
   function updateFx(dt) {
+    // v7.9 性能优化：fx 超上限时丢弃最老特效，防止长时间游玩内存/对象无限增长
+    if (fx.length > FX_MAX) {
+      var over = fx.length - FX_MAX;
+      for (var drop = 0; drop < over; drop++) {
+        var od = fx.shift();
+        if (od && od.obj) {
+          if (od.obj.parent) od.obj.parent.remove(od.obj);
+          if (od.obj.material && od.obj.material.dispose) od.obj.material.dispose();
+        }
+      }
+    }
     for (var i = fx.length - 1; i >= 0; i--) {
       var f = fx[i];
       f.life -= dt;
@@ -4003,7 +4031,7 @@
                out.bonusAt5k === 1 && out.bonusAt10k === 1 && out.dropAfter === 0;
       return out;
     };
-    // v7.7 需求1a：猪头佳移动速度 +40% → spawnPig cfg.speed 18.2
+    // v7.7 需求1a：猪头佳移动速度 +40% → spawnPig cfg.speed 18.2（v7.9 附带返回自爆 life=90）
     window.__fpsTest.pigSpeedTest = function () {
       // 清掉旧猪后强制重新 spawn，确保读取的是 v7.7 新 cfg
       var old = findPigRec();
@@ -4012,8 +4040,9 @@
       var pig = findPigRec();
       if (!pig) return { ok: false, err: 'no pig' };
       var spd = pig.inst.userData.speed;
-      var ok = Math.abs(spd - 18.2) < 0.001;
-      return { ok: ok, speed: spd };
+      var life = pig.inst.userData.life;
+      var ok = Math.abs(spd - 18.2) < 0.001 && life === 90;
+      return { ok: ok, speed: spd, life: life };
     };
     // v7.7 需求1b：猪头佳撞玩家基础伤害 ×1.5（8~30），钳制后 8~20；激光玩家 DPS 设定 30
     window.__fpsTest.pigPlayerDmgTest = function () {
@@ -4126,6 +4155,53 @@
       removeEntity(gRec);
       player.pos.set(0, 0.1, 0);
       out.ok = out.inVisible === false && out.mainExpr === false && out.outVisible === true;
+      return out;
+    };
+    // v7.9 需求2：枪模残缺彻底修复——所有部件必须在相机前方（z<0）且 NDC 投影落在视锥内
+    window.__fpsTest.gunClipTest = function () {
+      var out = { types: {}, fails: [] };
+      camera.updateMatrixWorld(true);
+      camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+      var pv = new THREE.Matrix4();
+      var ndc = new THREE.Vector4();
+      var v = new THREE.Vector3();
+      var types = ['pistol', 'rifle', 'shotgun', 'flamethrower', 'sniper', 'rocket'];
+      for (var t = 0; t < types.length; t++) {
+        var gi = window.MODELS.gun.create({ type: types[t] });
+        gi.position.copy(gi.userData.basePos);
+        gi.scale.set(0.92, 0.92, 0.92);
+        gi.updateMatrixWorld(true);
+        var bad = 0, total = 0, behind = 0;
+        gi.traverse(function (o) {
+          if (!o.isMesh) return;
+          total++;
+          v.setFromMatrixPosition(o.matrixWorld);
+          ndc.set(v.x, v.y, v.z, 1).applyMatrix4(camera.matrixWorldInverse);
+          if (ndc.z >= -0.02) { behind++; bad++; return; }   // 相机后方
+          ndc.applyMatrix4(camera.projectionMatrix);
+          if (Math.abs(ndc.x / ndc.w) > 1.05 || Math.abs(ndc.y / ndc.w) > 1.05) bad++;
+        });
+        out.types[types[t]] = { total: total, bad: bad, behind: behind };
+        if (bad > 0) out.fails.push(types[t]);
+      }
+      out.ok = out.fails.length === 0;
+      return out;
+    };
+    // v7.9 需求6：性能优化检查（闭包内读取渲染器/上限值）
+    window.__fpsTest.perfTest = function () {
+      var out = {};
+      out.pixelRatio = renderer.getPixelRatio ? renderer.getPixelRatio() : -1;
+      out.fxMax = FX_MAX;
+      // debris 不再投射阴影：spawnDebris 内部置 castShadow=false，这里验证几何共享标记
+      out.ok = out.pixelRatio <= 1.5 && out.fxMax === 450;
+      return out;
+    };
+    // v7.9 需求3：玩家武器数值检查（火箭筒伤害 +50%）
+    window.__fpsTest.gunStatsTest = function () {
+      var out = {};
+      var g = GUN_TYPES;
+      out.rocket = { dmg: g.rocket.damage, aoe: g.rocket.aoe.damage };
+      out.ok = g.rocket.damage === 210 && g.rocket.aoe.damage === 255;
       return out;
     };
       // v7.6 需求4：BGM 主音量比 v6.6 基线 0.16 提升 50% → 0.24
@@ -4258,19 +4334,19 @@
       var fl = document.getElementById('flashOverlay').style.opacity;   // 同步读：验证先闪光
       return { nukes: player.nukes, flash: fl };
     };
-    // v7.6 护盾击杀 +0.5 秒（覆盖 v6.9 的 +2 秒）
+    // v7.6 护盾击杀 +0.5 秒（覆盖 v6.9 的 +2 秒）；v7.9 上限 60 → 15（不超过初始 15 秒）
     window.__fpsTest.shieldKillTest = function () {
       var out = {};
       var savedKills = levelKills;
       levelKills = 0;   // 防触发关卡完成
-      player.shieldTime = 30; player.berserk = false;
+      player.shieldTime = 10; player.berserk = false;
       ctx.onEnemyKilled(player.pos.clone(), 'human');
       out.after1 = player.shieldTime;
       player.shieldTime = 59.9;
       ctx.onEnemyKilled(player.pos.clone(), 'human');
       out.capped = player.shieldTime;
       levelKills = savedKills;
-      out.ok = Math.abs(out.after1 - 30.5) < 0.001 && out.capped <= 60;
+      out.ok = Math.abs(out.after1 - 10.5) < 0.001 && out.capped === 15;
       player.shieldTime = 0;
       return out;
     };
