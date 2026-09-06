@@ -12,6 +12,9 @@
   /* HUD */
   #crosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.85); font-size: 30px; font-weight: bold; text-shadow: 0 0 6px rgba(0,0,0,0.8); pointer-events: none; z-index: 10; user-select: none; }
   #stats { position: fixed; left: 16px; top: 14px; color: #d8e6ff; font-size: 15px; line-height: 1.6; text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; user-select: none; white-space: pre; }
+  /* v6.9 金色护盾：HUD 生命值金色闪烁 */
+  #stats.shielded { color: #ffd700; animation: goldflash 0.9s infinite; }
+  @keyframes goldflash { 0%, 100% { text-shadow: 0 0 6px rgba(255,215,0,0.9), 0 1px 3px rgba(0,0,0,0.9); } 50% { text-shadow: 0 0 16px rgba(255,215,0,1), 0 1px 3px rgba(0,0,0,0.9); } }
   #fps { position: fixed; right: 16px; top: 14px; color: #8fdb8f; font-size: 13px; text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; user-select: none; }
   #debugBadge { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); color: #ffd94a; font-size: 15px; font-weight: bold; background: rgba(20,20,30,0.75); border: 1px solid #ffd94a; padding: 4px 14px; border-radius: 4px; display: none; pointer-events: none; z-index: 10; user-select: none; }
   #versionTag { position: fixed; right: 16px; bottom: 14px; color: rgba(180,200,230,0.5); font-size: 12px; pointer-events: none; z-index: 10; user-select: none; }
@@ -117,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v6.8</div>
+<div id="versionTag">v6.9</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -146,9 +149,10 @@
     <b>鼠标左键</b> 射击（可按住连发） &nbsp;·&nbsp; <b>鼠标右键</b> 瞄准（狙击 4 倍镜） &nbsp;·&nbsp; <b>滚轮</b> 切换武器 &nbsp;·&nbsp; <b>R</b> 换弹<br>
     <b>1-5</b> 切换武器（手枪/步枪/喷火器/狙击枪/火箭筒）<br>
     <b>T</b> 对讲机·呼叫空中支援 &nbsp;·&nbsp; <b>E</b> 加特林碉堡（30 秒无限子弹，超温冷却 30 秒）&nbsp;·&nbsp; <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>M</b> 背景音乐开关 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
-    <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸 · 击杀敌人掉落宝箱 · 击落直升机获得火箭筒/喷火器 · 蜘蛛会自爆！</span><br>
+    <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸（对敌伤害 +150% 群体伤害）· 击杀敌人掉落宝箱/金色护盾(20%) · 击落直升机获得火箭筒/喷火器/核弹(10%) · 蜘蛛会自爆！</span><br>
     <span class="warn">🎵 每关专属劲爆战斗 BGM（M 键静音）· 🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span><br>
-    <span class="warn">📻 击杀 BOSS/直升机 10% 掉落对讲机（每关随机出现）——按 T 呼叫导弹空袭，1 次有效！</span>
+    <span class="warn">📻 击杀 BOSS/直升机 10% 掉落对讲机（每关随机出现）——按 T 呼叫导弹空袭，1 次有效！</span><br>
+    <span class="warn">🛡 金色护盾（击杀敌人 20% 掉落）：拾取后 30 秒减伤 90%，期间每击杀一名敌人 +2 秒，超时消失！</span>
   </div>
   <button id="startBtn">开始游戏（过关模式）</button>
 </div>
@@ -193,6 +197,7 @@
 <script src="models/boulder.js" onerror="window.__modErr('models/boulder.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
 <script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
+<script src="models/shield.js" onerror="window.__modErr('models/shield.js')"></script>
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
 <script src="scene-layout.js" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
@@ -239,6 +244,7 @@
   var debugBadge = document.getElementById('debugBadge');
   var hurtEl = document.getElementById('hurtOverlay');
   var flashEl = document.getElementById('flashOverlay');
+  var nukeFlashTimer = null;   // v6.9 核弹先闪光定时器
   var toastEl = document.getElementById('toast');
   var appEl = document.getElementById('app');
   var crosshairEl = document.getElementById('crosshair');
@@ -525,7 +531,8 @@
     flameReserve: 30,
     berserk: false,
     walkie: false,      // v6.7 对讲机（1 次有效，不累积）
-    gatling: null       // v6.8 加特林碉堡状态 {active,heat,cooldown,posBackup}
+    gatling: null,      // v6.8 加特林碉堡状态 {active,heat,cooldown,posBackup}
+    shieldTime: 0       // v6.9 金色护盾剩余秒数（30 秒上限 60）
   };
   var score = 0;
   var debugMode = false;
@@ -551,6 +558,10 @@
     if (player.dead || state !== 'playing') return;
     // v6.7 敌人伤害钳制：单次 5~20，杜绝一击必杀（核弹自伤等特殊来源传 { noClamp: true }）
     if (!(opts && opts.noClamp)) dmg = Math.min(20, Math.max(5, dmg));
+    // v6.9 金色护盾：减伤 90%（钳制之后应用，最小 1 点）
+    if (player.shieldTime > 0 && !(opts && opts.ignoreShield)) {
+      dmg = Math.max(1, Math.round(dmg * 0.1));
+    }
     player.health -= dmg;
     hurtEl.style.opacity = '1';
     setTimeout(function () { hurtEl.style.opacity = '0'; }, 150);
@@ -1083,6 +1094,8 @@
     }
     
     player.ammo--;
+    // v6.9 子弹抛壳动画（喷火枪除外）
+    spawnCasing(gunInst);
     player.fireCooldown = 1 / (gt.fireRate * (player.berserk ? 1.5 : 1));
     var dmgMul = player.buffs.damage > 0 ? 3 : 1;
     if (player.berserk) dmgMul *= 1.5;
@@ -1263,7 +1276,8 @@
             destroyEntity(hitRec);
           }
         }
-        explode(hitPoint, r.aoe.radius, r.damage, {});
+        // v6.9 火箭筒对敌群体伤害 +150%（×2.5），并引爆周边爆炸物（explode 内部 chain）
+        explode(hitPoint, r.aoe.radius, r.damage, { enemyDmgMul: 2.5 });
         scene.remove(r.mesh);
         rockets.splice(i, 1);
         continue;
@@ -1282,7 +1296,7 @@
         fx.push({ type: 'smoke', obj: sm, vel: new THREE.Vector3((Math.random() - 0.5) * 1.4, Math.random() * 1.2 + 0.4, (Math.random() - 0.5) * 1.4), life: 1.0, maxLife: 1.0, growTo: 1.8 });
       }
       if (r.life <= 0) {
-        explode(r.mesh.position.clone(), r.aoe.radius, r.damage, {});
+        explode(r.mesh.position.clone(), r.aoe.radius, r.damage, { enemyDmgMul: 2.5 });
         scene.remove(r.mesh);
         rockets.splice(i, 1);
       }
@@ -1297,6 +1311,62 @@
     fx.push({ type: 'tracer', obj: line, life: 0.07, maxLife: 0.07 });
   }
   ctx.spawnTracer = spawnTracer;
+
+  /* v6.9 子弹抛壳：从枪械抛壳窗飞出一枚黄铜弹壳（重力+旋转+落地弹跳） */
+  var _casingMat = null;
+  function spawnCasing(gunInst) {
+    if (!gunInst || !gunInst.userData || !gunInst.userData.eject) return;
+    var gt2 = GUN_TYPES[player.gun];
+    if (gt2 && gt2.flame) return;          // 喷火枪不抛壳
+    if (!_casingMat) {
+      _casingMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.35, metalness: 0.75 });
+    }
+    var ep = new THREE.Vector3();
+    gunInst.userData.eject.getWorldPosition(ep);
+    var casing = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.012, 0.012), _casingMat);
+    casing.position.copy(ep);
+    scene.add(casing);
+    fx.push({
+      type: 'casing', obj: casing,
+      vel: new THREE.Vector3(0.5 + Math.random() * 0.9, 1.6 + Math.random() * 1.3, (Math.random() - 0.5) * 1.2 - 0.3),
+      rot: new THREE.Vector3((Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16),
+      life: 2.2, maxLife: 2.2, grounded: false
+    });
+  }
+
+  /* v6.9 核弹蘑菇云：烟柱 + 顶部蘑菇帽 + 底部火球，缓慢上升膨胀消散 */
+  function spawnMushroomCloud(pt) {
+    var T = THREE;
+    var g = new T.Group();
+    g.position.copy(pt);
+    // 烟柱（多层球堆叠）
+    for (var i = 0; i < 5; i++) {
+      var seg = new T.Mesh(new T.SphereGeometry(3.0 + i * 0.65, 9, 7),
+        new T.MeshBasicMaterial({ color: 0x6a5a48, transparent: true, opacity: 0.5, depthWrite: false }));
+      seg.position.y = 5 + i * 4.6;
+      seg.scale.x = 0.75 + i * 0.06;
+      g.add(seg);
+    }
+    // 蘑菇帽（顶部大扁球，3 层）
+    for (var j = 0; j < 3; j++) {
+      var cap = new T.Mesh(new T.SphereGeometry(6.2 - j * 1.1, 12, 9),
+        new T.MeshBasicMaterial({ color: 0x7d5c3c, transparent: true, opacity: 0.55, depthWrite: false }));
+      cap.position.y = 25 + j * 2.6;
+      cap.scale.y = 0.68;
+      g.add(cap);
+    }
+    // 底部火球（亮橙）
+    var fire = new T.Mesh(new T.SphereGeometry(4.6, 10, 8),
+      new T.MeshBasicMaterial({ color: 0xff8833, transparent: true, opacity: 0.85, depthWrite: false }));
+    fire.position.y = 1.5;
+    g.add(fire);
+    var glow = new T.Mesh(new T.SphereGeometry(9, 10, 8),
+      new T.MeshBasicMaterial({ color: 0xffaa44, transparent: true, opacity: 0.18, depthWrite: false }));
+    glow.position.y = 3;
+    g.add(glow);
+    scene.add(g);
+    fx.push({ type: 'mushroom', obj: g, fire: fire, glow: glow, life: 6.5, maxLife: 6.5, growTo: 1.7 });
+  }
 
   function spawnSparks(point, color) {
     var c = color || 0xffaa44;
@@ -1452,10 +1522,7 @@
     light.position.copy(point);
     scene.add(light);
     fx.push({ type: 'flashlight', obj: light, life: 0.3, maxLife: 0.3 });
-    if (opts && opts.nuke) {
-      flashEl.style.opacity = '1';
-      setTimeout(function () { flashEl.style.opacity = '0'; }, 150);
-    }
+    // 注：核弹先闪光由 detonateNuke 统一处理（250ms），此处不再设置避免定时器覆盖
   }
 
   /**
@@ -1475,6 +1542,10 @@
 
     var pendingChains = [];
 
+    // v6.9 爆炸物(油桶/TNT，chain 爆炸)与火箭筒对敌伤害 +150%（×2.5）
+    var edm = opts.enemyDmgMul || 1;
+    if (opts.chain) edm *= 2.5;
+
     // 伤害敌人/直升机
     if (damage > 0 && !opts.noEnemies) {
       for (var i = 0; i < entities.length; i++) {
@@ -1484,7 +1555,7 @@
         if (u && u.destroyed) continue;
         var d = rec.inst.position.distanceTo(pt);
         if (d < radius * 2 && u && typeof u.takeDamage === 'function') {
-          u.takeDamage(damage * Math.max(0.25, 1 - d / (radius * 2)));
+          u.takeDamage(damage * edm * Math.max(0.25, 1 - d / (radius * 2)));
         }
       }
     }
@@ -1551,6 +1622,10 @@
     if (player.reloading || player.dead || player.ammo >= gt.mag || player.reserve <= 0) return;
     player.reloading = true;
     player.reloadTimer = gt.reload;
+    // v6.9 换弹夹动画（弹匣抽出/装入、泵动、拉机柄）
+    if (gunInst && gunInst.userData && typeof gunInst.userData.beginReload === 'function') {
+      gunInst.userData.beginReload(gt.reload);
+    }
     sfx.playReload();
   }
 
@@ -1610,6 +1685,12 @@
         showToast('📻 获得对讲机！按 T 呼叫空中支援（1 次有效）', 0x66ccff);
         if (sfx) sfx.playPickup();
       }
+      respawnEntity(rec);
+      return;
+    }
+    // v6.9 金色盾牌：30 秒护盾（减伤 90%，击杀 +2 秒），重复拾取刷新时间
+    if (rec.cfg.kind === 'shield') {
+      applyShield();
       respawnEntity(rec);
       return;
     }
@@ -1741,6 +1822,32 @@
     };
     buildEntity(cfg);
     spawnSparks(pos, 0x66ccff);
+  }
+
+  /* ================= v6.9 金色盾牌防御道具 ================= */
+  /** 击杀任何敌人 20% 掉落金色盾牌（拾取 30 秒护盾，减伤 90%，击杀 +2 秒） */
+  function spawnShieldDrop(pos) {
+    var cfg = {
+      id: 'shield-' + (++dynCounter),
+      model: 'shield',
+      position: [pos.x, 0.5, pos.z],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      collision: false,
+      kind: 'shield',
+      respawn: 0,
+      dynamic: true,
+      grace: 2.5
+    };
+    buildEntity(cfg);
+    spawnSparks(pos, 0xffd700);
+  }
+
+  /** 拾取盾牌：30 秒护盾，重复拾取刷新时间 */
+  function applyShield() {
+    player.shieldTime = 30;
+    if (sfx) sfx.playPickup();
+    showToast('🛡 获得金色护盾！30 秒减伤 90%（击杀 +2 秒）', 0xffd700);
   }
 
   /** 呼叫空中支援：多枚导弹从空中轰击敌人区域（1 次有效） */
@@ -2371,6 +2478,7 @@
     player.berserk = false;
     player.walkie = false;   // v6.7 对讲机重开归零
     player.gatling = null;   // v6.8 加特林状态重开归零
+    player.shieldTime = 0;   // v6.9 护盾重开归零
     gatlingRec = null;
     player.gun = 'pistol';
     var gt = GUN_TYPES.pistol;
@@ -2406,6 +2514,14 @@
     if (player.berserk) {
       player.health = Math.min(player.maxHealth, player.health + 10);
       if (sfx) sfx.playPickup();
+    }
+    // v6.9 护盾期间击杀敌人 +2 秒（上限 60 秒）
+    if (player.shieldTime > 0) {
+      player.shieldTime = Math.min(60, player.shieldTime + 2);
+    }
+    // v6.9 击杀任何敌人 20% 掉落金色盾牌
+    if (Math.random() < 0.20) {
+      spawnShieldDrop(pos);
     }
     // v6.4 宝箱机制：本关掷出 30% 则首杀敌人时在击杀点刷出宝箱（每关最多 1 个）
     if (levelHasChest && !chestSpawnedThisLevel) {
@@ -2449,6 +2565,11 @@
       spawnWalkieDrop(pos);
       extra = ' + 📻 空袭对讲机';
     }
+    // v6.9 击毁直升机 10% 概率掉落核弹（原仅 BOSS）
+    if (Math.random() < 0.10) {
+      player.nukes++;
+      extra = ' + ☢ 核弹 ×1';
+    }
     showToast('击毁直升机！获得 火箭筒（5 发炮弹）' + extra, 0xffcc66);
     if (sfx) sfx.playLevelUp();
   };
@@ -2458,7 +2579,12 @@
     player.nukes--;
     if (sfx) sfx.playNuke();
     var p = new THREE.Vector3(player.pos.x, player.pos.y + 0.8, player.pos.z);
+    // v6.9 核弹：先强闪光（250ms 全屏白），再巨大蘑菇云
+    flashEl.style.opacity = '1';
+    clearTimeout(nukeFlashTimer);
+    nukeFlashTimer = setTimeout(function () { flashEl.style.opacity = '0'; }, 250);
     explode(p, 95, 3000, { nuke: true, noPlayer: true });
+    spawnMushroomCloud(p);
     // 核弹伤害 = 最大生命 × 30%（不按当前血量，是固定的）；自伤不钳制
     var nukeDmg = Math.round(player.maxHealth * 0.30);
     hitPlayer(nukeDmg, { noClamp: true });
@@ -2553,6 +2679,14 @@
       if (player.gatling.cooldown <= 0) {
         player.gatling.cooldown = 0;
         showToast('✅ 加特林已冷却，可再次使用', 0x66ffaa);
+      }
+    }
+    // v6.9 金色护盾倒计时：超时效果消失
+    if (player.shieldTime > 0) {
+      player.shieldTime -= dt;
+      if (player.shieldTime <= 0) {
+        player.shieldTime = 0;
+        showToast('🛡 护盾效果消失', 0xff8866);
       }
     }
 
@@ -2819,6 +2953,37 @@
           f.vel.x *= 0.7;
           f.vel.z *= 0.7;
         }
+      } else if (f.type === 'casing') {
+        // v6.9 弹壳：重力 + 旋转 + 落地弹跳
+        f.obj.position.addScaledVector(f.vel, dt);
+        f.vel.y += -24 * dt;
+        f.obj.rotation.x += f.rot.x * dt;
+        f.obj.rotation.y += f.rot.y * dt;
+        f.obj.rotation.z += f.rot.z * dt;
+        if (f.obj.position.y < 0.02) {
+          f.obj.position.y = 0.02;
+          if (!f.grounded) {
+            f.grounded = true;
+            f.vel.y *= -0.35;
+            f.vel.x *= 0.45;
+            f.vel.z *= 0.45;
+          } else {
+            f.vel.set(0, 0, 0);
+          }
+        }
+      } else if (f.type === 'mushroom') {
+        // v6.9 核弹蘑菇云：整体上升 + 膨胀 + 淡出
+        f.obj.position.y += dt * 2.6;
+        var km = 1 - f.life / f.maxLife;
+        var sm = 0.7 + km * (f.growTo || 1.7);
+        f.obj.scale.set(sm, sm, sm);
+        if (f.fire) f.fire.material.opacity = Math.max(0, f.life / f.maxLife) * 0.85;
+        if (f.glow) f.glow.material.opacity = Math.max(0, f.life / f.maxLife) * 0.18;
+        f.obj.traverse(function (o) {
+          if (o.isMesh && o.material && o.material.transparent && o !== f.fire && o !== f.glow) {
+            o.material.opacity = Math.max(0, f.life / f.maxLife) * (o.userData._muOp || 0.5);
+          }
+        });
       }
       if (f.life <= 0) {
         scene.remove(f.obj);
@@ -2854,7 +3019,8 @@
         lines.push('击杀 ' + Math.min(levelKills, L.killTarget) + '/' + L.killTarget);
       }
     }
-    lines.push('HP   ' + Math.max(0, Math.round(player.health)) + '/' + player.maxHealth);
+    lines.push('HP   ' + Math.max(0, Math.round(player.health)) + '/' + player.maxHealth +
+      (player.shieldTime > 0 ? '  ✨🛡 护盾 ' + Math.ceil(player.shieldTime) + 's（减伤90%）' : ''));
     lines.push(gt.name + '  ' + (gt.flame ? (Math.ceil(player.ammo * 100) / 100) : player.ammo) + '/' + player.reserve +
       (gt.flame ? '发(≈' + Math.floor(player.ammo * 15) + '秒)' : '') +
       (player.reloading ? '  [换弹中]' : ''));
@@ -2864,6 +3030,9 @@
     if (player.buffs.damage > 0) buffs.push('狂暴 ' + Math.ceil(player.buffs.damage) + 's');
     if (player.buffs.healthTimer !== undefined) buffs.push('体魄 ' + Math.ceil(player.buffs.healthTimer) + 's');
     if (buffs.length) lines.push('Buff: ' + buffs.join('  |  '));
+    // v6.9 护盾激活时 HUD 整体金色闪烁
+    if (player.shieldTime > 0) statsEl.classList.add('shielded');
+    else statsEl.classList.remove('shielded');
     if (player.nukes > 0) lines.push('☢ 核弹 ×' + player.nukes + '  — 按 G 引爆');
     if (player.walkie) lines.push('📻 对讲机 ×1  — 按 T 呼叫空中支援');
     // v6.8 加特林碉堡状态
@@ -3018,6 +3187,9 @@
           flameRange: GUN_TYPES.flamethrower.range,
           flameDamage: GUN_TYPES.flamethrower.damage,
           flameRadius: GUN_TYPES.flamethrower.flameRadius,
+          shieldTime: player.shieldTime ? Math.round(player.shieldTime * 10) / 10 : 0,
+          nukes: player.nukes,
+          fxTypes: (function () { var m = {}; for (var i = 0; i < fx.length; i++) { var t = fx[i].type; m[t] = (m[t] || 0) + 1; } return m; })(),
           scenery: {
             birds: entities.filter(function (e) { return e.cfg && e.cfg.model === 'birds'; }).length,
             bigtree: entities.filter(function (e) { return e.cfg && e.cfg.model === 'bigtree'; }).length,
@@ -3026,7 +3198,8 @@
             grass: entities.filter(function (e) { return e.cfg && e.cfg.model === 'grass'; }).length,
             boulder: entities.filter(function (e) { return e.cfg && e.cfg.model === 'boulder'; }).length,
             walkies: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length,
-            gatlings: entities.filter(function (e) { return e.cfg && e.cfg.model === 'gatling'; }).length
+            gatlings: entities.filter(function (e) { return e.cfg && e.cfg.model === 'gatling'; }).length,
+            shields: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'shield'; }).length
           },
           playerPos: player.pos ? { x: player.pos.x.toFixed(2), y: player.pos.y.toFixed(2), z: player.pos.z.toFixed(2) } : null,
           gun: player.gun, ammo: Math.round(player.ammo * 100) / 100, reserve: player.reserve,
@@ -3096,6 +3269,85 @@
       return { active: !!(player.gatling && player.gatling.active), heat: player.gatling ? Math.round(player.gatling.heat * 10) / 10 : 0, cooldown: player.gatling ? Math.round(player.gatling.cooldown * 10) / 10 : 0 };
     };
     window.__fpsTest.simulateEnemyKill = function () { ctx.onEnemyKilled(player.pos.clone(), 'human'); return player.health; };
+    // v6.9 护盾/核弹/爆炸/弹壳测试
+    window.__fpsTest.spawnShieldDropTest = function () { var p = player.pos.clone(); p.x += 6; p.z += 6; spawnShieldDrop(p); return true; };
+    window.__fpsTest.pickupShieldTest = function () { applyShield(); return player.shieldTime; };
+    window.__fpsTest.advanceShield = function (secs) {
+      for (var i = 0; i < secs * 20; i++) updatePlayer(0.05);
+      return player.shieldTime;
+    };
+    window.__fpsTest.giveNuke = function () { player.nukes++; return player.nukes; };
+    window.__fpsTest.detonateNukeTest = function () {
+      detonateNuke();
+      var fl = document.getElementById('flashOverlay').style.opacity;   // 同步读：验证先闪光
+      return { nukes: player.nukes, flash: fl };
+    };
+    window.__fpsTest.shieldKillTest = function () {
+      var before = player.shieldTime;
+      ctx.onEnemyKilled(player.pos.clone(), 'human');
+      return { before: before, after: player.shieldTime };
+    };
+    window.__fpsTest.explodeEnemyDmgTest = function (dmg, mul) {
+      // 确保有一个固定位置的测试敌人（health 高防死、speed 0 不动）
+      var e = null;
+      for (var i = 0; i < entities.length; i++) {
+        if (entities[i].alive && entities[i].cfg.model === 'enemy' && entities[i].inst.userData && typeof entities[i].inst.userData.takeDamage === 'function') { e = entities[i]; break; }
+      }
+      if (!e) {
+        var cfg = { id: 'test-enemy-' + (++dynCounter), model: 'enemy', position: [10, 0, 10], rotation: [0, Math.PI, 0], scale: [1, 1, 1], collision: false, kind: 'enemy', respawn: 0, dynamic: true, health: 500, speed: 0 };
+        buildEntity(cfg);
+        for (var j = 0; j < entities.length; j++) {
+          if (entities[j].cfg.id === cfg.id) { e = entities[j]; break; }
+        }
+      }
+      if (!e) return -1;
+      e.inst.position.set(10, 0, 10);
+      var hp0 = e.inst.userData.health;
+      explode(new THREE.Vector3(10, 0, 10), 5, dmg || 70, { noPlayer: true, noVisual: true, noChain: true, enemyDmgMul: mul || 1 });
+      return { hp0: hp0, hp1: e.inst.userData.health, dmg: hp0 - e.inst.userData.health };
+    };
+    window.__fpsTest.helicopterNukeTest = function (n) {
+      var c = 0;
+      for (var i = 0; i < n; i++) {
+        var before = player.nukes;
+        ctx.onHelicopterKilled(new THREE.Vector3(20, 0, 20));
+        if (player.nukes > before) c++;
+      }
+      return c;
+    };
+    window.__fpsTest.gunAnimTest = function (type) {
+      var def = window.MODELS.gun;
+      var g = def.create({ type: type });
+      var u = g.userData;
+      return { muzzle: !!u.muzzle, eject: !!u.eject, flash: !!u.flash, anim: !!u.anim, beginReload: typeof u.beginReload === 'function', casing: !(GUN_TYPES[type] && GUN_TYPES[type].flame) };
+    };
+    window.__fpsTest.reloadAnimTest = function (type) {
+      var def = window.MODELS.gun;
+      var g = def.create({ type: type });
+      g.userData.beginReload(1.5);
+      var u = g.userData;
+      var mid = null, end = null;
+      var anim = u.anim;
+      var mag0 = anim.mag ? anim.mag.position.clone() : null;
+      var pump0 = anim.pump ? anim.pump.position.clone() : null;
+      var bolt0 = anim.bolt ? anim.bolt.position.clone() : null;
+      var tube0 = anim.tube ? anim.tube.position.clone() : null;
+      def.update(g, 0.55, { player: { vel: { x: 0, z: 0 } } });
+      mid = { mag: anim.mag ? anim.mag.position.clone() : null, pump: anim.pump ? anim.pump.position.clone() : null, bolt: anim.bolt ? anim.bolt.position.clone() : null, tube: anim.tube ? anim.tube.position.clone() : null };
+      def.update(g, 1.2, { player: { vel: { x: 0, z: 0 } } });
+      end = { mag: anim.mag ? anim.mag.position.clone() : null, pump: anim.pump ? anim.pump.position.clone() : null, bolt: anim.bolt ? anim.bolt.position.clone() : null, tube: anim.tube ? anim.tube.position.clone() : null };
+      var moved = false;
+      if (mag0 && mid.mag && (Math.abs(mid.mag.y - mag0.y) > 0.01)) moved = true;
+      if (pump0 && mid.pump && (Math.abs(mid.pump.z - pump0.z) > 0.01)) moved = true;
+      if (bolt0 && mid.bolt && (Math.abs(mid.bolt.z - bolt0.z) > 0.01)) moved = true;
+      if (tube0 && mid.tube && (Math.abs(mid.tube.z - tube0.z) > 0.01)) moved = true;
+      var restored = true;
+      if (mag0 && end.mag && (Math.abs(end.mag.y - mag0.y) > 0.001)) restored = false;
+      if (pump0 && end.pump && (Math.abs(end.pump.z - pump0.z) > 0.001)) restored = false;
+      if (bolt0 && end.bolt && (Math.abs(end.bolt.z - bolt0.z) > 0.001)) restored = false;
+      if (tube0 && end.tube && (Math.abs(end.tube.z - tube0.z) > 0.001)) restored = false;
+      return { moved: moved, restored: restored, reloading: u.reloading, mid: mid, end: end };
+    };
     document.addEventListener('keydown', function (e) {
       if (e.code === 'KeyK' && gameMode !== 'endless') { levelKills = getLevel().killTarget; checkMissionComplete(); }
       if (e.code === 'KeyL' && state === 'complete') nextLevel();
