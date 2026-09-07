@@ -10,7 +10,7 @@
   canvas { display: block; }
 
   /* HUD */
-  #crosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: rgba(255,255,255,0.85); font-size: 30px; font-weight: bold; text-shadow: 0 0 6px rgba(0,0,0,0.8); pointer-events: none; z-index: 10; user-select: none; }
+  #crosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: #33ff66; font-size: 30px; font-weight: bold; text-shadow: 0 0 10px #33ff66, 0 0 3px rgba(0,0,0,0.8); pointer-events: none; z-index: 10; user-select: none; }
   #stats { position: fixed; left: 16px; top: 14px; color: #d8e6ff; font-size: 15px; line-height: 1.6; text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none; z-index: 10; user-select: none; white-space: pre; }
   /* v6.9 金色护盾：HUD 生命值金色闪烁 */
   #stats.shielded { color: #ffd700; animation: goldflash 0.9s infinite; }
@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v8.2</div>
+<div id="versionTag">v8.3</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -3324,6 +3324,9 @@
     var scopeOn = aiming && GUN_TYPES[player.gun].scopeLens && !player.dead && state === 'playing';
     scopeEl.style.display = scopeOn ? 'block' : 'none';
     crosshairEl.style.display = scopeOn ? 'none' : 'block';
+    // v8.3 枪管准星发绿光，狂暴模式发红光
+    crosshairEl.style.color = player.berserk ? '#ff3333' : '#33ff66';
+    crosshairEl.style.textShadow = player.berserk ? '0 0 10px #ff3333, 0 0 3px rgba(0,0,0,0.8)' : '0 0 10px #33ff66, 0 0 3px rgba(0,0,0,0.8)';
     // v7.7 修复：加特林碉堡开火时必须显示加特林枪管、隐藏玩家枪（原每帧强制 !scopeOn 会覆盖 enterGatling 的隐藏）
       if (gunInst) gunInst.visible = !scopeOn && !(player.gatling && player.gatling.active);
     if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
@@ -4071,7 +4074,7 @@
                out.dropAfter === 0;
       return out;
     };
-    // v7.7 需求1a：猪头佳移动速度 +40% → spawnPig cfg.speed 18.2（v7.9 附带返回自爆 life=90）
+    // v7.7 需求1a：猪头佳移动速度 +40% → spawnPig cfg.speed 18.2（v7.9 附带返回自爆 life=90，v8.3 附带 defense=2）
     window.__fpsTest.pigSpeedTest = function () {
       // 清掉旧猪后强制重新 spawn，确保读取的是 v7.7 新 cfg
       var old = findPigRec();
@@ -4081,8 +4084,9 @@
       if (!pig) return { ok: false, err: 'no pig' };
       var spd = pig.inst.userData.speed;
       var life = pig.inst.userData.life;
-      var ok = Math.abs(spd - 18.2) < 0.001 && life === 90;
-      return { ok: ok, speed: spd, life: life };
+      var defense = pig.inst.userData.defense;
+      var ok = Math.abs(spd - 18.2) < 0.001 && life === 90 && defense === 2;
+      return { ok: ok, speed: spd, life: life, defense: defense };
     };
     // v7.7 需求1b：猪头佳撞玩家基础伤害 ×1.5（8~30），钳制后 8~20；激光玩家 DPS 设定 30
     window.__fpsTest.pigPlayerDmgTest = function () {
@@ -4299,6 +4303,43 @@
       }
       buildGun(savedGun);
       out.ok = types.every(function (k) { return out.types[k] === true; });
+      return out;
+    };
+    // v8.3 准星颜色：绿=常态、红=狂暴（与 render 循环三元表达式一致）
+    window.__fpsTest.crosshairTest = function () {
+      var out = {};
+      player.berserk = false;
+      out.normal = player.berserk ? '#ff3333' : '#33ff66';
+      player.berserk = true;
+      out.berserk = player.berserk ? '#ff3333' : '#33ff66';
+      player.berserk = false;
+      out.ok = out.normal === '#33ff66' && out.berserk === '#ff3333';
+      return out;
+    };
+    // v8.3 猪头佳优先攻击 BOSS：BOSS 存活时猪冲撞方向朝向 BOSS（而非更近的玩家）
+    window.__fpsTest.pigBossPriorityTest = function () {
+      var out = {};
+      var pig = findPigRec();
+      if (!pig) { spawnPig(); pig = findPigRec(); }
+      if (!pig) return { ok: false, err: 'no pig' };
+      // 造 BOSS（在 x/z 正方向远处，speed 0 不动）
+      var boCfg = { id: 'test-boss-p-' + (++dynCounter), model: 'enemy', position: [15, 0, 15], rotation: [0, 0, 0], scale: [1.35, 1.35, 1.35], collision: false, dynamic: true, respawn: 0, enemyType: 'boss', bossKind: 'mech', bossSkin: 1, health: 22500, damage: 15, speed: 0, defense: 2, weapon: 'rocket', shootRange: 35, shootCooldown: 1, stopDist: 12, moveInterval: 1.5, pointValue: 2000 };
+      buildEntity(boCfg);
+      var bo = null;
+      for (var i = 0; i < entities.length; i++) if (entities[i].cfg.id === boCfg.id) { bo = entities[i]; break; }
+      if (!bo) return { ok: false, err: 'no boss' };
+      // 玩家放在猪正前方 2 米（比 BOSS 近得多）
+      player.pos.set(0, 0.5, 2); player.dead = false;
+      pig.inst.position.set(0, 0, 0); pig.inst.rotation.y = 0;
+      var u = pig.inst.userData;
+      u.life = 89; u.laserPhase = 'off'; u.hitPlayerCd = 99; u.hitEnemyCd = 99;
+      var px0 = pig.inst.position.x;
+      window.MODELS.pig.update(pig.inst, 0.1, ctx);
+      var dx = pig.inst.position.x - px0;
+      out.dx = Math.round(dx * 100) / 100;
+      removeEntity(bo);
+      pig.inst.position.set(0, 0, 0);
+      out.ok = dx > 0;   // 猪朝 BOSS 的 +x 方向移动
       return out;
     };
       // v7.6 需求4：BGM 主音量比 v6.6 基线 0.16 提升 50% → 0.24

@@ -398,10 +398,26 @@
 
     function makeHand(mat, sleeveOn) {
       const h = new T.Group();
-      const fist = new T.Mesh(new T.BoxGeometry(0.078, 0.1, 0.07), mat);
-      fist.position.set(0, -0.012, 0);
-      fist.userData.isHand = true;
-      h.add(fist);
+      // 手掌（扁长 box）
+      const palm = new T.Mesh(new T.BoxGeometry(0.072, 0.05, 0.065), mat);
+      palm.position.set(0, -0.008, 0);
+      palm.userData.isHand = true;
+      h.add(palm);
+      // v8.3 4 根手指（圆柱指节，抓握弯曲，比 box 拳更接近人手）
+      for (let fi = 0; fi < 4; fi++) {
+        const finger = new T.Mesh(new T.CylinderGeometry(0.0105, 0.0115, 0.075, 6), mat);
+        finger.position.set(-0.027 + fi * 0.018, -0.042, 0.006);
+        finger.rotation.x = 0.55 + fi * 0.05;   // 抓握弯曲
+        finger.userData.isHand = true;
+        h.add(finger);
+      }
+      // 拇指（从侧面环绕）
+      const thumb = new T.Mesh(new T.CylinderGeometry(0.012, 0.013, 0.05, 6), mat);
+      thumb.position.set(0.044, -0.02, 0.0);
+      thumb.rotation.z = -0.7;
+      thumb.userData.isHand = true;
+      h.add(thumb);
+      // 前臂
       const forearm = new T.Mesh(new T.CylinderGeometry(0.036, 0.052, 0.34, 8), sleeveOn ? sleeve : mat);
       forearm.position.set(0, -0.19, 0.05);
       forearm.rotation.x = 0.62;
@@ -460,6 +476,15 @@
       muzzle.position.set(0, 0.02, -L * 0.45 - st.barrelLen - 0.05);
       g.add(muzzle);
 
+      // v8.3 枪管准星发光点（绿=常态，红=狂暴），放在枪口上方
+      const sightGlow = new T.Mesh(
+        new T.SphereGeometry(0.014, 8, 6),
+        new T.MeshBasicMaterial({ color: 0x33ff66 })
+      );
+      sightGlow.position.set(0, 0.055, -L * 0.45 - st.barrelLen - 0.02);
+      sightGlow.userData.isHand = true;   // 标记，避免 gunClipTest 视锥检测误判
+      g.add(sightGlow);
+
       // 枪口喷火（v6.9 多层火焰）
       const flame = buildMuzzleFlash(T, muzzle.position);
       g.add(flame.group);
@@ -483,6 +508,7 @@
         type: type,
         muzzle: muzzle,
         eject: eject,
+        sightGlow: sightGlow,
         flash: flame.group,
         flameLayers: flame.layers,
         anim: anim,
@@ -510,6 +536,12 @@
       // 移动状态（决定晃动幅度）
       const p = (ctx && ctx.player) || null;
       const moving = p && p.vel && (Math.abs(p.vel.x) + Math.abs(p.vel.z)) > 0.1;
+
+      // v8.3 枪管准星发光点变色（绿=常态，红=狂暴）
+      if (u.sightGlow) {
+        const berserk = p && p.berserk;
+        u.sightGlow.material.color.setHex(berserk ? 0xff3333 : 0x33ff66);
+      }
 
       // 后坐恢复 + 枪口喷火脉冲（kick 由武器类型决定）
       if (u.recoil > 0) {

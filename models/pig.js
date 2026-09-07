@@ -181,7 +181,7 @@
         hitEnemyCd: 0,
         runPhase: 0,
         hitFlash: 0,
-        defense: 1,
+        defense: 2,     // v8.3 对玩家子弹伤害防护 ×2（1 → 2，即减伤 50%）
         _ctx: null,
         _rec: null,
         legs: legs,
@@ -247,26 +247,42 @@
 
       // 选择最近目标（玩家/敌人/爆炸物）无差别冲撞
       var px = inst.position.x, pz = inst.position.z;
+      var list = ctx.entities || [];
       var best = null, bestD = Infinity;
-      if (!ctx.player.dead) {
+      // v8.3 地图中有 BOSS 时，猪头佳优先攻击 BOSS
+      var bossRec = null, bossD2 = Infinity;
+      for (var bi = 0; bi < list.length; bi++) {
+        var brec = list[bi];
+        if (!brec.alive || !brec.cfg || brec.cfg.enemyType !== 'boss') continue;
+        var bcu = brec.inst.userData;
+        if (bcu && bcu.dead) continue;
+        var bdx = brec.inst.position.x - px, bdz = brec.inst.position.z - pz;
+        var bd2 = bdx * bdx + bdz * bdz;
+        if (bd2 < bossD2) { bossD2 = bd2; bossRec = brec; }
+      }
+      if (bossRec) {
+        best = { x: bossRec.inst.position.x, z: bossRec.inst.position.z };
+        bestD = bossD2;
+      } else if (!ctx.player.dead) {
         var dxp = ctx.player.pos.x - px, dzp = ctx.player.pos.z - pz;
         var dp = dxp * dxp + dzp * dzp;
         if (dp < bestD) { bestD = dp; best = { x: ctx.player.pos.x, z: ctx.player.pos.z }; }
       }
-      var list = ctx.entities || [];
-      for (var i = 0; i < list.length; i++) {
-        var rec = list[i];
-        if (!rec.alive || rec === u._rec) continue;
-        var cu = rec.inst.userData;
-        if (!cu) continue;
-        var m = rec.cfg.model;
-        var isTarget = false;
-        if (m === 'barrel' || m === 'tnt') isTarget = !(cu.exploded || cu.destroyed);
-        else if (cu.kind !== 'pig' && rec.cfg.dynamic && typeof cu.takeDamage === 'function' && m !== 'helicopter' && !cu.dead) isTarget = true;
-        if (!isTarget) continue;
-        var dx2 = rec.inst.position.x - px, dz2 = rec.inst.position.z - pz;
-        var d2 = dx2 * dx2 + dz2 * dz2;
-        if (d2 < bestD) { bestD = d2; best = { x: rec.inst.position.x, z: rec.inst.position.z }; }
+      if (!bossRec) {
+        for (var i = 0; i < list.length; i++) {
+          var rec = list[i];
+          if (!rec.alive || rec === u._rec) continue;
+          var cu = rec.inst.userData;
+          if (!cu) continue;
+          var m = rec.cfg.model;
+          var isTarget = false;
+          if (m === 'barrel' || m === 'tnt') isTarget = !(cu.exploded || cu.destroyed);
+          else if (cu.kind !== 'pig' && rec.cfg.dynamic && typeof cu.takeDamage === 'function' && m !== 'helicopter' && !cu.dead) isTarget = true;
+          if (!isTarget) continue;
+          var dx2 = rec.inst.position.x - px, dz2 = rec.inst.position.z - pz;
+          var d2 = dx2 * dx2 + dz2 * dz2;
+          if (d2 < bestD) { bestD = d2; best = { x: rec.inst.position.x, z: rec.inst.position.z }; }
+        }
       }
 
       // 冲刺移动
