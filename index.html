@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v8.0</div>
+<div id="versionTag">v8.1</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -151,7 +151,7 @@
     <b>T</b> 对讲机·呼叫空中支援 &nbsp;·&nbsp; <b>E</b> 加特林碉堡（30 秒无限子弹，超温冷却 30 秒）&nbsp;·&nbsp; <b>G</b> 引爆核弹 &nbsp;·&nbsp; <b>M</b> 背景音乐开关 &nbsp;·&nbsp; <b>F9</b> 调试飞行模式 &nbsp;·&nbsp; <b>Esc</b> 暂停<br>
     <span class="warn">⚠ 油桶/TNT/车辆可被击毁爆炸（对敌伤害 +150% 群体伤害）· 击杀敌人掉落宝箱/金色护盾(20%) · 击落直升机获得火箭筒/喷火器/核弹(10%) · 蜘蛛会自爆！</span><br>
     <span class="warn">🎵 每关专属劲爆战斗 BGM（M 键静音）· 🎯 过关模式逐关挑战 · ♾️ 无尽模式随机地图，BOSS 随机出现，挑战最高击杀/最高分！</span><br>
-    <span class="warn">📻 击杀 BOSS/直升机 10% 掉落对讲机（每关随机出现）——按 T 呼叫导弹空袭，1 次有效！</span><br>
+    <span class="warn">📻 击杀 BOSS/直升机 10% 掉落对讲机（每关随机出现）——按 T 呼叫导弹空袭，最多累计 3 次！</span><br>
     <span class="warn">🛡 金色护盾（击杀敌人 20% 掉落）：拾取后 15 秒减伤 90%，期间每击杀一名敌人 +0.5 秒（上限不超过初始 15 秒），超时消失！</span>
   </div>
   <button id="startBtn">开始游戏（过关模式）</button>
@@ -416,6 +416,13 @@
   var _tempBoxA = new THREE.Box3();
   var _tempBoxB = new THREE.Box3();
   var _tempVec3 = new THREE.Vector3();
+  // v8.1 性能优化：特效几何/颜色缓存（爆炸/火花/火焰高频创建）
+  var _ringGeo = null;          // 火花冲击环 Ring(0.06,0.12)
+  var _exploRingGeo = null;     // 爆炸冲击环 Ring(0.5,0.7,32)
+  var _fireballGeo14 = null;    // 火球 Sphere(1,14,12)
+  var _fireballGeo12 = null;    // 内焰 Sphere(1,12,10)
+  var _smokeGeo = null;         // 烟雾 Sphere(1,6,6)（scale 控制尺寸）
+  var _tmpColor = new THREE.Color();
   // v7.9 特效上限（内存占用保护）：fx 超过上限时丢弃最老的特效
   var FX_MAX = 450;
 
@@ -1427,7 +1434,9 @@
       scene.add(m);
       fx.push({ type: 'spark', obj: m, vel: v, life: 0.32, maxLife: 0.32 });
     }
-    var ringGeo = new THREE.RingGeometry(0.06, 0.12, 20);
+    // v8.1 性能优化：冲击环几何缓存
+    if (!_ringGeo) _ringGeo = new THREE.RingGeometry(0.06, 0.12, 20);
+    var ringGeo = _ringGeo;
     var ringMat = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
     var ring = new THREE.Mesh(ringGeo, ringMat);
     ring.position.copy(point);
@@ -1518,25 +1527,28 @@
   function spawnExplosionVisual(point, radius, opts) {
     radius = radius || 5;
     var T = THREE;
-    // 火球
+    // 火球（v8.1 几何缓存）
+    if (!_fireballGeo14) _fireballGeo14 = new T.SphereGeometry(1, 14, 12);
     var fb = new T.Mesh(
-      new T.SphereGeometry(1, 14, 12),
+      _fireballGeo14,
       new T.MeshBasicMaterial({ color: 0xffb03a, transparent: true, opacity: 0.9, depthWrite: false })
     );
     fb.position.copy(point);
     scene.add(fb);
     fx.push({ type: 'fireball', obj: fb, life: 0.5, maxLife: 0.5, growTo: radius });
     // 内焰
+    if (!_fireballGeo12) _fireballGeo12 = new T.SphereGeometry(1, 12, 10);
     var inner = new T.Mesh(
-      new T.SphereGeometry(1, 12, 10),
+      _fireballGeo12,
       new T.MeshBasicMaterial({ color: 0xfff2a0, transparent: true, opacity: 0.95, depthWrite: false })
     );
     inner.position.copy(point);
     scene.add(inner);
     fx.push({ type: 'fireball', obj: inner, life: 0.35, maxLife: 0.35, growTo: radius * 0.55 });
     // 冲击环
+    if (!_exploRingGeo) _exploRingGeo = new T.RingGeometry(0.5, 0.7, 32);
     var ring = new T.Mesh(
-      new T.RingGeometry(0.5, 0.7, 32),
+      _exploRingGeo,
       new T.MeshBasicMaterial({ color: 0xffd07a, transparent: true, opacity: 0.85, side: T.DoubleSide, depthWrite: false })
     );
     ring.position.copy(point);
@@ -1545,16 +1557,19 @@
     fx.push({ type: 'shockwave', obj: ring, life: 0.45, maxLife: 0.45, growTo: radius * 1.4 });
     // 火花
     spawnSparks(point, 0xffaa44);
-    // 烟雾（浓黑升腾，双层）
+    // 烟雾（浓黑升腾，双层；v8.1 共享球几何 + scale 控制尺寸）
+    if (!_smokeGeo) _smokeGeo = new T.SphereGeometry(1, 6, 6);
     for (var i = 0; i < 22; i++) {
       var smoke = new T.Mesh(
-        new T.SphereGeometry(0.5 + Math.random() * 0.45, 6, 6),
+        _smokeGeo,
         new T.MeshBasicMaterial({
           color: Math.random() < 0.55 ? 0x2a2a2a : 0x555555,
           transparent: true, opacity: 0.55
         })
       );
       smoke.position.copy(point);
+      var ssz = 0.5 + Math.random() * 0.45;
+      smoke.scale.setScalar(ssz);
       scene.add(smoke);
       fx.push({
         type: 'smoke', obj: smoke,
@@ -1725,12 +1740,15 @@
   function applyPickup(rec) {
     if (!rec.cfg.kind) return;
     if (rec.cfg.kind === 'chest') { applyChest(rec); return; }
-    // v6.7 对讲机：1 次有效，重复拾取不累积；v7.8 与 5000 分奖励统一上限 1（已有空袭不再拾取）
+    // v8.1 对讲机：空中支援上限 3，可重复拾取累计（满 3 次不再加）
     if (rec.cfg.kind === 'walkie') {
-      if (!player.walkie && !(player.walkieBonus > 0)) {
-        player.walkie = true;
-        showToast('📻 获得对讲机！按 T 呼叫空中支援（1 次有效）', 0x66ccff);
+      if (airCount() < AIR_MAX) {
+        if (!player.walkie) player.walkie = true;
+        else player.walkieBonus = (player.walkieBonus || 0) + 1;
+        showToast('📻 获得对讲机！空中支援 +1（共 ' + airCount() + ' 次，按 T 呼叫）', 0x66ccff);
         if (sfx) sfx.playPickup();
+      } else {
+        showToast('📻 空中支援已满 ' + AIR_MAX + ' 次，不再拾取', 0x999999);
       }
       respawnEntity(rec);
       return;
@@ -1852,9 +1870,14 @@
   }
 
   /* ================= v6.7 对讲机 / 空中支援 ================= */
-  /** 击杀 BOSS 或直升机 10% 掉落对讲机；已有空袭（对讲机或 5000 分奖励次数）则不重复掉落 */
+  // v8.1 空中支援上限从 1 提升到 3（可累计，不重复掉落/拾取直到满 3）
+  var AIR_MAX = 3;
+  function airCount() {
+    return (player.walkie ? 1 : 0) + (player.walkieBonus || 0);
+  }
+  /** 击杀 BOSS 或直升机 10% 掉落对讲机；空中支援已满 3 次则不重复掉落 */
   function spawnWalkieDrop(pos) {
-    if (player.walkie || player.walkieBonus > 0) return;
+    if (airCount() >= AIR_MAX) return;
     var cfg = {
       id: 'walkie-' + (++dynCounter),
       model: 'walkie',
@@ -1906,16 +1929,16 @@
   }
 
   /** v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 生命值恢复满血（跨过关卡/无尽持续累计）
-   *  v7.8 空中支援上限 1：已有空袭（对讲机或奖励次数）不重复累计，仅回满血 */
+   *  v8.1 空中支援上限 3：已满 3 次则不重复累计，仅回满血 */
   function checkScoreMilestone() {
     while (score >= nextAwardScore) {
       var at = nextAwardScore;
       nextAwardScore += 5000;
-      if (!player.walkie && !(player.walkieBonus > 0)) {
-        player.walkieBonus = 1;
-        showToast('🎁 达到 ' + at + ' 分！奖励：空中支援 ×1 + 生命全恢复', 0x66ffcc);
+      if (airCount() < AIR_MAX) {
+        player.walkieBonus = (player.walkieBonus || 0) + 1;
+        showToast('🎁 达到 ' + at + ' 分！奖励：空中支援 ×1 + 生命全恢复（共 ' + airCount() + ' 次）', 0x66ffcc);
       } else {
-        showToast('🎁 达到 ' + at + ' 分！生命全恢复（已持空袭，不重复累计）', 0x66ffcc);
+        showToast('🎁 达到 ' + at + ' 分！生命全恢复（空袭已满 ' + AIR_MAX + ' 次）', 0x66ffcc);
       }
       player.health = player.maxHealth;
       if (sfx && sfx.playLevelUp) sfx.playLevelUp();
@@ -2668,10 +2691,10 @@
     } else {
       showToast('☢ 已持有核弹（上限 1，不重复累计）', 0xffaa22);
     }
-    // v7.1 图鉴表：BOSS 必掉空袭对讲机 ×1（已有空袭则不掉落）
-    var hadAir = player.walkie || player.walkieBonus > 0;
+    // v7.1 图鉴表：BOSS 必掉空袭对讲机 ×1（v8.1 空袭已满 3 次则不掉落）
+    var canDrop = airCount() < AIR_MAX;
     spawnWalkieDrop(pos);
-    if (!hadAir) showToast('📻 空袭对讲机掉落！', 0x66ccff);
+    if (canDrop) showToast('📻 空袭对讲机掉落！', 0x66ccff);
     if (sfx) sfx.playLevelUp();
     if (gameMode === 'endless') return;  // 无尽模式不结束
     completeLevel();
@@ -2957,9 +2980,8 @@
   }
 
   /** v7.7 玩家 vs 大体型敌人（猪头佳 / BOSS 机甲）3D 挡体碰撞
-   *  修复：玩家从猪头佳 / BOSS 机甲下方穿过时严重穿模——
-   *  这两个模型身高数米（猪 scale3、BOSS scale3.2~4.2），此前只对普通敌人做水平推挤，
-   *  玩家贴近其身体/底座正下方不会被推开。现在用模型 AABB 做“挡体”：
+   *  v8.1 扩展到所有敌人（普通敌人 human/monster、蜘蛛、猪头佳、BOSS 机甲），
+   *  彻底消除玩家走进敌人身体内的穿模问题；并加距离预过滤优化性能（5 米外跳过）。
    *  只要玩家脚底低于实体顶部（即处于该模型的垂直占据空间内）且水平投影侵入其范围，
    *  就把玩家水平推挤到 AABB 之外；玩家跳到高于实体顶面时允许从头顶越过（不阻挡）。 */
   function collideBigEntities() {
@@ -2968,8 +2990,15 @@
       var rec = entities[i];
       if (!rec.alive) continue;
       var rm = rec.cfg.model;
-      var isBig = (rm === 'pig') || (rm === 'enemy' && rec.cfg.enemyType === 'boss');
-      if (!isBig) continue;
+      // 所有敌人（排除直升机——它悬空高飞，不应阻挡地面玩家）
+      var isEnemy = (rm === 'pig') || (rm === 'spider') || (rec.cfg.enemyType && rm !== 'helicopter');
+      if (!isEnemy) continue;
+      var u2 = rec.inst.userData;
+      if (u2 && u2.dead) continue;
+      // v8.1 距离预过滤：5 米外跳过 AABB 计算
+      var ex = rec.inst.position.x, ez = rec.inst.position.z;
+      var ddx = ex - player.pos.x, ddz = ez - player.pos.z;
+      if (ddx * ddx + ddz * ddz > 25) continue;
       // 模型世界 AABB（含 scale）
       box.setFromObject(rec.inst);
       var topY = box.max.y;
@@ -3140,9 +3169,9 @@
         var k4 = f.life / f.maxLife;
         f.obj.scale.setScalar(0.5 + (1 - k4) * 1.0);
         f.obj.material.opacity = k4 * 0.8;
-        // 火焰变色：黄→橙→红
-        var c = new THREE.Color().setHSL(0.06 * k4, 1, 0.5);
-        f.obj.material.color.copy(c);
+        // 火焰变色：黄→橙→红（v8.1 复用全局 Color）
+        _tmpColor.setHSL(0.06 * k4, 1, 0.5);
+        f.obj.material.color.copy(_tmpColor);
       } else if (f.type === 'flashlight') {
         f.obj.intensity = 8 * Math.max(0, f.life / f.maxLife);
       } else if (f.type === 'debris') {
@@ -3980,38 +4009,36 @@
       var ok = p40 >= 39 && p40 <= 41 && p50 >= 49 && p50 <= 51 && p30 >= 29 && p30 <= 31;
       return { ok: ok, p40: p40, p50: p50, p30: p30 };
     };
-    // v7.3 需求1：每 5000 分 → 空中支援 ×1（可累积）+ 满血
-    // v7.8 修订：空中支援上限 1，已有空袭时不重复累计（仅回满血）
+    // v7.3 需求1：每 5000 分 → 空中支援 ×1 + 满血（v8.1 累计上限 3）
     window.__fpsTest.awardMilestoneTest = function () {
       var savedNext = nextAwardScore;
       nextAwardScore = 5000;   // 固定门槛基准，避免环境初始值影响断言
       var out = {};
       player.walkie = false; player.walkieBonus = 0; player.health = 40; player.shieldTime = 0; player.dead = false;
-      score = 4999;
-      checkScoreMilestone();
+      score = 4999; checkScoreMilestone();
       out.at4999 = { bonus: player.walkieBonus, hp: player.health, walkie: player.walkie };
-      score = 5000; player.health = 40;
-      checkScoreMilestone();
+      score = 5000; player.health = 40; checkScoreMilestone();
       out.at5000 = { bonus: player.walkieBonus, hp: player.health };
-      score = 9999;
-      checkScoreMilestone();
+      score = 9999; checkScoreMilestone();
       out.at9999 = { bonus: player.walkieBonus };
-      score = 15000; player.health = 40;
-      checkScoreMilestone();
+      score = 15000; player.health = 40; checkScoreMilestone();
       out.at15000 = { bonus: player.walkieBonus, hp: player.health };
+      score = 20000; checkScoreMilestone();
+      out.at20000 = { bonus: player.walkieBonus };   // 满 3 不再加
       useAirSupport();
       out.afterUse = { bonus: player.walkieBonus, walkie: player.walkie };
-      // 跨门槛不累积（永远 ≤1）；使用后归零
+      // 累计到 3 封顶；使用后 -1
       var ok = out.at4999.bonus === 0 && out.at4999.hp === 40 && out.at4999.walkie === false &&
                out.at5000.bonus === 1 && out.at5000.hp === 100 &&
                out.at9999.bonus === 1 &&
-               out.at15000.bonus === 1 && out.at15000.hp === 100 &&
-               out.afterUse.bonus === 0 && out.afterUse.walkie === false;
+               out.at15000.bonus === 3 && out.at15000.hp === 100 &&
+               out.at20000.bonus === 3 &&
+               out.afterUse.bonus === 2 && out.afterUse.walkie === false;
       out.ok = ok;
       score = 0; nextAwardScore = savedNext; player.walkieBonus = 0; player.walkie = false;
       return out;
     };
-    // v7.8 修订：空中支援/hhh核弹 上限 1、不使用不累积、不重复拾取
+    // v8.1 修订：空中支援上限 3（核弹仍上限 1）
     window.__fpsTest.itemCapTest = function () {
       var out = {};
       // --- 核弹上限 1 ---
@@ -4020,25 +4047,26 @@
       out.nukesAfter1 = player.nukes;
       out.nuke2 = grantNuke();
       out.nukesAfter2 = player.nukes;
-      // --- 空中支援：5000 分奖励不累积 ---
-      nextAwardScore = score + 0;
+      // --- 空中支援：5000 分奖励可累计到 3 ---
       player.walkie = false; player.walkieBonus = 0;
-      score = 5000; nextAwardScore = 5000; player.health = 40;
-      checkScoreMilestone();
+      nextAwardScore = 5000; score = 5000; player.health = 40; checkScoreMilestone();
       out.bonusAt5k = player.walkieBonus;
-      score = 10000; nextAwardScore = 10000;
-      checkScoreMilestone();
-      out.bonusAt10k = player.walkieBonus;      // 仍为 1，不累积
-      // --- 已持奖励时不重复掉落对讲机 ---
-      var had = entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length;
-      spawnWalkieDrop(new THREE.Vector3(2, 0.8, 2));
+      nextAwardScore = 10000; score = 10000; checkScoreMilestone();
+      out.bonusAt10k = player.walkieBonus;
+      nextAwardScore = 15000; score = 15000; checkScoreMilestone();
+      out.bonusAt15k = player.walkieBonus;
+      nextAwardScore = 20000; score = 20000; checkScoreMilestone();
+      out.bonusAt20k = player.walkieBonus;      // 满 3 不再加
+      // --- 满 3 时不重复掉落对讲机 ---
       var after = entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length;
-      out.dropAfter = after;
+      spawnWalkieDrop(new THREE.Vector3(2, 0.8, 2));
+      out.dropAfter = entities.filter(function (e) { return e.cfg && e.cfg.kind === 'walkie'; }).length - after;
       // --- 清理 ---
       for (var i = entities.length - 1; i >= 0; i--) if (entities[i].cfg && entities[i].cfg.kind === 'walkie') removeEntity(entities[i]);
       player.walkie = false; player.walkieBonus = 0; player.nukes = 0;
       out.ok = out.nuke1 === true && out.nukesAfter1 === 1 && out.nuke2 === false && out.nukesAfter2 === 1 &&
-               out.bonusAt5k === 1 && out.bonusAt10k === 1 && out.dropAfter === 0;
+               out.bonusAt5k === 1 && out.bonusAt10k === 2 && out.bonusAt15k === 3 && out.bonusAt20k === 3 &&
+               out.dropAfter === 0;
       return out;
     };
     // v7.7 需求1a：猪头佳移动速度 +40% → spawnPig cfg.speed 18.2（v7.9 附带返回自爆 life=90）
