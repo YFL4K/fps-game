@@ -390,6 +390,52 @@
     return anim;
   }
 
+  // v8.2 双手持枪（CS 风格）：右手握把 + 左手护木/枪身，换弹时左手移向弹匣操作
+  function buildHands(g, T, type, anim) {
+    const skin = new T.MeshStandardMaterial({ color: 0xd9a37f, roughness: 0.7, metalness: 0 });
+    const skin2 = new T.MeshStandardMaterial({ color: 0xc98d5f, roughness: 0.7, metalness: 0 });
+    const sleeve = new T.MeshStandardMaterial({ color: 0x2b303a, roughness: 0.85, metalness: 0 });
+
+    function makeHand(mat, sleeveOn) {
+      const h = new T.Group();
+      const fist = new T.Mesh(new T.BoxGeometry(0.078, 0.1, 0.07), mat);
+      fist.position.set(0, -0.012, 0);
+      fist.userData.isHand = true;
+      h.add(fist);
+      const forearm = new T.Mesh(new T.CylinderGeometry(0.036, 0.052, 0.34, 8), sleeveOn ? sleeve : mat);
+      forearm.position.set(0, -0.19, 0.05);
+      forearm.rotation.x = 0.62;
+      forearm.userData.isHand = true;
+      h.add(forearm);
+      return h;
+    }
+
+    // 握把（右手）/ 护木（左手）位置（按枪型）
+    var grip, support;
+    switch (type) {
+      case 'pistol': grip = [0, -0.05, -0.04]; support = [0, -0.13, -0.02]; break;
+      case 'rifle': grip = [0, -0.07, -0.19]; support = [0, -0.02, -0.31]; break;
+      case 'shotgun': grip = [0, -0.07, -0.15]; support = [0, -0.02, -0.29]; break;
+      case 'flamethrower': grip = [0, -0.07, -0.06]; support = [0, 0.0, -0.26]; break;
+      case 'sniper': grip = [0, -0.06, -0.22]; support = [0, 0.0, -0.33]; break;
+      case 'rocket': grip = [0, -0.08, -0.24]; support = [0, -0.02, -0.32]; break;
+      default: grip = [0, -0.05, -0.04]; support = [0, -0.13, -0.02];
+    }
+
+    const handR = makeHand(skin, true);   // 右手（带袖子）
+    handR.position.set(grip[0], grip[1], grip[2]);
+    g.add(handR);
+
+    const handL = makeHand(skin2, false); // 左手（肤色）
+    handL.position.set(support[0], support[1], support[2]);
+    g.add(handL);
+
+    anim.handR = handR;
+    anim.handL = handL;
+    anim.handRBase = new T.Vector3(grip[0], grip[1], grip[2]);
+    anim.handLBase = new T.Vector3(support[0], support[1], support[2]);
+  }
+
   global.MODELS.gun = {
     name: 'gun',
 
@@ -422,6 +468,9 @@
       const eject = new T.Object3D();
       eject.position.set(0.06, 0.04, -L * 0.42);
       g.add(eject);
+
+      // v8.2 双手持枪（CS 风格）：右手握把 + 左手护木
+      buildHands(g, T, type, anim);
 
       // 换弹动画状态
       var animBase = {};
@@ -524,6 +573,17 @@
           else tp = 0.12 * (1 - (pr - 0.65) / 0.35);
           u.anim.tube.position.z = bp4.z + tp;
         }
+        // v8.2 换弹时左手移向弹匣操作（CS 风格：左手下移抽/装弹匣）
+        if (u.anim.handL && u.anim.handLBase) {
+          const hb = u.anim.handLBase;
+          const hoff = Math.sin(pr * Math.PI) * 0.1;
+          u.anim.handL.position.y = hb.y - hoff;
+          u.anim.handL.position.z = hb.z - hoff * 0.3;
+        }
+      }
+      // v8.2 非换弹时左手回到护木握持位
+      if (!u.reloading && u.anim.handL && u.anim.handLBase) {
+        u.anim.handL.position.copy(u.anim.handLBase);
       }
 
       // 移动晃动 + 轻微呼吸

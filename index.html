@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v8.1</div>
+<div id="versionTag">v8.2</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -2338,8 +2338,8 @@
       collision: false,
       dynamic: true,
       respawn: 0,
-      // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000
-      health: 12000,
+      // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000；v8.2 再提升 2 倍：12000 → 24000
+      health: 24000,
       // v7.7 猪头佳移动速度 +40%：13 → 18.2
       speed: 18.2,
       life: 90    // v7.9 超时自爆 30 → 90 秒
@@ -2350,9 +2350,11 @@
       pigAlive = false;
       var p = ppos.clone ? ppos.clone() : new THREE.Vector3(ppos.x, 1, ppos.z);
       p.y = 1;
-      explode(p, 10, 130, { chain: true });
+      // v8.2 自爆范围/伤害 ×2：半径 10→20、伤害 130→260
+      explode(p, 20, 260, { chain: true });
       var d = player.pos.distanceTo(p);
-      if (d < 14) hitPlayer(Math.round(5 + 15 * (1 - d / 14)));
+      // v8.2 对玩家范围伤害 ×2：5+15*(1-d/14) → 10+30*(1-d/28)，范围 14→28
+      if (d < 28) hitPlayer(Math.round(10 + 30 * (1 - d / 28)));
       showToast('💥 猪头佳自爆了！', 0xff6a3a);
       if (sfx && sfx.playRocket) sfx.playRocket();
     };
@@ -3996,18 +3998,18 @@
       pig.inst.position.set(180, 0, 180); pig.inst.rotation.y = 0;
       var u = pig.inst.userData;
       u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0; u.life = 29;
-      u.laserSweep = 0;          // sin0=0 → 40°
+      u.laserSweep = 0;          // sin0=0 → 55°（35~75 中点）
       window.MODELS.pig.update(pig.inst, 0.0001, ctx);
-      var p40 = u.laserPitch;
-      u.laserSweep = Math.PI / 2;   // sin=1 → 50°
+      var p55 = u.laserPitch;
+      u.laserSweep = Math.PI / 2;   // sin=1 → 75°
       window.MODELS.pig.update(pig.inst, 0.0001, ctx);
-      var p50 = u.laserPitch;
-      u.laserSweep = Math.PI * 3 / 2;   // sin=-1 → 30°
+      var p75 = u.laserPitch;
+      u.laserSweep = Math.PI * 3 / 2;   // sin=-1 → 35°
       window.MODELS.pig.update(pig.inst, 0.0001, ctx);
-      var p30 = u.laserPitch;
+      var p35 = u.laserPitch;
       restoreExplosives(moved);
-      var ok = p40 >= 39 && p40 <= 41 && p50 >= 49 && p50 <= 51 && p30 >= 29 && p30 <= 31;
-      return { ok: ok, p40: p40, p50: p50, p30: p30 };
+      var ok = p55 >= 54 && p55 <= 56 && p75 >= 74 && p75 <= 76 && p35 >= 34 && p35 <= 36;
+      return { ok: ok, p55: p55, p75: p75, p35: p35 };
     };
     // v7.3 需求1：每 5000 分 → 空中支援 ×1 + 满血（v8.1 累计上限 3）
     window.__fpsTest.awardMilestoneTest = function () {
@@ -4210,6 +4212,7 @@
       var bad = 0, total = 0, behind = 0, firstBad = null;
       gi.traverse(function (o) {
         if (!o.isMesh) return;
+        if (o.userData.isHand) return;   // v8.2 跳过手部（手臂从屏幕边伸入是正常 CS 视角表现）
         total++;
         v.setFromMatrixPosition(o.matrixWorld);
         ndc.set(v.x, v.y, v.z, 1).applyMatrix4(camera.matrixWorldInverse);
@@ -4284,6 +4287,20 @@
       out.ok = out.count >= 6 && out.count <= 12;
       return out;
     };
+    // v8.2 双手持枪：每把枪都有右手（握把）+ 左手（护木），换弹时左手动画
+    window.__fpsTest.handsTest = function () {
+      var out = { types: {} };
+      var types = ['pistol', 'rifle', 'shotgun', 'flamethrower', 'sniper', 'rocket'];
+      var savedGun = player.gun;
+      for (var t = 0; t < types.length; t++) {
+        buildGun(types[t]);
+        var anim = gunInst && gunInst.userData && gunInst.userData.anim;
+        out.types[types[t]] = !!(anim && anim.handR && anim.handL);
+      }
+      buildGun(savedGun);
+      out.ok = types.every(function (k) { return out.types[k] === true; });
+      return out;
+    };
       // v7.6 需求4：BGM 主音量比 v6.6 基线 0.16 提升 50% → 0.24
       window.__fpsTest.bgmVolumeTest = function () {
         var out = {};
@@ -4320,7 +4337,7 @@
       var bo = null;
       for (var j = 0; j < entities.length; j++) if (entities[j].cfg.id === boCfg.id) { bo = entities[j]; break; }
       if (bo) { out.boss = bo.inst.userData.maxHealth || bo.inst.userData.health; removeEntity(bo); }
-      out.ok = out.he === 750 && out.pig === 12000 && out.boss === 22500;
+      out.ok = out.he === 750 && out.pig === 24000 && out.boss === 22500;
       return out;
     };
     // v7.4 需求4：狂暴模式 30% 阈值 + hitPlayer 伤害结算点立即触发
