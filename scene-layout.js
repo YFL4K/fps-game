@@ -161,11 +161,13 @@
         collision: false
       });
     }
-    for (var bdi = 0; bdi < randInt(3, 6); bdi++) {
+    // v8.5 巨大椰子树（大/中/小三种尺寸，替代原巨石 boulder）
+    for (var bdi = 0; bdi < randInt(4, 7); bdi++) {
       entities.push({
-        id: nextId('boulder'), model: 'boulder',
-        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.8, 1.5), rand(0.8, 1.5), rand(0.8, 1.5)],
-        collision: true
+        id: nextId('coconut'), model: 'coconut',
+        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+        collision: true,
+        variant: randChoice(['large', 'medium', 'small'])
       });
     }
     // v8.0 蘑菇装饰：不同尺寸/颜色随机分布，提升画面美感（不参与碰撞）

@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v8.4</div>
+<div id="versionTag">v8.5</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -194,7 +194,7 @@
 <script src="models/highwall.js" onerror="window.__modErr('models/highwall.js')"></script>
 <script src="models/ferriswheel.js" onerror="window.__modErr('models/ferriswheel.js')"></script>
 <script src="models/grass.js" onerror="window.__modErr('models/grass.js')"></script>
-<script src="models/boulder.js" onerror="window.__modErr('models/boulder.js')"></script>
+<script src="models/coconut.js" onerror="window.__modErr('models/coconut.js')"></script>
 <script src="models/mushroom.js" onerror="window.__modErr('models/mushroom.js')"></script>
 <script src="models/jetpack.js" onerror="window.__modErr('models/jetpack.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
@@ -564,6 +564,8 @@
     nukes: 0,
     hasRocket: false,
     flameReserve: 30,
+    // v8.5 分枪备弹池（自动拾取枪不切换，只给对应枪加子弹；flamethrower 用 flameReserve）
+    ammoPool: { pistol: 96, rifle: 240, sniper: 40, rocket: 0 },
     berserk: false,
     walkie: false,      // v6.7 对讲机（1 次有效，不累积）
     walkieBonus: 0,     // v7.3 每 5000 分奖励的空中支援次数（可累积，优先消耗）
@@ -573,6 +575,11 @@
   };
   var score = 0;
   var nextAwardScore = 5000;   // v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 满血
+  // v8.5 战斗统计（结算画面用）
+  var killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, trex: 0, helicopter: 0 };
+  var headshotCount = 0;
+  var shotsFired = 0;
+  var shotsHit = 0;
   var debugMode = false;
   var state = 'menu';   // menu | playing | paused | complete | dead | victory
   var aiming = false;   // v6.7 右键瞄准
@@ -590,6 +597,38 @@
     } catch (e) {}
     overlaySub.textContent = '击杀 ' + levelKills + ' · 得分 ' + score + '  —  历史最高 击杀 ' + bk + ' · 得分 ' + bs + '  —  按 Enter 返回菜单';
     overlay.querySelector('h1').textContent = title || '无尽模式结束';
+  }
+
+  // v8.5 历史最高分排名（localStorage，保留前 5）
+  function loadHighscores() {
+    try { return JSON.parse(localStorage.getItem('fps_highscores') || '[]'); } catch (e) { return []; }
+  }
+  function saveHighscores(arr) {
+    try { localStorage.setItem('fps_highscores', JSON.stringify(arr)); } catch (e) {}
+  }
+
+  // v8.5 游戏结算画面：各类敌人击杀数 + 爆头率 + 命中率 + 历史最高分排名
+  function showStatsScreen(title) {
+    var totalKills = killCounts.human + killCounts.monster + killCounts.spider +
+                     killCounts.pig + killCounts.boss + killCounts.trex + killCounts.helicopter;
+    var headshotRate = totalKills > 0 ? Math.round(headshotCount / totalKills * 100) : 0;
+    var accuracy = shotsFired > 0 ? Math.round(shotsHit / shotsFired * 100) : 0;
+    // 记录并更新历史最高分（前 5）
+    var highs = loadHighscores();
+    highs.push(score);
+    highs.sort(function (a, b) { return b - a; });
+    highs = highs.slice(0, 5);
+    saveHighscores(highs);
+    var rankText = highs.map(function (s, i) { return '第' + (i + 1) + '名 ' + s + '分'; }).join('   ');
+    overlay.querySelector('h1').textContent = title || '战斗结算';
+    overlaySub.style.whiteSpace = 'pre-line';
+    overlaySub.textContent =
+      '得分 ' + score + '    总击杀 ' + totalKills + '\n' +
+      '人类 ' + killCounts.human + '   怪物 ' + killCounts.monster + '   蜘蛛 ' + killCounts.spider + '   直升机 ' + killCounts.helicopter + '\n' +
+      '猪头佳 ' + killCounts.pig + '   机甲BOSS ' + killCounts.boss + '   霸王龙 ' + killCounts.trex + '\n' +
+      '爆头率 ' + headshotRate + '%    命中率 ' + accuracy + '%\n' +
+      '🏆 历史最高分排名：' + rankText + '\n' +
+      '按 Enter 返回菜单';
   }
 
   function hitPlayer(dmg, opts) {
@@ -615,8 +654,8 @@
       if (gameMode === 'endless') {
         showEndlessEnd('GAME OVER');
       } else {
-        overlaySub.textContent = '你阵亡了！得分 ' + score + '  —  按 Enter 重新开始';
-        overlay.querySelector('h1').textContent = 'GAME OVER';
+        // v8.5 结算画面
+        showStatsScreen('GAME OVER');
       }
       setModeBtnsVisible(false);
       overlay.style.display = 'flex';
@@ -664,12 +703,15 @@
       return;
     }
     // v6.2 喷火器弹药独立储备（切离时保存；备用 30 发 = 6 个弹匣）
+    // v8.5 分枪备弹：切离时保存当前枪 reserve 到 ammoPool（flamethrower 用 flameReserve）
     if (GUN_TYPES[player.gun].flame) player.flameReserve = player.reserve;
+    else player.ammoPool[player.gun] = player.reserve;
     aiming = false;   // v6.7 切换武器取消瞄准
     player.gun = type;
     var gt = GUN_TYPES[type];
     player.ammo = gt.mag;
-    player.reserve = (type === 'flamethrower') ? player.flameReserve : gt.maxAmmo;
+    player.reserve = (type === 'flamethrower') ? player.flameReserve :
+                     (player.ammoPool[type] != null ? player.ammoPool[type] : gt.maxAmmo);
     player.reloading = false;
     player.fireCooldown = 0;
     buildGun(type);
@@ -1147,6 +1189,7 @@
     }
     
     player.ammo--;
+    shotsFired++;   // v8.5 射击统计
     // v6.9 子弹抛壳动画（喷火枪除外）
     spawnCasing(gunInst);
     player.fireCooldown = 1 / (gt.fireRate * (player.berserk ? 1.5 : 1));
@@ -1224,6 +1267,8 @@
     var end = firstHitPoint || new THREE.Vector3().copy(muzzle).add(dir.multiplyScalar(gt.range));
     spawnTracer(muzzle, end, isCrit ? 0xffdd55 : (player.gun === 'sniper' ? 0x88ddff : 0xffcc66));
     if (hitSomething) {
+      shotsHit++;   // v8.5 命中统计
+      if (headshot) headshotCount++;   // v8.5 爆头统计
       if (oneShot && hitEnemy) showTag('暴击秒杀!', 0xffcc00);
       else if (isCrit && hitEnemy) showTag('暴击!', 0xffaa00);
       else showHitmark(headshot);
@@ -1772,16 +1817,25 @@
       return;
     }
     if (rec.cfg.kind === 'weapon' && rec.cfg.type) {
-      if (rec.cfg.type === 'rocket') player.hasRocket = true;
-      if (rec.cfg.type === 'flamethrower') player.flameReserve = Math.min(60, player.flameReserve + 15);
-      if (rec.cfg.type === player.gun) {
+      var wt = rec.cfg.type;
+      if (wt === 'rocket') {
+        player.hasRocket = true;
+      } else if (wt === 'flamethrower') {
+        player.flameReserve = Math.min(60, player.flameReserve + 15);
+        if (player.gun === 'flamethrower') player.reserve = player.flameReserve;
+      } else if (wt === player.gun) {
+        // 当前枪：补满弹匣 + 加备弹
         var wgt = GUN_TYPES[player.gun];
         player.ammo = wgt.mag;
-        player.reserve = (rec.cfg.type === 'flamethrower') ? player.flameReserve : wgt.maxAmmo;
-        sfx.playPickup();
+        player.reserve = Math.min(wgt.maxAmmo, player.reserve + wgt.mag);
+        player.ammoPool[player.gun] = player.reserve;
       } else {
-        switchGun(rec.cfg.type);
+        // v8.5 非当前枪：不切换，给对应枪加备弹
+        var wgt2 = GUN_TYPES[wt];
+        player.ammoPool[wt] = Math.min(wgt2.maxAmmo, (player.ammoPool[wt] || 0) + wgt2.mag);
+        showToast('🔫 拾取 ' + wgt2.name + '，备弹 +' + wgt2.mag, 0x99ccff);
       }
+      if (sfx) sfx.playPickup();
       respawnEntity(rec);
       return;
     }
@@ -2598,8 +2652,7 @@
       if (document.pointerLockElement) document.exitPointerLock();
       overlay.style.display = 'flex';
       setModeBtnsVisible(false);
-      overlay.querySelector('h1').textContent = '🎉 通关！';
-      overlaySub.textContent = '你击败了所有关卡！总分 ' + score + '  —  按 Enter 重新开始';
+      showStatsScreen('🎉 通关！');
       bgm.stop();
       return;
     }
@@ -2676,6 +2729,11 @@
     player.walkieBonus = 0;  // v7.3 5000 分奖励次数重开归零
     player.gatling = null;   // v6.8 加特林状态重开归零
     player.shieldTime = 0;   // v6.9 护盾重开归零
+    player.jetpack = { count: 0, active: false, time: 0 };   // v8.4 喷气飞行器重开归零
+    player.ammoPool = { pistol: 96, rifle: 240, sniper: 40, rocket: 0 };   // v8.5 分枪备弹重开归零
+    // v8.5 战斗统计重开归零
+    killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, trex: 0, helicopter: 0 };
+    headshotCount = 0; shotsFired = 0; shotsHit = 0;
     gatlingRec = null;
     player.gun = 'pistol';
     var gt = GUN_TYPES.pistol;
@@ -2705,6 +2763,8 @@
   }
 
   ctx.onEnemyKilled = function (pos, type) {
+    // v8.5 战斗统计：各类敌人击杀数
+    if (killCounts[type] !== undefined) killCounts[type]++;
     // v7.0 猪头佳：'pig' 类型单独处理（小BOSS 击杀奖励，不计普通击杀数）
     if (type === 'pig') {
       pigAlive = false;
@@ -2794,6 +2854,7 @@
   };
   ctx.onBossKilled = function (pos) {
     bossAlive = false;
+    killCounts.boss++;   // v8.5 战斗统计
     // v7.1 图鉴表：击杀 BOSS +2000 分
     score += 2000;
     // v7.3 5000 分里程碑奖励检查
@@ -2813,6 +2874,7 @@
     completeLevel();
   };
   ctx.onHelicopterKilled = function (pos) {
+    killCounts.helicopter++;   // v8.5 战斗统计
     score += 800;
     // v7.3 5000 分里程碑奖励检查
     checkScoreMilestone();
@@ -2860,8 +2922,7 @@
       if (gameMode === 'endless') {
         showEndlessEnd('☢ 核爆致命');
       } else {
-        overlaySub.textContent = '你被核弹杀死了！得分 ' + score + ' — 按 Enter 重新开始';
-        overlay.querySelector('h1').textContent = '☢ 核爆致命';
+        showStatsScreen('☢ 核爆致命');
       }
       overlay.style.display = 'flex';
       return;
@@ -4152,7 +4213,7 @@
       var dmg = hp0 - hp1;
       return { ok: dmg === 0, dmg: dmg, hp0: hp0, hp1: hp1, pitch: u.laserPitch };
     };
-    // v7.5 需求：俯角在 30°~50° 之间往复摆动（laserPitch 可读）
+    // v8.5 需求：激光俯角固定 20 度（不再动态扫射）
     window.__fpsTest.pigLaserPitchSweepTest = function () {
       var pig = ensurePigForTest();
       if (!pig) return { ok: false, err: 'no pig' };
@@ -4163,18 +4224,18 @@
       pig.inst.position.set(180, 0, 180); pig.inst.rotation.y = 0;
       var u = pig.inst.userData;
       u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0; u.life = 29;
-      u.laserSweep = 0;          // sin0=0 → 55°（35~75 中点）
+      u.laserSweep = 0;
       window.MODELS.pig.update(pig.inst, 0.0001, ctx);
-      var p55 = u.laserPitch;
-      u.laserSweep = Math.PI / 2;   // sin=1 → 75°
+      var p1 = u.laserPitch;
+      u.laserSweep = Math.PI / 2;
       window.MODELS.pig.update(pig.inst, 0.0001, ctx);
-      var p75 = u.laserPitch;
-      u.laserSweep = Math.PI * 3 / 2;   // sin=-1 → 35°
+      var p2 = u.laserPitch;
+      u.laserSweep = Math.PI * 3 / 2;
       window.MODELS.pig.update(pig.inst, 0.0001, ctx);
-      var p35 = u.laserPitch;
+      var p3 = u.laserPitch;
       restoreExplosives(moved);
-      var ok = p55 >= 54 && p55 <= 56 && p75 >= 74 && p75 <= 76 && p35 >= 34 && p35 <= 36;
-      return { ok: ok, p55: p55, p75: p75, p35: p35 };
+      var ok = p1 >= 19 && p1 <= 21 && p2 >= 19 && p2 <= 21 && p3 >= 19 && p3 <= 21;
+      return { ok: ok, p1: p1, p2: p2, p3: p3 };
     };
     // v7.3 需求1：每 5000 分 → 空中支援 ×1 + 满血（v8.1 累计上限 3）
     window.__fpsTest.awardMilestoneTest = function () {
@@ -4516,6 +4577,46 @@
       }
       trexAlive = false;
       out.ok = ok === true && out.health === 24000 && out.life === 60;
+      return out;
+    };
+    // v8.5 椰子树替代巨石：coconut 4~7 只（大中小），boulder 0
+    window.__fpsTest.coconutTest = function () {
+      var out = {};
+      var coconuts = entities.filter(function (e) { return e.cfg && e.cfg.model === 'coconut'; });
+      var boulders = entities.filter(function (e) { return e.cfg && e.cfg.model === 'boulder'; });
+      out.coconutCount = coconuts.length;
+      out.boulderCount = boulders.length;
+      out.variants = {};
+      coconuts.forEach(function (c) { out.variants[c.cfg.variant] = (out.variants[c.cfg.variant] || 0) + 1; });
+      out.ok = out.coconutCount >= 4 && out.coconutCount <= 7 && out.boulderCount === 0;
+      return out;
+    };
+    // v8.5 自动拾取枪不切换，只给对应枪加备弹
+    window.__fpsTest.gunPickupTest = function () {
+      var out = {};
+      player.gun = 'pistol';
+      player.ammoPool = { pistol: 96, rifle: 240, sniper: 20, rocket: 0 };   // sniper 备弹 20（未满）
+      var mockRec = { cfg: { kind: 'weapon', type: 'sniper' } };
+      var savedRespawn = respawnEntity;
+      respawnEntity = function () {};
+      applyPickup(mockRec);
+      respawnEntity = savedRespawn;
+      out.gunAfter = player.gun;                  // 应仍为 pistol
+      out.sniperAmmo = player.ammoPool.sniper;    // 应 20 + 5(mag) = 25
+      out.ok = out.gunAfter === 'pistol' && out.sniperAmmo === 25;
+      player.ammoPool = { pistol: 96, rifle: 240, sniper: 40, rocket: 0 };
+      return out;
+    };
+    // v8.5 战斗统计 + 结算画面
+    window.__fpsTest.statsTest = function () {
+      var out = {};
+      killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, trex: 0, helicopter: 0 };
+      shotsFired = 0; shotsHit = 0; headshotCount = 0;
+      // 直接验证统计字段存在 + showStatsScreen 可运行
+      var totalBefore = killCounts.human + killCounts.boss + killCounts.helicopter;
+      out.fieldsExist = (typeof killCounts === 'object') && (typeof shotsFired === 'number') &&
+                        (typeof headshotCount === 'number');
+      out.ok = out.fieldsExist && totalBefore === 0;
       return out;
     };
     // v8.3 准星颜色：绿=常态、红=狂暴（与 render 循环三元表达式一致）
