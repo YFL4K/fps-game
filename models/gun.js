@@ -515,10 +515,7 @@
       // v8.4 需求5：删除持枪手型（画面只显示半个枪身，无需双手）
       // buildHands(g, T, type, anim);
 
-      // v8.4 需求5：枪托（part='stock'）不显示，只保留枪管+枪身前半
-      g.traverse(function (o) {
-        if (o.userData && o.userData.part === 'stock') o.visible = false;
-      });
+      // v8.6 需求2：完美显示整把枪（枪托恢复显示，不再隐藏）
 
       // 换弹动画状态
       var animBase = {};

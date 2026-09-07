@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v8.5</div>
+<div id="versionTag">v8.6</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -354,9 +354,9 @@
   var pigAlive = false;
   // v7.1 机甲 BOSS：每击杀 25 名普通敌人随机出现（所有关卡+无尽），同屏最多 1 只
   var bossKills = 0;
-  // v8.4 霸王龙：玩家积分每达到 1000 分随机出现（所有关卡+无尽），同屏最多 1 只
+  // v8.4 霸王龙：玩家积分每达到 20000 分随机出现（所有关卡+无尽），同屏最多 1 只（v8.6 1000→20000）
   var trexAlive = false;
-  var nextTrexScore = 1000;
+  var nextTrexScore = 20000;
   var currentLayout = null;  // 记录当前加载的布局版本
 
   /* ================= 2. 渲染器 / 场景 / 相机 ================= */
@@ -2477,12 +2477,12 @@
       model: 'trex',
       position: [pos.x, 0, pos.z],
       rotation: [0, 0, 0],
-      scale: [3.2, 3.2, 3.2],
+      scale: [1.6, 1.6, 1.6],   // v8.6 体型缩小 50%：3.2 → 1.6
       collision: false,
       dynamic: true,
       respawn: 0,
       health: 24000,   // v8.4 与猪头佳一致
-      speed: 5,
+      speed: 8,        // v8.6 移动速度 +60%：5 → 8
       life: 60         // 出现 60 秒自爆
     };
     buildEntity(cfg);
@@ -2506,10 +2506,10 @@
     return true;
   }
 
-  // v8.4 每 1000 分随机出现霸王龙（同屏最多 1 只）
+  // v8.4 每 20000 分随机出现霸王龙（同屏最多 1 只；v8.6 1000→20000）
   function checkTrexSpawn() {
     while (score >= nextTrexScore) {
-      nextTrexScore += 1000;
+      nextTrexScore += 20000;
       if (!trexAlive && Math.random() < 0.5) spawnTrex();
     }
   }
@@ -3541,17 +3541,6 @@
     crosshairEl.style.textShadow = player.berserk ? '0 0 10px #ff3333, 0 0 3px rgba(0,0,0,0.8)' : '0 0 10px #33ff66, 0 0 3px rgba(0,0,0,0.8)';
     // v7.7 修复：加特林碉堡开火时必须显示加特林枪管、隐藏玩家枪（原每帧强制 !scopeOn 会覆盖 enterGatling 的隐藏）
       if (gunInst) gunInst.visible = !scopeOn && !(player.gatling && player.gatling.active);
-      // v8.4 需求5：瞄准(非狙击)只显示枪管+准星，隐藏枪身；枪托始终隐藏
-      if (gunInst) {
-        var aimSlim = aiming && !scopeOn && !(player.gatling && player.gatling.active);
-        gunInst.traverse(function (o) {
-          if (!o.isMesh) return;
-          var part = o.userData && o.userData.part;
-          if (part === 'stock') { o.visible = false; return; }
-          if (part === 'barrel' || part === 'sight') { o.visible = true; return; }
-          o.visible = !aimSlim;   // body：瞄准时隐藏
-        });
-      }
     if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
       window.MODELS.gun.update(gunInst, dt, ctx);
     }
@@ -4516,26 +4505,25 @@
       out.ok = out.count >= 6 && out.count <= 12;
       return out;
     };
-    // v8.4 枪模改造验证：删手（无 handR/handL）、枪托隐藏(part=stock 全部 invisible)、枪管(part=barrel)存在
+    // v8.6 枪模完整显示验证：删手（无 handR/handL）、枪托恢复显示(part=stock 全部 visible)、枪管(part=barrel)存在
     window.__fpsTest.handsTest = function () {
       var out = { types: {} };
       var types = ['pistol', 'rifle', 'shotgun', 'flamethrower', 'sniper', 'rocket'];
       var savedGun = player.gun;
       for (var t = 0; t < types.length; t++) {
         buildGun(types[t]);
-        var barrel = 0, stock = 0, stockHidden = 0, sight = 0, hasHand = false;
+        var barrel = 0, stock = 0, stockVisible = 0, sight = 0;
         gunInst.traverse(function (o) {
           var part = o.userData && o.userData.part;
           if (part === 'barrel') barrel++;
-          else if (part === 'stock') { stock++; if (!o.visible) stockHidden++; }
+          else if (part === 'stock') { stock++; if (o.visible) stockVisible++; }
           else if (part === 'sight') sight++;
-          if (o.userData && o.userData.isHand && part !== 'sight') hasHand = true;   // sightGlow 也用 isHand 标记，排除
         });
-        out.types[types[t]] = { barrel: barrel, stock: stock, stockHidden: stockHidden, sight: sight };
+        out.types[types[t]] = { barrel: barrel, stock: stock, stockVisible: stockVisible, sight: sight };
       }
       buildGun(savedGun);
       out.ok = types.every(function (k) {
-        return out.types[k].barrel > 0 && out.types[k].stock === out.types[k].stockHidden;
+        return out.types[k].barrel > 0 && out.types[k].stock === out.types[k].stockVisible;
       });
       return out;
     };
@@ -4573,10 +4561,12 @@
       if (rec) {
         out.health = rec.inst.userData.health;
         out.life = rec.inst.userData.life;
+        out.speed = rec.inst.userData.speed;
+        out.scale = rec.cfg.scale[0];
         removeEntity(rec);
       }
       trexAlive = false;
-      out.ok = ok === true && out.health === 24000 && out.life === 60;
+      out.ok = ok === true && out.health === 24000 && out.life === 60 && out.speed === 8 && out.scale === 1.6;
       return out;
     };
     // v8.5 椰子树替代巨石：coconut 4~7 只（大中小），boulder 0
