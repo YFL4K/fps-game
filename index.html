@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v8.3</div>
+<div id="versionTag">v8.4</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -196,11 +196,13 @@
 <script src="models/grass.js" onerror="window.__modErr('models/grass.js')"></script>
 <script src="models/boulder.js" onerror="window.__modErr('models/boulder.js')"></script>
 <script src="models/mushroom.js" onerror="window.__modErr('models/mushroom.js')"></script>
+<script src="models/jetpack.js" onerror="window.__modErr('models/jetpack.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
 <script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
 <script src="models/shield.js" onerror="window.__modErr('models/shield.js')"></script>
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
 <script src="models/pig.js" onerror="window.__modErr('models/pig.js')"></script>
+<script src="models/trex.js" onerror="window.__modErr('models/trex.js')"></script>
 <script src="scene-layout.js" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
@@ -298,7 +300,7 @@
     pistol:     { name: '手枪',     damage: 60, mag: 12,  maxAmmo: 96,  fireRate: 6.0,  reload: 0.5,  spread: 0.012, pellets: 1,   range: 70,   auto: false, aimFov: 50, scopeLens: false },   // v7.2: 伤害28→60 射速4→6 换弹0.78→0.5
     rifle:      { name: '步枪',     damage: 35, mag: 30,  maxAmmo: 240, fireRate: 15.0, reload: 1.0,  spread: 0.02,  pellets: 1,   range: 120,  auto: true,  aimFov: 45, scopeLens: false },   // v7.2: 伤害20→35 射速9→15 换弹1.17→1，初始自带
     flamethrower: { name: '喷火器', damage: 100, mag: 5,  maxAmmo: 30,  fireRate: 35.0, reload: 1.5,  spread: 0.08,  pellets: 1,   range: 60,   auto: true, flame: true, flameRadius: 9, aimFov: 55, scopeLens: false },  // v7.2: 伤害216→100 射速12→35 换弹2.0→1.5 射程80→60
-    sniper:     { name: '狙击枪',   damage: 300, mag: 5,  maxAmmo: 40,  fireRate: 1.0,  reload: 2.0,  spread: 0.003, pellets: 1,   range: 300,  auto: false, aimFov: 18, scopeLens: true },   // v7.2: 伤害120→300 射速0.9→1 换弹1.82→2 射程260→300
+    sniper:     { name: '狙击枪',   damage: 300, mag: 5,  maxAmmo: 40,  fireRate: 3.0,  reload: 1.0,  spread: 0.003, pellets: 1,   range: 300,  auto: false, aimFov: 18, scopeLens: true },   // v7.2: 伤害120→300 射速0.9→1 换弹1.82→2 射程260→300；v8.4: 射速1→3 换弹2→1
     rocket:     { name: '火箭筒',   damage: 210, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 200,  auto: false, aoe: { radius: 6, damage: 255 }, aimFov: 35, scopeLens: false }   // v7.2: 射程240→200；v7.9: 伤害140→210、爆炸170→255（+50%）
   };
   var GUN_ORDER = ['pistol', 'rifle', 'flamethrower', 'sniper', 'rocket'];
@@ -352,6 +354,9 @@
   var pigAlive = false;
   // v7.1 机甲 BOSS：每击杀 25 名普通敌人随机出现（所有关卡+无尽），同屏最多 1 只
   var bossKills = 0;
+  // v8.4 霸王龙：玩家积分每达到 1000 分随机出现（所有关卡+无尽），同屏最多 1 只
+  var trexAlive = false;
+  var nextTrexScore = 1000;
   var currentLayout = null;  // 记录当前加载的布局版本
 
   /* ================= 2. 渲染器 / 场景 / 相机 ================= */
@@ -563,7 +568,8 @@
     walkie: false,      // v6.7 对讲机（1 次有效，不累积）
     walkieBonus: 0,     // v7.3 每 5000 分奖励的空中支援次数（可累积，优先消耗）
     gatling: null,      // v6.8 加特林碉堡状态 {active,heat,cooldown,posBackup}
-    shieldTime: 0       // v6.9 金色护盾剩余秒数（v7.9 初始 15 秒，击杀 +0.5 秒，上限 15）
+    shieldTime: 0,      // v6.9 金色护盾剩余秒数（v7.9 初始 15 秒，击杀 +0.5 秒，上限 15）
+    jetpack: { count: 0, active: false, time: 0 }   // v8.4 喷气飞行器：count 上限 1，active 飞行中，time 剩余秒数
   };
   var score = 0;
   var nextAwardScore = 5000;   // v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 满血
@@ -1759,6 +1765,12 @@
       respawnEntity(rec);
       return;
     }
+    // v8.4 喷气飞行器：上限 1，用完作废
+    if (rec.cfg.kind === 'jetpack') {
+      applyJetpack();
+      respawnEntity(rec);
+      return;
+    }
     if (rec.cfg.kind === 'weapon' && rec.cfg.type) {
       if (rec.cfg.type === 'rocket') player.hasRocket = true;
       if (rec.cfg.type === 'flamethrower') player.flameReserve = Math.min(60, player.flameReserve + 15);
@@ -1920,6 +1932,34 @@
     showToast('🛡 获得金色护盾！15 秒减伤 90%（击杀 +0.5 秒，上限 15 秒）', 0xffd700);
   }
 
+  /* ================= v8.4 喷气飞行器道具 ================= */
+  /** 击杀普通敌人 5% 掉落喷气飞行器（蓝色飞机标志），上限 1，用完作废 */
+  function spawnJetpackDrop(pos) {
+    if (player.jetpack.count >= 1) return;   // 已有则不掉落
+    var cfg = {
+      id: 'jetpack-' + (++dynCounter),
+      model: 'jetpack',
+      position: [pos.x, 0.6, pos.z],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      collision: false,
+      kind: 'jetpack',
+      respawn: 0,
+      dynamic: true,
+      grace: 2.5
+    };
+    buildEntity(cfg);
+    spawnSparks(pos, 0x55ccff);
+  }
+
+  /** 拾取喷气飞行器：获得 1 个（上限 1），按空格启动向上飞行 */
+  function applyJetpack() {
+    if (player.jetpack.count >= 1) return;
+    player.jetpack.count = 1;
+    if (sfx) sfx.playPickup();
+    showToast('✈ 获得喷气飞行器！按 空格 启动向上飞行（15 秒）', 0x55ccff);
+  }
+
   /** v7.8 核弹发放统一入口：上限 1，不使用不能累积，不能重复拾取
    *  各掉落点（宝箱/猪头佳/BOSS/直升机）都走这里；已有 1 颗时不增加 */
   function grantNuke() {
@@ -1941,6 +1981,11 @@
         showToast('🎁 达到 ' + at + ' 分！生命全恢复（空袭已满 ' + AIR_MAX + ' 次）', 0x66ffcc);
       }
       player.health = player.maxHealth;
+      // v8.4 喷气飞行器：每 5000 分自动获得 1 个（不累积，上限 1，用完作废）
+      if (player.jetpack.count < 1) {
+        player.jetpack.count = 1;
+        showToast('✈ 积分奖励：喷气飞行器 ×1（按 空格 起飞）', 0x55ccff);
+      }
       if (sfx && sfx.playLevelUp) sfx.playLevelUp();
     }
   }
@@ -2367,6 +2412,54 @@
     return true;
   }
 
+  // v8.4 霸王龙：黑灰皮肤红眼，体型与机甲 BOSS 相当，每 1000 分随机出现，60 秒自爆
+  function spawnTrex() {
+    if (trexAlive || player.dead || state !== 'playing') return false;
+    trexAlive = true;
+    var side = Math.random() < 0.5 ? -1 : 1;
+    var pos = new THREE.Vector3(side * (20 + Math.random() * 14), 0, -28 - Math.random() * 10);
+    var cfg = {
+      id: 'dyn-trex-' + (++dynCounter),
+      model: 'trex',
+      position: [pos.x, 0, pos.z],
+      rotation: [0, 0, 0],
+      scale: [3.2, 3.2, 3.2],
+      collision: false,
+      dynamic: true,
+      respawn: 0,
+      health: 24000,   // v8.4 与猪头佳一致
+      speed: 5,
+      life: 60         // 出现 60 秒自爆
+    };
+    buildEntity(cfg);
+    // 自爆回调（超时）——爆炸 + 对玩家范围伤害 + 状态复位
+    ctx.onTrexSelfDestruct = function (tpos) {
+      trexAlive = false;
+      var p = tpos.clone ? tpos.clone() : new THREE.Vector3(tpos.x, 1, tpos.z);
+      p.y = 1;
+      explode(p, 20, 260, { chain: true });
+      var d = player.pos.distanceTo(p);
+      if (d < 28) hitPlayer(Math.round(10 + 30 * (1 - d / 28)));
+      showToast('💥 霸王龙自爆了！', 0xff6a3a);
+      if (sfx && sfx.playRocket) sfx.playRocket();
+    };
+    showToast('🦖 霸王龙出现！60 秒内击败它！', 0xff4422);
+    levelBannerTitle.textContent = '🦖 霸王龙现身';
+    levelBannerSub.textContent = '黑灰巨兽喷火踩踏，吃蘑菇毁坏物品 — 60 秒内击败它，否则自爆！';
+    levelBannerEl.style.opacity = '1';
+    setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 3000);
+    if (sfx && sfx.playBoss) sfx.playBoss();
+    return true;
+  }
+
+  // v8.4 每 1000 分随机出现霸王龙（同屏最多 1 只）
+  function checkTrexSpawn() {
+    while (score >= nextTrexScore) {
+      nextTrexScore += 1000;
+      if (!trexAlive && Math.random() < 0.5) spawnTrex();
+    }
+  }
+
   function spawnBoss() {
     bossAppeared = true;
     bossAlive = true;
@@ -2629,6 +2722,18 @@
       if (sfx) sfx.playLevelUp();
       return;
     }
+    // v8.4 霸王龙：击杀奖励 + 状态复位（不计普通击杀数）
+    if (type === 'trex') {
+      trexAlive = false;
+      score += 2000;
+      showToast('🦖 击败霸王龙！+2000', 0xff8866);
+      checkScoreMilestone();
+      checkTrexSpawn();
+      if (Math.random() < 0.30) spawnHealthDrop(pos);
+      if (Math.random() < 0.20) spawnWeaponDrop(pos, 'rocket');
+      if (sfx) sfx.playLevelUp();
+      return;
+    }
     // v7.1 每击杀 10 名普通敌人 → 猪头佳随机出现（同屏最多 1 只）
     if ((type === 'human' || type === 'monster' || type === 'spider') && !pigAlive) {
       pigKills++;
@@ -2642,6 +2747,8 @@
     score += (type === 'boss' ? 2000 : (type === 'monster' || type === 'spider' ? 150 : 100));
     // v7.3 5000 分里程碑奖励检查
     checkScoreMilestone();
+    // v8.4 每 1000 分随机出现霸王龙
+    checkTrexSpawn();
     // v6.8 狂暴模式击杀回血：狂暴期间每击杀 1 敌人恢复 10 HP（直到狂暴结束）
     if (player.berserk) {
       player.health = Math.min(player.maxHealth, player.health + 10);
@@ -2654,6 +2761,10 @@
     // v7.1 图鉴表掉落：金盾 10%
     if (Math.random() < 0.10) {
       spawnShieldDrop(pos);
+    }
+    // v8.4 喷气飞行器：击杀普通敌人 5% 掉落（上限 1，已有不掉）
+    if ((type === 'human' || type === 'monster' || type === 'spider') && Math.random() < 0.05) {
+      spawnJetpackDrop(pos);
     }
     // v6.4 宝箱机制：本关掷出 30% 则首杀敌人时在击杀点刷出宝箱（每关最多 1 个）
     if (levelHasChest && !chestSpawnedThisLevel) {
@@ -2885,9 +2996,35 @@
     player.vel.z = tmpVec.z;
     player.vel.y += (W.gravity || -22) * dt;
 
-    if (keys.Space && player.onGround) {
+    if (keys.Space && player.jetpack.count > 0 && !player.jetpack.active) {
+      // v8.4 喷气飞行器启动（空格），用完作废
+      player.jetpack.count = 0;
+      player.jetpack.active = true;
+      player.jetpack.time = 15;
+      player.onGround = false;
+      showToast('✈ 喷气飞行器启动！向上飞行（15 秒）', 0x55ccff);
+      if (sfx) sfx.playLevelUp();
+    } else if (keys.Space && player.onGround) {
       player.vel.y = W.jumpSpeed || 8;
       player.onGround = false;
+    }
+
+    // v8.4 喷气飞行器飞行中：上升并钳制到机甲 BOSS 头顶高度，超时下落
+    if (player.jetpack.active) {
+      player.jetpack.time -= dt;
+      if (player.jetpack.time <= 0) {
+        player.jetpack.active = false;
+        player.jetpack.time = 0;
+        showToast('✈ 喷气飞行器燃料耗尽，开始下落', 0x99ccff);
+      } else {
+        var ceil = getJetpackCeiling();
+        if (player.pos.y < ceil) {
+          player.vel.y = 12;   // 上升速度
+        } else {
+          player.vel.y = 0;
+          player.pos.y = ceil;
+        }
+      }
     }
 
     player.pos.addScaledVector(player.vel, dt);
@@ -2979,6 +3116,20 @@
         applyPickup(rec);
       }
     }
+  }
+
+  /** v8.4 喷气飞行器飞行上限：机甲 BOSS 头顶高度（无 BOSS 时默认 6 米） */
+  function getJetpackCeiling() {
+    var top = 6;
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive || !rec.cfg || rec.cfg.enemyType !== 'boss') continue;
+      var cu = rec.inst.userData;
+      if (cu && cu.dead) continue;
+      box.setFromObject(rec.inst);
+      if (box.max.y > top) top = box.max.y;
+    }
+    return top;
   }
 
   /** v7.7 玩家 vs 大体型敌人（猪头佳 / BOSS 机甲）3D 挡体碰撞
@@ -3329,6 +3480,17 @@
     crosshairEl.style.textShadow = player.berserk ? '0 0 10px #ff3333, 0 0 3px rgba(0,0,0,0.8)' : '0 0 10px #33ff66, 0 0 3px rgba(0,0,0,0.8)';
     // v7.7 修复：加特林碉堡开火时必须显示加特林枪管、隐藏玩家枪（原每帧强制 !scopeOn 会覆盖 enterGatling 的隐藏）
       if (gunInst) gunInst.visible = !scopeOn && !(player.gatling && player.gatling.active);
+      // v8.4 需求5：瞄准(非狙击)只显示枪管+准星，隐藏枪身；枪托始终隐藏
+      if (gunInst) {
+        var aimSlim = aiming && !scopeOn && !(player.gatling && player.gatling.active);
+        gunInst.traverse(function (o) {
+          if (!o.isMesh) return;
+          var part = o.userData && o.userData.part;
+          if (part === 'stock') { o.visible = false; return; }
+          if (part === 'barrel' || part === 'sight') { o.visible = true; return; }
+          o.visible = !aimSlim;   // body：瞄准时隐藏
+        });
+      }
     if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
       window.MODELS.gun.update(gunInst, dt, ctx);
     }
@@ -4273,7 +4435,9 @@
       var out = {};
       var g = GUN_TYPES;
       out.rocket = { dmg: g.rocket.damage, aoe: g.rocket.aoe.damage };
-      out.ok = g.rocket.damage === 210 && g.rocket.aoe.damage === 255;
+      out.sniper = { fireRate: g.sniper.fireRate, reload: g.sniper.reload };
+      out.ok = g.rocket.damage === 210 && g.rocket.aoe.damage === 255 &&
+               g.sniper.fireRate === 3.0 && g.sniper.reload === 1.0;
       return out;
     };
     // v8.0 蘑菇装饰：地图随机生成（不同尺寸/颜色）
@@ -4291,18 +4455,67 @@
       out.ok = out.count >= 6 && out.count <= 12;
       return out;
     };
-    // v8.2 双手持枪：每把枪都有右手（握把）+ 左手（护木），换弹时左手动画
+    // v8.4 枪模改造验证：删手（无 handR/handL）、枪托隐藏(part=stock 全部 invisible)、枪管(part=barrel)存在
     window.__fpsTest.handsTest = function () {
       var out = { types: {} };
       var types = ['pistol', 'rifle', 'shotgun', 'flamethrower', 'sniper', 'rocket'];
       var savedGun = player.gun;
       for (var t = 0; t < types.length; t++) {
         buildGun(types[t]);
-        var anim = gunInst && gunInst.userData && gunInst.userData.anim;
-        out.types[types[t]] = !!(anim && anim.handR && anim.handL);
+        var barrel = 0, stock = 0, stockHidden = 0, sight = 0, hasHand = false;
+        gunInst.traverse(function (o) {
+          var part = o.userData && o.userData.part;
+          if (part === 'barrel') barrel++;
+          else if (part === 'stock') { stock++; if (!o.visible) stockHidden++; }
+          else if (part === 'sight') sight++;
+          if (o.userData && o.userData.isHand && part !== 'sight') hasHand = true;   // sightGlow 也用 isHand 标记，排除
+        });
+        out.types[types[t]] = { barrel: barrel, stock: stock, stockHidden: stockHidden, sight: sight };
       }
       buildGun(savedGun);
-      out.ok = types.every(function (k) { return out.types[k] === true; });
+      out.ok = types.every(function (k) {
+        return out.types[k].barrel > 0 && out.types[k].stock === out.types[k].stockHidden;
+      });
+      return out;
+    };
+    // v8.4 喷气飞行器：上限 1，拾取/5000分给 1，空格启动飞行 15 秒
+    window.__fpsTest.jetpackTest = function () {
+      var out = {};
+      player.jetpack.count = 0; player.jetpack.active = false; player.jetpack.time = 0;
+      applyJetpack();
+      out.afterPickup = player.jetpack.count;
+      applyJetpack();   // 重复拾取不叠加
+      out.afterPickup2 = player.jetpack.count;
+      nextAwardScore = 5000; score = 5000; player.health = 40; checkScoreMilestone();
+      out.afterMilestone = player.jetpack.count;   // 已有则仍为 1
+      // 空格启动飞行
+      if (player.jetpack.count > 0 && !player.jetpack.active) {
+        player.jetpack.count = 0; player.jetpack.active = true; player.jetpack.time = 15;
+      }
+      out.started = player.jetpack.active;
+      out.countAfterStart = player.jetpack.count;
+      out.time = player.jetpack.time;
+      out.ok = out.afterPickup === 1 && out.afterPickup2 === 1 && out.afterMilestone === 1 &&
+               out.started === true && out.countAfterStart === 0 && out.time === 15;
+      player.jetpack.count = 0; player.jetpack.active = false; player.jetpack.time = 0;
+      nextAwardScore = 5000; score = 0;
+      return out;
+    };
+    // v8.4 霸王龙：spawnTrex 生成模型 + 血量 24000 + 出现 60 秒
+    window.__fpsTest.trexTest = function () {
+      var out = {};
+      trexAlive = false;
+      var ok = spawnTrex();
+      out.spawned = ok;
+      var rec = null;
+      for (var i = 0; i < entities.length; i++) if (entities[i].cfg && entities[i].cfg.model === 'trex') { rec = entities[i]; break; }
+      if (rec) {
+        out.health = rec.inst.userData.health;
+        out.life = rec.inst.userData.life;
+        removeEntity(rec);
+      }
+      trexAlive = false;
+      out.ok = ok === true && out.health === 24000 && out.life === 60;
       return out;
     };
     // v8.3 准星颜色：绿=常态、红=狂暴（与 render 循环三元表达式一致）

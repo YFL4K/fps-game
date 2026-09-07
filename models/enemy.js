@@ -291,6 +291,9 @@
         respawnReady: false,
         shootTimer: Math.random() * 1.5,
         projectiles: [],
+        // v8.4 机甲 BOSS 紫色激光状态
+        laserTimer: 2,
+        laserBeams: [],
         bodyMat: matBody,
         gunPivot: gunPivot,
         pivots: { armL: armPivotL, armR: armPivotR, legL: legPivotL, legR: legPivotR },
@@ -428,9 +431,71 @@
         }
       }
 
+      // v8.4 机甲 BOSS 紫色激光（伤害同猪头佳激光：玩家 30/s、敌人 50/s）
+      if (u.type === 'boss' && u.weapon === 'rocket') {
+        u.laserTimer -= dt;
+        if (u.laserTimer <= 0 && dist < u.shootRange * 1.6 && !player.dead && canSeePlayer(inst, ctx, player)) {
+          u.laserTimer = 4;
+          fireMechLaser(u, inst, ctx, player);
+        }
+      }
+      // 淡出激光光束
+      for (let bi = u.laserBeams.length - 1; bi >= 0; bi--) {
+        const bm = u.laserBeams[bi];
+        bm.life -= dt;
+        if (bm.obj.material) bm.obj.material.opacity = Math.max(0, bm.life / bm.maxLife) * 0.7;
+        if (bm.life <= 0) {
+          if (bm.obj.parent) bm.obj.parent.remove(bm.obj);
+          u.laserBeams.splice(bi, 1);
+        }
+      }
+
       function isMonsterType(uu) { return uu.type === 'monster'; }
     }
   };
+
+  /** v8.4 机甲 BOSS 紫色激光：从头部向玩家方向穿透射线，
+   *  对玩家造成 30 伤害（主程序钳制 5~20）、对路径上其它敌人无差别 50 伤害 */
+  function fireMechLaser(u, inst, ctx, player) {
+    const T = global.THREE;
+    const s = inst.scale.x || 1;
+    const from = inst.position.clone();
+    from.y += 1.7 * s;
+    const to = new T.Vector3(player.pos.x, player.pos.y + 0.85, player.pos.z);
+    const dir = to.clone().sub(from);
+    const d = dir.length();
+    if (d < 0.5) return;
+    dir.normalize();
+    // 命中玩家
+    if (ctx.hitPlayer && !player.dead) ctx.hitPlayer(30);
+    // 命中路径上的敌人（无差别 50）
+    const list = ctx.entities || [];
+    for (let i = 0; i < list.length; i++) {
+      const rec = list[i];
+      if (!rec.alive || rec.inst === inst) continue;
+      const cu = rec.inst.userData;
+      if (!cu || cu.kind === 'pig' || cu.dead) continue;
+      if (rec.cfg.model === 'helicopter') continue;
+      if (!rec.cfg.dynamic || typeof cu.takeDamage !== 'function') continue;
+      const tv = rec.inst.position.clone();
+      tv.y += 0.5;
+      const rel = tv.clone().sub(from);
+      const proj = rel.dot(dir);
+      if (proj < 0 || proj > d) continue;
+      const closest = from.clone().addScaledVector(dir, proj);
+      if (closest.distanceTo(tv) < 1.3) cu.takeDamage(50);
+    }
+    // 紫色光束视觉（短暂）
+    const beam = new T.Mesh(
+      new T.CylinderGeometry(0.13, 0.13, d, 8),
+      new T.MeshBasicMaterial({ color: 0xaa33ff, transparent: true, opacity: 0.7, depthWrite: false })
+    );
+    beam.position.copy(from).addScaledVector(dir, d / 2);
+    beam.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), dir);
+    if (ctx.scene) ctx.scene.add(beam);
+    u.laserBeams.push({ obj: beam, life: 0.3, maxLife: 0.3 });
+    if (ctx.sfx && ctx.sfx.playEnemyShot) ctx.sfx.playEnemyShot();
+  }
 
   /** 视线检测：从敌人头部到玩家躯干，中间若被存活碰撞体（墙/建筑/车/箱）挡住则不可见 */
   function canSeePlayer(inst, ctx, player) {
