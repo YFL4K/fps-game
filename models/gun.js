@@ -2,6 +2,11 @@
  * gun.js — 第一人称枪械模型（程序化，挂在相机下，多武器类型）
  * 注册: window.MODELS.gun
  *
+ * v9.2 更新：
+ *   1. 取消双手模型——屏幕上不再显示玩家手部（纯净枪械视角）
+ *   2. 取消枪管准星发光点（sightGlow 红绿色标）
+ *   3. 枪械外观细节提升
+ *
  * v9.1 CS 风格全面重做：
  *   1. 材质体系重建：枪械钢（高金属度暗灰）、聚合物（哑黑/FDE沙色）、
  *      木质（深褐带纹理感）、铬钢枪管（亮金属）、黄铜弹匣、战术橙。
@@ -9,7 +14,6 @@
  *      沙漠之鹰 .50AE / AK-47 / Nova 霰弹 / 喷火器 / AWP 狙击 / 火箭筒。
  *   3. 新增细节：导轨、消焰器、气体调节器、弹匣卡笋、拉机柄、
  *      前握把、战术灯、瞄准镜遮光罩、两脚架、背带扣等。
- *   4. 双手握持恢复（CS 标准视角：右手握把 + 左手护木/弹匣）。
  *
  * 主程序用法不变：
  * - camera.add(gunInst)；gunInst.position 由 userData.basePos 决定
@@ -864,15 +868,7 @@
       muzzle.position.set(0, 0.015, -L * 0.42 - st.barrelLen - 0.08);
       g.add(muzzle);
 
-      // 枪管准星发光点（绿=常态，红=狂暴）
-      var sightGlow = new T.Mesh(
-        new T.SphereGeometry(0.012, 8, 6),
-        new T.MeshBasicMaterial({ color: 0x33ff66 })
-      );
-      sightGlow.position.set(0, 0.05, -L * 0.42 - st.barrelLen - 0.02);
-      sightGlow.userData.isHand = true;
-      sightGlow.userData.part = 'sight';
-      g.add(sightGlow);
+      // v9.2 取消枪管准星发光点（sightGlow）
 
       // 枪口喷火
       var flame = buildMuzzleFlash(T, muzzle.position);
@@ -883,8 +879,8 @@
       eject.position.set(0.06, 0.04, -L * 0.42);
       g.add(eject);
 
-      // v9.1 双手持枪（CS 标准视角）
-      buildHands(g, T, type, anim);
+      // v9.2 取消双手模型（屏幕不显示手部）
+      // buildHands(g, T, type, anim);
 
       // 换弹动画状态
       var animBase = {};
@@ -897,7 +893,6 @@
         type: type,
         muzzle: muzzle,
         eject: eject,
-        sightGlow: sightGlow,
         flash: flame.group,
         flameLayers: flame.layers,
         anim: anim,
@@ -925,11 +920,7 @@
       var p = (ctx && ctx.player) || null;
       var moving = p && p.vel && (Math.abs(p.vel.x) + Math.abs(p.vel.z)) > 0.1;
 
-      // 准星发光点变色
-      if (u.sightGlow) {
-        var berserk = p && p.berserk;
-        u.sightGlow.material.color.setHex(berserk ? 0xff3333 : 0x33ff66);
-      }
+      // v9.2 取消准星发光点变色
 
       // 后坐恢复 + 枪口喷火脉冲
       if (u.recoil > 0) {
@@ -992,18 +983,9 @@
           else tp = 0.12 * (1 - (pr - 0.65) / 0.35);
           u.anim.tube.position.z = bp4.z + tp;
         }
-        // 换弹时左手移向弹匣
-        if (u.anim.handL && u.anim.handLBase) {
-          var hb = u.anim.handLBase;
-          var hoff = Math.sin(pr * Math.PI) * 0.1;
-          u.anim.handL.position.y = hb.y - hoff;
-          u.anim.handL.position.z = hb.z - hoff * 0.3;
-        }
+        // v9.2 取消换弹时手部动画
       }
-      // 非换弹时左手回到握持位
-      if (!u.reloading && u.anim.handL && u.anim.handLBase) {
-        u.anim.handL.position.copy(u.anim.handLBase);
-      }
+      // v9.2 取消非换弹手部复位
 
       // 移动晃动 + 呼吸
       var bob = moving ? 1 : 0.25;

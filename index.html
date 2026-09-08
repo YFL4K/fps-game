@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v9.1</div>
+<div id="versionTag">v9.2</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -183,7 +183,7 @@
 <script src="models/chest.js" onerror="window.__modErr('models/chest.js')"></script>
 <script src="models/helicopter.js" onerror="window.__modErr('models/helicopter.js')"></script>
 <script src="models/enemy.js" onerror="window.__modErr('models/enemy.js')"></script>
-<script src="models/gun.js?v=911" onerror="window.__modErr('models/gun.js')"></script>
+<script src="models/gun.js?v=92" onerror="window.__modErr('models/gun.js')"></script>
 <script src="models/mountain-scenery.js" onerror="window.__modErr('models/mountain-scenery.js')"></script>
 <script src="models/truck.js" onerror="window.__modErr('models/truck.js')"></script>
 <script src="models/plane.js" onerror="window.__modErr('models/plane.js')"></script>
@@ -195,7 +195,7 @@
 <script src="models/ferriswheel.js" onerror="window.__modErr('models/ferriswheel.js')"></script>
 <script src="models/grass.js" onerror="window.__modErr('models/grass.js')"></script>
 <script src="models/coconut.js" onerror="window.__modErr('models/coconut.js')"></script>
-  <script src="models/sakura.js?v=911" onerror="window.__modErr('models/sakura.js')"></script>
+  <script src="models/sakura.js?v=92" onerror="window.__modErr('models/sakura.js')"></script>
 <script src="models/mushroom.js" onerror="window.__modErr('models/mushroom.js')"></script>
 <script src="models/jetpack.js" onerror="window.__modErr('models/jetpack.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
@@ -204,7 +204,7 @@
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
 <script src="models/pig.js" onerror="window.__modErr('models/pig.js')"></script>
 <script src="models/trex.js" onerror="window.__modErr('models/trex.js')"></script>
-<script src="scene-layout.js?v=911" onerror="window.__modErr('scene-layout.js')"></script>
+<script src="scene-layout.js?v=92" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
 <script>
@@ -4610,7 +4610,35 @@
       out.ok = out.fieldsExist && totalBefore === 0;
       return out;
     };
-    // v8.3 准星颜色：绿=常态、红=狂暴（与 render 循环三元表达式一致）
+    // v9.2 无手部模型验证
+    window.__fpsTest.noHandsTest = function () {
+      var types = ['pistol','rifle','shotgun','flamethrower','sniper','rocket'];
+      var savedGun = player.gun;
+      var hasHands = false;
+      for (var t = 0; t < types.length; t++) {
+        buildGun(types[t]);
+        gunInst.traverse(function (o) {
+          if (o.userData && o.userData.isHand) hasHands = true;
+        });
+      }
+      buildGun(savedGun);
+      return { ok: !hasHands };
+    };
+    // v9.2 无准星发光点验证
+    window.__fpsTest.noSightGlowTest = function () {
+      var types = ['pistol','rifle','shotgun','flamethrower','sniper','rocket'];
+      var savedGun = player.gun;
+      var hasSight = false;
+      for (var t = 0; t < types.length; t++) {
+        buildGun(types[t]);
+        gunInst.traverse(function (o) {
+          if (o.userData && o.userData.part === 'sight') hasSight = true;
+        });
+      }
+      buildGun(savedGun);
+      return { ok: !hasSight };
+    };
+    // v8.3 准星颜色    // v8.3 准星颜色：绿=常态、红=狂暴（与 render 循环三元表达式一致）
     window.__fpsTest.crosshairTest = function () {
       var out = {};
       player.berserk = false;
