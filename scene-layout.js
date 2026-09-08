@@ -161,10 +161,10 @@
         collision: false
       });
     }
-    // v8.5 巨大椰子树（大/中/小三种尺寸，替代原巨石 boulder）
+    // v9.1 樱花树（大/中/小三种尺寸，替代椰子树）
     for (var bdi = 0; bdi < randInt(4, 7); bdi++) {
       entities.push({
-        id: nextId('coconut'), model: 'coconut',
+        id: nextId('sakura'), model: 'sakura',
         position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
         collision: true,
         variant: randChoice(['large', 'medium', 'small'])

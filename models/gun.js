@@ -2,440 +2,806 @@
  * gun.js — 第一人称枪械模型（程序化，挂在相机下，多武器类型）
  * 注册: window.MODELS.gun
  *
- * v7.9 全面重做（修复"枪械残缺、仅右键瞄准才正常"的 bug）：
- *   1. 根因：旧版枪托/肩垫等部件 z>0（位于相机后方），宽 FOV 下透视投影翻转 +
- *      屏幕边缘裁切 → 部件残缺/消失；右键瞄准（FOV 缩小）时才恢复。
- *   2. 修复：所有部件 z 严格 < 0（相机前方），整体前移 + 上抬 + 微缩，
- *      保证默认 FOV 75° 下全部落在视锥内（可配合主程序 gunClipTest 钩子验证 NDC）。
- *   3. 外观重做：参考 PSX / LowPoly 游戏枪械造型（低多边形、轮廓清晰、色块鲜明），
- *      六把枪（沙鹰 / AK-47 / 泵动霰弹 / 喷火器 / 狙击 / 火箭筒）全部重新布局建模。
- *   4. 材质提亮（低金属度 + 弱自发光），杜绝暗部发黑"贴图显示不全"。
+ * v9.1 CS 风格全面重做：
+ *   1. 材质体系重建：枪械钢（高金属度暗灰）、聚合物（哑黑/FDE沙色）、
+ *      木质（深褐带纹理感）、铬钢枪管（亮金属）、黄铜弹匣、战术橙。
+ *   2. 六把枪全部参考 CS/CS:GO 真实枪械比例重做：
+ *      沙漠之鹰 .50AE / AK-47 / Nova 霰弹 / 喷火器 / AWP 狙击 / 火箭筒。
+ *   3. 新增细节：导轨、消焰器、气体调节器、弹匣卡笋、拉机柄、
+ *      前握把、战术灯、瞄准镜遮光罩、两脚架、背带扣等。
+ *   4. 双手握持恢复（CS 标准视角：右手握把 + 左手护木/弹匣）。
  *
- * 主程序用法：
+ * 主程序用法不变：
  * - camera.add(gunInst)；gunInst.position 由 userData.basePos 决定
  * - 开枪时设置 gunInst.userData.recoil = 1（后坐力 + 枪口闪光）
  * - gunInst.userData.muzzle 是枪口 Object3D（曳光弹起点）
  * - gunInst.userData.eject 是抛壳窗 Object3D（抛壳起点）
- * - 换弹时主程序调 gunInst.userData.beginReload(duration) 播放换弹动画
+ * - 换弹时主程序调 gunInst.userData.beginReload(duration)
  * - update 由主程序通用实体循环调用
  */
 (function (global) {
   global.MODELS = global.MODELS || {};
 
-  // v7.9：枪身整体前移（z 更浅）+ 上抬（y 更高），全部部件保持在相机前方视锥内
-  // v8.0：进一步上抬 basePos（y +0.04）并缩短深握把，确保常规 FOV75 下握把/弹匣不超出屏幕下边缘
   var STYLES = {
     pistol: {
-      bodyColor: 0x3a3f4a, accentColor: 0xd35400,
-      len: 0.38, barrelLen: 0.2, pos: [0.24, -0.15, -0.38],
+      len: 0.40, barrelLen: 0.14, pos: [0.22, -0.16, -0.40],
       scope: false, recoilKick: 1.0, casing: true
     },
     rifle: {
-      bodyColor: 0x3a2f23, accentColor: 0x8b5a2b,
-      len: 0.5, barrelLen: 0.26, pos: [0.26, -0.17, -0.4],
+      len: 0.54, barrelLen: 0.30, pos: [0.24, -0.18, -0.42],
       scope: false, recoilKick: 0.75, casing: true
     },
     shotgun: {
-      bodyColor: 0x3a2f23, accentColor: 0x6b4a2f,
-      len: 0.54, barrelLen: 0.32, pos: [0.26, -0.18, -0.42],
+      len: 0.58, barrelLen: 0.36, pos: [0.25, -0.18, -0.44],
       scope: false, recoilKick: 1.5, casing: true, pump: true
     },
     flamethrower: {
-      bodyColor: 0x4a4a4a, accentColor: 0xff6600,
-      len: 0.5, barrelLen: 0.4, pos: [0.26, -0.17, -0.4],
+      len: 0.52, barrelLen: 0.42, pos: [0.25, -0.17, -0.42],
       scope: false, recoilKick: 0.8, casing: false
     },
     sniper: {
-      bodyColor: 0x2b3550, accentColor: 0x1e90ff,
-      len: 0.6, barrelLen: 0.34, pos: [0.24, -0.18, -0.42],
+      len: 0.64, barrelLen: 0.40, pos: [0.23, -0.19, -0.44],
       scope: true, recoilKick: 2.2, casing: true
     },
     rocket: {
-      bodyColor: 0x3a3a26, accentColor: 0xd4a017,
-      len: 0.56, barrelLen: 0.32, pos: [0.26, -0.20, -0.42],
+      len: 0.58, barrelLen: 0.34, pos: [0.25, -0.20, -0.44],
       scope: true, recoilKick: 3.4, casing: true, tubeReload: true
     }
   };
 
-  // 通用小部件材料（v6.9 提亮；v7.9 保持低金属度 + 弱自发光，杜绝暗部发黑"残缺"）
+  // v9.1 CS 风格材质体系：多色 + 高质感
   function mats(global) {
-    const T = global.THREE;
+    var T = global.THREE;
     return {
-      dark: new T.MeshStandardMaterial({ color: 0x3a3f4a, roughness: 0.55, metalness: 0.35, emissive: 0x101214, emissiveIntensity: 0.35 }),
-      accent: new T.MeshStandardMaterial({ color: 0xd35400, roughness: 0.5, metalness: 0.3, emissive: 0x301400, emissiveIntensity: 0.3 }),
-      wood: new T.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.85, metalness: 0.05, emissive: 0x1a1006, emissiveIntensity: 0.2 }),
-      woodDark: new T.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.9, metalness: 0.02, emissive: 0x120c04, emissiveIntensity: 0.2 }),
-      steel: new T.MeshStandardMaterial({ color: 0x4a4e55, roughness: 0.4, metalness: 0.5, emissive: 0x14161a, emissiveIntensity: 0.3 }),
-      lens: new T.MeshBasicMaterial({ color: 0x66ccff })
+      // 枪械钢 — 深灰高金属度（CS 标准机匣色）
+      gunmetal: new T.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.35, metalness: 0.75, emissive: 0x0a0b0d, emissiveIntensity: 0.25 }),
+      // 聚合物 — 哑光黑（握把/护木/枪托）
+      polymer: new T.MeshStandardMaterial({ color: 0x1a1c20, roughness: 0.7, metalness: 0.1, emissive: 0x050507, emissiveIntensity: 0.2 }),
+      // FDE 沙色聚合物 — 战术色（CS:GO 风格）
+      fde: new T.MeshStandardMaterial({ color: 0x8c7355, roughness: 0.65, metalness: 0.1, emissive: 0x1a1408, emissiveIntensity: 0.2 }),
+      // 铬钢 — 亮金属（枪管/导气管）
+      chrome: new T.MeshStandardMaterial({ color: 0x3d4248, roughness: 0.25, metalness: 0.9, emissive: 0x0c0e10, emissiveIntensity: 0.3 }),
+      // 亮银 — 高光金属（消焰器/管口装置）
+      bright: new T.MeshStandardMaterial({ color: 0x555a62, roughness: 0.2, metalness: 0.95, emissive: 0x10121a, emissiveIntensity: 0.3 }),
+      // 木质 — 深褐带暖色（AK/霰弹枪护木枪托）
+      wood: new T.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.8, metalness: 0.05, emissive: 0x180c04, emissiveIntensity: 0.2 }),
+      // 深木 — 枪托深色
+      woodDark: new T.MeshStandardMaterial({ color: 0x4a2d18, roughness: 0.85, metalness: 0.03, emissive: 0x100804, emissiveIntensity: 0.2 }),
+      // 黄铜 — 弹匣/弹链
+      brass: new T.MeshStandardMaterial({ color: 0xb8860b, roughness: 0.4, metalness: 0.8, emissive: 0x2a1c00, emissiveIntensity: 0.25 }),
+      // 战术橙 — 喷火器/火箭筒标识
+      tacOrange: new T.MeshStandardMaterial({ color: 0xe0530f, roughness: 0.5, metalness: 0.3, emissive: 0x3a1000, emissiveIntensity: 0.35 }),
+      // 黑橡胶 — 握把纹理
+      rubber: new T.MeshStandardMaterial({ color: 0x141416, roughness: 0.95, metalness: 0.0, emissive: 0x040404, emissiveIntensity: 0.15 }),
+      // 透镜
+      lens: new T.MeshBasicMaterial({ color: 0x88ccff }),
+      // 红点
+      redDot: new T.MeshBasicMaterial({ color: 0xff3322 })
     };
   }
 
-  // 枪口喷火（多层锥形火焰，开火时脉冲）
+  // 枪口喷火（多层锥形火焰）
   function buildMuzzleFlash(T, muzzlePos) {
     var flameGroup = new T.Group();
     flameGroup.position.copy(muzzlePos);
-    flameGroup.rotation.x = -Math.PI / 2;  // 尖端朝前（-Z）
+    flameGroup.rotation.x = -Math.PI / 2;
     var layers = [];
     var colors = [0xffe066, 0xffaa33, 0xff6633];
     for (var i = 0; i < 3; i++) {
       var cone = new T.Mesh(
-        new T.ConeGeometry(0.03 + i * 0.018, 0.2 - i * 0.045, 6),
+        new T.ConeGeometry(0.028 + i * 0.016, 0.22 - i * 0.05, 8),
         new T.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0, depthWrite: false })
       );
       cone.position.z = -0.06 - i * 0.035;
-      cone.position.y = 0.015;
+      cone.position.y = 0.01;
       flameGroup.add(cone);
       layers.push(cone);
     }
+    // 火花环
+    var spark = new T.Mesh(
+      new T.RingGeometry(0.02, 0.05, 8),
+      new T.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0, depthWrite: false, side: T.DoubleSide })
+    );
+    spark.position.z = -0.12;
+    spark.rotation.y = 0;
+    flameGroup.add(spark);
+    layers.push(spark);
     flameGroup.visible = false;
     return { group: flameGroup, layers: layers };
   }
 
-  // ============ 沙漠之鹰（PSX 风格：方正滑套 + 外露枪管 + 大握把） ============
+  // 导轨齿纹生成器（CS 风格皮卡汀尼导轨）
+  function addRailTeeth(g, T, M, x, y, z, len, count, w) {
+    var w = w || 0.05;
+    var step = len / count;
+    for (var i = 0; i < count; i++) {
+      var tooth = new T.Mesh(new T.BoxGeometry(w, 0.008, step * 0.6), M.gunmetal);
+      tooth.position.set(x, y, z - i * step + step * 0.5);
+      g.add(tooth);
+    }
+  }
+
+  // 防滑纹生成器（握把表面）
+  function addGripTexture(g, T, M, cx, cy, cz, rows, cols, mat) {
+    var mat = mat || M.rubber;
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var dot = new T.Mesh(new T.BoxGeometry(0.008, 0.008, 0.008), mat);
+        dot.position.set(cx + (c - cols / 2) * 0.012, cy - r * 0.014, cz);
+        g.add(dot);
+      }
+    }
+  }
+
+  // ============ 沙漠之鹰 .50AE（CS 风格：棱角滑套 + 棱纹枪管 + 战术导轨） ============
   function buildDesertEagle(g, M, T, st) {
-    const L = st.len;
-    const anim = { mag: null, pump: null, bolt: null, tube: null };
-    // 滑套（方正，收敛在前方）
-    const slide = new T.Mesh(new T.BoxGeometry(0.07, 0.08, 0.2), M.dark);
-    slide.position.set(0, 0.02, -L * 0.42 - 0.04);
+    var L = st.len;
+    var anim = { mag: null, pump: null, bolt: null, tube: null };
+
+    // —— 滑套（棱角分明，前窄后宽）——
+    var slide = new T.Mesh(new T.BoxGeometry(0.075, 0.085, 0.22), M.gunmetal);
+    slide.position.set(0, 0.025, -L * 0.4 - 0.03);
     g.add(slide);
-    // 顶部锯齿纹
-    for (let i = 0; i < 3; i++) {
-      const ser = new T.Mesh(new T.BoxGeometry(0.071, 0.012, 0.007), M.steel);
-      ser.position.set(0, 0.07, -L * 0.42 - 0.06 - i * 0.035);
+    // 滑套侧面棱纹（CS 风格防滑）
+    for (var si = 0; si < 5; si++) {
+      var ser = new T.Mesh(new T.BoxGeometry(0.077, 0.006, 0.008), M.polymer);
+      ser.position.set(0, 0.068, -L * 0.4 - 0.08 - si * 0.03);
       g.add(ser);
     }
-    // 外露枪管
-    const barrel = new T.Mesh(new T.CylinderGeometry(0.026, 0.026, 0.11, 8), M.steel);
+    // 滑套前部收窄
+    var slideFront = new T.Mesh(new T.BoxGeometry(0.06, 0.07, 0.06), M.gunmetal);
+    slideFront.position.set(0, 0.022, -L * 0.4 - 0.17);
+    g.add(slideFront);
+
+    // —— 棱纹枪管（外露，CS 标志性三角棱纹）——
+    var barrel = new T.Mesh(new T.CylinderGeometry(0.024, 0.028, 0.13, 6), M.chrome);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, -0.005, -L * 0.42 - 0.18);
+    barrel.position.set(0, 0.015, -L * 0.4 - 0.22);
     barrel.userData.part = 'barrel';
     g.add(barrel);
-    // 枪口帽
-    const muzzleRing = new T.Mesh(new T.CylinderGeometry(0.036, 0.036, 0.03, 8), M.dark);
-    muzzleRing.rotation.x = Math.PI / 2;
-    muzzleRing.position.set(0, -0.005, -L * 0.42 - 0.25);
-    muzzleRing.userData.part = 'barrel';
-    g.add(muzzleRing);
-    // 大型握把（沙鹰标志，整体前移；v8.0 缩短高度避免 FOV75 下超出屏幕下边缘）
-    const grip = new T.Mesh(new T.BoxGeometry(0.076, 0.11, 0.085), M.dark);
-    grip.position.set(0, -0.085, -0.03);
-    grip.rotation.x = 0.18;
-    g.add(grip);
-    // 握把防滑纹
-    for (let i = 0; i < 3; i++) {
-      const groove = new T.Mesh(new T.BoxGeometry(0.08, 0.01, 0.006), M.steel);
-      groove.position.set(0, -0.045 - i * 0.04, 0.03);
-      groove.rotation.x = 0.18;
-      g.add(groove);
+    // 棱纹（6 道纵向沟槽）
+    for (var fi = 0; fi < 6; fi++) {
+      var a = (fi / 6) * Math.PI * 2;
+      var fin = new T.Mesh(new T.BoxGeometry(0.004, 0.006, 0.1), M.bright);
+      fin.position.set(Math.cos(a) * 0.026, 0.015 + Math.sin(a) * 0.026, -L * 0.4 - 0.22);
+      fin.rotation.z = a;
+      g.add(fin);
     }
-    // 扳机护圈 + 扳机
-    const guard = new T.Mesh(new T.BoxGeometry(0.08, 0.04, 0.015), M.steel);
-    guard.position.set(0, -0.016, -0.09);
+    // 枪口制退器（CS 风格）
+    var muzzleBrake = new T.Mesh(new T.CylinderGeometry(0.034, 0.03, 0.04, 8), M.bright);
+    muzzleBrake.rotation.x = Math.PI / 2;
+    muzzleBrake.position.set(0, 0.015, -L * 0.4 - 0.3);
+    muzzleBrake.userData.part = 'barrel';
+    g.add(muzzleBrake);
+
+    // —— 握把（大角度倾斜，沙鹰标志）——
+    var grip = new T.Mesh(new T.BoxGeometry(0.07, 0.12, 0.08), M.polymer);
+    grip.position.set(0, -0.09, -0.02);
+    grip.rotation.x = 0.2;
+    g.add(grip);
+    // 握把防滑橡胶面
+    addGripTexture(g, T, M, 0.036, -0.04, -0.01, 5, 3, M.rubber);
+    addGripTexture(g, T, M, -0.036, -0.04, -0.01, 5, 3, M.rubber);
+
+    // —— 扳机护圈 + 扳机 ——
+    var guard = new T.Mesh(new T.TorusGeometry(0.022, 0.006, 6, 10, Math.PI), M.gunmetal);
+    guard.position.set(0, -0.025, -0.08);
+    guard.rotation.x = Math.PI / 2;
     g.add(guard);
-    const trigger = new T.Mesh(new T.BoxGeometry(0.017, 0.032, 0.01), M.dark);
-    trigger.position.set(0, -0.04, -0.11);
+    var trigger = new T.Mesh(new T.BoxGeometry(0.012, 0.03, 0.008), M.polymer);
+    trigger.position.set(0, -0.035, -0.095);
     g.add(trigger);
-    // 击锤
-    const hammer = new T.Mesh(new T.BoxGeometry(0.042, 0.042, 0.017), M.steel);
-    hammer.position.set(0, 0.04, -0.015);
-    hammer.rotation.x = -0.3;
+
+    // —— 击锤 ——
+    var hammer = new T.Mesh(new T.BoxGeometry(0.035, 0.04, 0.014), M.chrome);
+    hammer.position.set(0, 0.045, -0.005);
+    hammer.rotation.x = -0.25;
     g.add(hammer);
-    // 瞄具导轨 + 准星
-    const rail = new T.Mesh(new T.BoxGeometry(0.045, 0.013, 0.09), M.steel);
-    rail.position.set(0, 0.078, -L * 0.4 - 0.06);
-    g.add(rail);
-    const frontSight = new T.Mesh(new T.BoxGeometry(0.017, 0.028, 0.011), M.dark);
-    frontSight.position.set(0, 0.072, -L * 0.42 - 0.22);
+
+    // —— 战术导轨 + 准星 ——
+    addRailTeeth(g, T, M, 0, 0.075, -L * 0.4 - 0.05, 0.1, 5, 0.05);
+    var frontSight = new T.Mesh(new T.BoxGeometry(0.014, 0.025, 0.009), M.polymer);
+    frontSight.position.set(0, 0.07, -L * 0.4 - 0.27);
     g.add(frontSight);
-    // 弹匣（换弹动画）
-    const mag = new T.Mesh(new T.BoxGeometry(0.05, 0.08, 0.055), M.steel);
-    mag.position.set(0, -0.145, -L * 0.42 - 0.03);
-    mag.rotation.x = 0.1;
+    var frontSightDot = new T.Mesh(new T.SphereGeometry(0.004, 6, 4), M.redDot);
+    frontSightDot.position.set(0, 0.083, -L * 0.4 - 0.27);
+    g.add(frontSightDot);
+    // 照门
+    var rearSight = new T.Mesh(new T.BoxGeometry(0.04, 0.02, 0.012), M.polymer);
+    rearSight.position.set(0, 0.07, -L * 0.4 + 0.02);
+    g.add(rearSight);
+
+    // —— 弹匣（换弹动画）——
+    var mag = new T.Mesh(new T.BoxGeometry(0.048, 0.09, 0.06), M.gunmetal);
+    mag.position.set(0, -0.15, -L * 0.4 - 0.02);
+    mag.rotation.x = 0.12;
     g.add(mag);
+    // 弹匣底板
+    var magBase = new T.Mesh(new T.BoxGeometry(0.052, 0.012, 0.064), M.polymer);
+    magBase.position.set(0, -0.195, -L * 0.4 - 0.01);
+    magBase.rotation.x = 0.12;
+    g.add(magBase);
     anim.mag = mag;
+
     return anim;
   }
 
-  // ============ AK-47（PSX 风格：机匣 + 木护木 + 导气管 + 弧形弹匣 + 前移枪托） ============
+  // ============ AK-47（CS 风格：冲压机匣 + 木护木 + 弧形弹匣 + 斜切消焰器） ============
   function buildAK47(g, M, T, st) {
-    const L = st.len;
-    const anim = { mag: null, pump: null, bolt: null, tube: null };
-    // 机匣
-    const receiver = new T.Mesh(new T.BoxGeometry(0.072, 0.085, 0.18), M.dark);
-    receiver.position.set(0, 0.015, -L * 0.42 - 0.02);
+    var L = st.len;
+    var anim = { mag: null, pump: null, bolt: null, tube: null };
+
+    // —— 机匣（冲压钢，CS 标志性长方形）——
+    var receiver = new T.Mesh(new T.BoxGeometry(0.068, 0.075, 0.2), M.gunmetal);
+    receiver.position.set(0, 0.02, -L * 0.38);
     g.add(receiver);
-    // 木质护木
-    const handguard = new T.Mesh(new T.BoxGeometry(0.068, 0.07, 0.11), M.wood);
-    handguard.position.set(0, -0.013, -L * 0.55 - 0.03);
+    // 机匣顶盖（略小，可拆卸感）
+    var topCover = new T.Mesh(new T.BoxGeometry(0.064, 0.015, 0.18), M.chrome);
+    topCover.position.set(0, 0.063, -L * 0.38);
+    g.add(topCover);
+    // 顶盖纵向加强筋
+    for (var ri = 0; ri < 3; ri++) {
+      var rib = new T.Mesh(new T.BoxGeometry(0.004, 0.004, 0.17), M.gunmetal);
+      rib.position.set(-0.02 + ri * 0.02, 0.071, -L * 0.38);
+      g.add(rib);
+    }
+
+    // —— 木质下护木 ——
+    var handguard = new T.Mesh(new T.BoxGeometry(0.062, 0.055, 0.12), M.wood);
+    handguard.position.set(0, -0.018, -L * 0.52);
     g.add(handguard);
-    // 导气管
-    const gasTube = new T.Mesh(new T.CylinderGeometry(0.024, 0.024, 0.2, 8), M.steel);
+    // 护木防滑纹
+    for (var hi = 0; hi < 4; hi++) {
+      var hg = new T.Mesh(new T.BoxGeometry(0.064, 0.006, 0.01), M.woodDark);
+      hg.position.set(0, -0.018, -L * 0.48 - hi * 0.03);
+      g.add(hg);
+    }
+
+    // —— 导气管 + 气体调节器 ——
+    var gasTube = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, 0.16, 8), M.chrome);
     gasTube.rotation.x = Math.PI / 2;
-    gasTube.position.set(0, 0.052, -L * 0.57);
+    gasTube.position.set(0, 0.04, -L * 0.54);
     gasTube.userData.part = 'barrel';
     g.add(gasTube);
-    // 枪管
-    const barrel = new T.Mesh(new T.CylinderGeometry(0.02, 0.02, st.barrelLen, 8), M.steel);
+    // 气块
+    var gasBlock = new T.Mesh(new T.BoxGeometry(0.04, 0.05, 0.04), M.gunmetal);
+    gasBlock.position.set(0, 0.02, -L * 0.62);
+    g.add(gasBlock);
+
+    // —— 枪管 ——
+    var barrel = new T.Mesh(new T.CylinderGeometry(0.016, 0.016, st.barrelLen, 8), M.chrome);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.0, -L * 0.42 - 0.1 - st.barrelLen / 2);
+    barrel.position.set(0, 0.005, -L * 0.38 - 0.1 - st.barrelLen / 2);
     barrel.userData.part = 'barrel';
     g.add(barrel);
-    // 准星 + 照门
-    const frontSight = new T.Mesh(new T.BoxGeometry(0.02, 0.04, 0.016), M.dark);
-    frontSight.position.set(0, 0.06, -L * 0.42 - st.barrelLen + 0.02);
+
+    // —— 斜切消焰器（AK-47 标志）——
+    var muzzle = new T.Mesh(new T.CylinderGeometry(0.022, 0.02, 0.045, 8), M.bright);
+    muzzle.rotation.x = Math.PI / 2;
+    muzzle.position.set(0, 0.005, -L * 0.38 - 0.1 - st.barrelLen - 0.02);
+    muzzle.userData.part = 'barrel';
+    g.add(muzzle);
+    // 斜切口
+    var muzzleCut = new T.Mesh(new T.BoxGeometry(0.05, 0.015, 0.02), M.bright);
+    muzzleCut.position.set(0, 0.02, -L * 0.38 - 0.1 - st.barrelLen - 0.04);
+    muzzleCut.rotation.x = -0.35;
+    g.add(muzzleCut);
+
+    // —— 准星柱（AK 标志性倾斜准星）——
+    var frontSight = new T.Mesh(new T.BoxGeometry(0.018, 0.045, 0.014), M.gunmetal);
+    frontSight.position.set(0, 0.055, -L * 0.62);
+    frontSight.rotation.x = -0.1;
     g.add(frontSight);
-    const rearSight = new T.Mesh(new T.BoxGeometry(0.026, 0.032, 0.016), M.dark);
-    rearSight.position.set(0, 0.06, -L * 0.42 - 0.12);
+    // 照门（滑槽式）
+    var rearSight = new T.Mesh(new T.BoxGeometry(0.05, 0.025, 0.02), M.gunmetal);
+    rearSight.position.set(0, 0.06, -L * 0.38 + 0.02);
     g.add(rearSight);
-    // 弧形弹匣（AK 标志，换弹动画）
-    const mag = new T.Mesh(new T.BoxGeometry(0.052, 0.13, 0.08), M.accent);
-    mag.position.set(0, -0.11, -L * 0.42 - 0.06);
-    mag.rotation.x = -0.42;
-    mag.rotation.z = 0.1;
+    var rearNotch = new T.Mesh(new T.BoxGeometry(0.012, 0.01, 0.022), M.polymer);
+    rearNotch.position.set(0, 0.072, -L * 0.38 + 0.02);
+    g.add(rearNotch);
+
+    // —— 弧形弹匣（AK 标志，CS 经典橙色/钢色）——
+    var mag = new T.Mesh(new T.BoxGeometry(0.04, 0.14, 0.07), M.bright);
+    mag.position.set(0, -0.12, -L * 0.38 - 0.05);
+    mag.rotation.x = -0.35;
     g.add(mag);
+    // 弹匣弧线（底部前倾）
+    var magCurve = new T.Mesh(new T.BoxGeometry(0.04, 0.05, 0.06), M.bright);
+    magCurve.position.set(0, -0.18, -L * 0.38 - 0.01);
+    magCurve.rotation.x = -0.55;
+    g.add(magCurve);
     anim.mag = mag;
-    // 木质枪托（前移！旧版 z=+0.1 在相机后方导致残缺）
-    const stock = new T.Mesh(new T.BoxGeometry(0.062, 0.085, 0.12), M.woodDark);
-    stock.position.set(0, -0.005, -0.07);
+
+    // —— 木质枪托 ——
+    var stock = new T.Mesh(new T.BoxGeometry(0.058, 0.08, 0.13), M.woodDark);
+    stock.position.set(0, -0.005, -0.06);
     stock.userData.part = 'stock';
     g.add(stock);
-    // 握把
-    const grip = new T.Mesh(new T.BoxGeometry(0.048, 0.095, 0.055), M.wood);
-    grip.position.set(0, -0.095, -L * 0.42 + 0.0);
-    grip.rotation.x = 0.24;
+    // 枪托底板
+    var buttPlate = new T.Mesh(new T.BoxGeometry(0.06, 0.085, 0.015), M.gunmetal);
+    buttPlate.position.set(0, -0.005, 0.005);
+    buttPlate.userData.part = 'stock';
+    g.add(buttPlate);
+
+    // —— 握把（聚合物）——
+    var grip = new T.Mesh(new T.BoxGeometry(0.042, 0.09, 0.05), M.polymer);
+    grip.position.set(0, -0.085, -L * 0.38 + 0.02);
+    grip.rotation.x = 0.22;
     g.add(grip);
-    // 扳机护圈
-    const guard = new T.Mesh(new T.BoxGeometry(0.052, 0.032, 0.013), M.steel);
-    guard.position.set(0, -0.026, -L * 0.42 - 0.04);
+    addGripTexture(g, T, M, 0.024, -0.045, -L * 0.38 + 0.025, 4, 2, M.rubber);
+    addGripTexture(g, T, M, -0.024, -0.045, -L * 0.38 + 0.025, 4, 2, M.rubber);
+
+    // —— 扳机护圈 ——
+    var guard = new T.Mesh(new T.TorusGeometry(0.02, 0.005, 6, 10, Math.PI), M.gunmetal);
+    guard.position.set(0, -0.025, -L * 0.38 - 0.02);
+    guard.rotation.x = Math.PI / 2;
     g.add(guard);
-    // 拉机柄（换弹动画）
-    const bolt = new T.Mesh(new T.BoxGeometry(0.019, 0.023, 0.045), M.steel);
-    bolt.position.set(0.042, 0.042, -L * 0.42 + 0.03);
+
+    // —— 拉机柄（右后侧，CS 标志性大拨片）——
+    var bolt = new T.Mesh(new T.CylinderGeometry(0.01, 0.01, 0.06, 6), M.chrome);
+    bolt.rotation.z = Math.PI / 2;
+    bolt.position.set(0.05, 0.05, -L * 0.38 + 0.06);
     g.add(bolt);
+    var boltHandle = new T.Mesh(new T.SphereGeometry(0.014, 6, 5), M.bright);
+    boltHandle.position.set(0.06, 0.05, -L * 0.38 + 0.06);
+    g.add(boltHandle);
     anim.bolt = bolt;
+
     return anim;
   }
 
-  // ============ 泵动霰弹枪（PSX 风格：泵动护木 + 双管轮廓 + 前移枪托） ============
+  // ============ Nova 泵动霰弹枪（CS 风格：木泵 + 双管轮廓 + 弹仓管） ============
   function buildShotgun(g, M, T, st) {
-    const L = st.len;
-    const anim = { mag: null, pump: null, bolt: null, tube: null };
-    // 木质枪托（前移！）
-    const stock = new T.Mesh(new T.BoxGeometry(0.062, 0.09, 0.12), M.woodDark);
+    var L = st.len;
+    var anim = { mag: null, pump: null, bolt: null, tube: null };
+
+    // —— 木质枪托（含贴腮板）——
+    var stock = new T.Mesh(new T.BoxGeometry(0.06, 0.085, 0.14), M.woodDark);
     stock.position.set(0, -0.01, -0.06);
     stock.userData.part = 'stock';
     g.add(stock);
-    // 机匣
-    const receiver = new T.Mesh(new T.BoxGeometry(0.068, 0.085, 0.14), M.steel);
-    receiver.position.set(0, 0.0, -L * 0.36);
-    g.add(receiver);
-    // 枪管
-    const barrel = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, st.barrelLen + 0.06, 8), M.steel);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.028, -L * 0.36 - 0.07 - (st.barrelLen + 0.06) / 2);
-    barrel.userData.part = 'barrel';
-    g.add(barrel);
-    // 弹仓管
-    const magTube = new T.Mesh(new T.CylinderGeometry(0.019, 0.019, st.barrelLen - 0.02, 8), M.dark);
-    magTube.rotation.x = Math.PI / 2;
-    magTube.position.set(0, -0.028, -L * 0.35 - (st.barrelLen - 0.02) / 2);
-    magTube.userData.part = 'barrel';
-    g.add(magTube);
-    // 泵动护木（换弹动画）
-    const pump = new T.Mesh(new T.BoxGeometry(0.062, 0.08, 0.11), M.wood);
-    pump.position.set(0, -0.005, -L * 0.42 - 0.08);
-    g.add(pump);
-    anim.pump = pump;
-    // 握把 + 护圈
-    const grip = new T.Mesh(new T.BoxGeometry(0.048, 0.095, 0.055), M.woodDark);
-    grip.position.set(0, -0.095, -L * 0.36 + 0.0);
-    grip.rotation.x = 0.22;
-    g.add(grip);
-    const guard = new T.Mesh(new T.BoxGeometry(0.052, 0.032, 0.013), M.steel);
-    guard.position.set(0, -0.024, -L * 0.36 - 0.04);
-    g.add(guard);
-    // 前端准星
-    const bead = new T.Mesh(new T.SphereGeometry(0.01, 5, 4), M.accent);
-    bead.position.set(0, 0.052, -L * 0.36 - 0.07 - (st.barrelLen + 0.06));
-    g.add(bead);
-    return anim;
-  }
-
-  // ============ 栓动狙击（PSX 风格：长枪管 + 高倍镜 + 前移枪托） ============
-  function buildSniper(g, M, T, st) {
-    const L = st.len;
-    const anim = { mag: null, pump: null, bolt: null, tube: null };
-    // 长枪管
-    const barrel = new T.Mesh(new T.CylinderGeometry(0.017, 0.017, st.barrelLen + 0.05, 8), M.steel);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.018, -L * 0.4 - 0.07 - (st.barrelLen + 0.05) / 2);
-    barrel.userData.part = 'barrel';
-    g.add(barrel);
-    // 机匣
-    const receiver = new T.Mesh(new T.BoxGeometry(0.062, 0.08, 0.17), M.dark);
-    receiver.position.set(0, 0.01, -L * 0.42);
-    g.add(receiver);
-    // 枪托（带贴腮板，前移！）
-    const stock = new T.Mesh(new T.BoxGeometry(0.062, 0.1, 0.14), M.woodDark);
-    stock.position.set(0, -0.018, -0.08);
-    stock.userData.part = 'stock';
-    g.add(stock);
-    const cheek = new T.Mesh(new T.BoxGeometry(0.052, 0.032, 0.1), M.wood);
-    cheek.position.set(0, 0.038, -0.08);
+    // 枪托底板
+    var butt = new T.Mesh(new T.BoxGeometry(0.062, 0.09, 0.012), M.gunmetal);
+    butt.position.set(0, -0.01, 0.01);
+    butt.userData.part = 'stock';
+    g.add(butt);
+    // 贴腮板
+    var cheek = new T.Mesh(new T.BoxGeometry(0.05, 0.015, 0.1), M.wood);
+    cheek.position.set(0, 0.04, -0.05);
     cheek.userData.part = 'stock';
     g.add(cheek);
-    // 高倍镜
-    const scope = new T.Mesh(new T.CylinderGeometry(0.032, 0.032, 0.2, 10), M.dark);
-    scope.rotation.x = Math.PI / 2;
-    scope.position.set(0, 0.075, -L * 0.48);
-    g.add(scope);
-    const scopeFront = new T.Mesh(new T.CylinderGeometry(0.024, 0.024, 0.04, 10), M.dark);
-    scopeFront.rotation.x = Math.PI / 2;
-    scopeFront.position.set(0, 0.075, -L * 0.48 - 0.12);
-    g.add(scopeFront);
-    const lens = new T.Mesh(new T.CircleGeometry(0.03, 10), M.lens);
-    lens.rotation.y = Math.PI / 2;
-    lens.position.set(0, 0.075, -L * 0.48 - 0.1);
-    g.add(lens);
-    for (let i = 0; i < 2; i++) {
-      const ring = new T.Mesh(new T.CylinderGeometry(0.042, 0.042, 0.016, 8), M.steel);
-      ring.rotation.x = Math.PI / 2;
-      ring.position.set(0, 0.075, -L * 0.48 - 0.05 + i * 0.09);
-      g.add(ring);
+
+    // —— 机匣（钢制）——
+    var receiver = new T.Mesh(new T.BoxGeometry(0.062, 0.075, 0.15), M.gunmetal);
+    receiver.position.set(0, 0.005, -L * 0.34);
+    g.add(receiver);
+    // 机匣顶部导轨
+    addRailTeeth(g, T, M, 0, 0.045, -L * 0.34 - 0.05, 0.12, 6, 0.05);
+
+    // —— 枪管（粗管）——
+    var barrel = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, st.barrelLen + 0.08, 10), M.chrome);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.02, -L * 0.34 - 0.08 - (st.barrelLen + 0.08) / 2);
+    barrel.userData.part = 'barrel';
+    g.add(barrel);
+    // 枪管喉部（连接机匣处略粗）
+    var barrelH = new T.Mesh(new T.CylinderGeometry(0.028, 0.022, 0.04, 10), M.gunmetal);
+    barrelH.rotation.x = Math.PI / 2;
+    barrelH.position.set(0, 0.02, -L * 0.34 - 0.08);
+    barrelH.userData.part = 'barrel';
+    g.add(barrelH);
+
+    // —— 弹仓管（下方）——
+    var magTube = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, st.barrelLen - 0.04, 8), M.gunmetal);
+    magTube.rotation.x = Math.PI / 2;
+    magTube.position.set(0, -0.025, -L * 0.33 - (st.barrelLen - 0.04) / 2);
+    magTube.userData.part = 'barrel';
+    g.add(magTube);
+    // 弹仓管帽
+    var tubeCap = new T.Mesh(new T.CylinderGeometry(0.022, 0.018, 0.025, 8), M.bright);
+    tubeCap.rotation.x = Math.PI / 2;
+    tubeCap.position.set(0, -0.025, -L * 0.33 - (st.barrelLen - 0.04));
+    tubeCap.userData.part = 'barrel';
+    g.add(tubeCap);
+
+    // —— 木质泵动护木（换弹动画）——
+    var pump = new T.Mesh(new T.BoxGeometry(0.058, 0.07, 0.12), M.wood);
+    pump.position.set(0, -0.012, -L * 0.4 - 0.05);
+    g.add(pump);
+    // 泵动护木防滑纹
+    for (var pi = 0; pi < 5; pi++) {
+      var pg = new T.Mesh(new T.BoxGeometry(0.06, 0.006, 0.01), M.woodDark);
+      pg.position.set(0, -0.012, -L * 0.4 - 0.01 - pi * 0.022);
+      g.add(pg);
     }
-    // 拉机柄（换弹动画）
-    const bolt = new T.Mesh(new T.CylinderGeometry(0.009, 0.009, 0.06, 6), M.steel);
-    bolt.rotation.x = Math.PI / 2;
-    bolt.position.set(0.038, 0.047, -L * 0.42 + 0.03);
-    g.add(bolt);
-    const boltKnob = new T.Mesh(new T.SphereGeometry(0.016, 6, 5), M.steel);
-    boltKnob.position.set(0.042, 0.042, -L * 0.42 + 0.06);
-    g.add(boltKnob);
-    anim.bolt = bolt;
-    // 握把 + 弹匣
-    const grip = new T.Mesh(new T.BoxGeometry(0.042, 0.09, 0.05), M.dark);
-    grip.position.set(0, -0.09, -L * 0.4);
+    anim.pump = pump;
+
+    // —— 握把 + 扳机护圈 ——
+    var grip = new T.Mesh(new T.BoxGeometry(0.046, 0.09, 0.05), M.woodDark);
+    grip.position.set(0, -0.085, -L * 0.34 + 0.01);
     grip.rotation.x = 0.22;
     g.add(grip);
-    const mag = new T.Mesh(new T.BoxGeometry(0.036, 0.06, 0.05), M.accent);
-    mag.position.set(0, -0.1, -L * 0.38);
-    mag.rotation.x = 0.08;
-    g.add(mag);
-    anim.mag = mag;
+    var guard = new T.Mesh(new T.TorusGeometry(0.022, 0.005, 6, 10, Math.PI), M.gunmetal);
+    guard.position.set(0, -0.025, -L * 0.34 - 0.04);
+    guard.rotation.x = Math.PI / 2;
+    g.add(guard);
+
+    // —— 前端珠形准星 ——
+    var bead = new T.Mesh(new T.SphereGeometry(0.008, 6, 5), M.bright);
+    bead.position.set(0, 0.05, -L * 0.34 - 0.08 - (st.barrelLen + 0.08));
+    g.add(bead);
+
     return anim;
   }
 
-  // ============ 喷火器（PSX 风格：粗喷嘴 + 双燃料罐） ============
+  // ============ 喷火器（CS 风格：双燃料罐 + 阀门 + 引火管 + 战术握把） ============
   function buildFlamethrower(g, M, T, st) {
-    const L = st.len;
-    const anim = { mag: null, pump: null, bolt: null, tube: null };
-    // 粗喷嘴
-    const nozzle = new T.Mesh(new T.CylinderGeometry(0.042, 0.03, st.barrelLen, 8), M.dark);
+    var L = st.len;
+    var anim = { mag: null, pump: null, bolt: null, tube: null };
+
+    // —— 喷嘴（锥形管口 + 引火器）——
+    var nozzle = new T.Mesh(new T.CylinderGeometry(0.038, 0.028, 0.16, 10), M.gunmetal);
     nozzle.rotation.x = Math.PI / 2;
-    nozzle.position.set(0, 0.01, -L * 0.45 - st.barrelLen / 2);
+    nozzle.position.set(0, 0.015, -L * 0.42 - 0.08);
     nozzle.userData.part = 'barrel';
     g.add(nozzle);
-    // 喷口帽
-    const cap = new T.Mesh(new T.CylinderGeometry(0.047, 0.042, 0.04, 8), M.accent);
+    // 喷口帽（战术橙）
+    var cap = new T.Mesh(new T.CylinderGeometry(0.044, 0.038, 0.04, 10), M.tacOrange);
     cap.rotation.x = Math.PI / 2;
-    cap.position.set(0, 0.01, -L * 0.45 - st.barrelLen - 0.02);
+    cap.position.set(0, 0.015, -L * 0.42 - 0.18);
     cap.userData.part = 'barrel';
     g.add(cap);
-    // 双燃料罐（前移）
-    const tankA = new T.Mesh(new T.CylinderGeometry(0.1, 0.1, 0.2, 10), M.accent);
-    tankA.rotation.x = Math.PI / 2;
-    tankA.position.set(-0.06, -0.08, -0.04);
-    g.add(tankA);
-    const tankB = new T.Mesh(new T.CylinderGeometry(0.082, 0.082, 0.17, 10), M.dark);
-    tankB.rotation.x = Math.PI / 2;
-    tankB.position.set(0.06, -0.08, -0.04);
-    g.add(tankB);
-    // 肩托（前移）
-    const brace = new T.Mesh(new T.BoxGeometry(0.042, 0.08, 0.1), M.dark);
-    brace.position.set(0, 0.02, -0.05);
+    // 引火口（小管）
+    var pilot = new T.Mesh(new T.CylinderGeometry(0.006, 0.006, 0.08, 6), M.bright);
+    pilot.rotation.x = Math.PI / 2;
+    pilot.position.set(0.02, 0.04, -L * 0.42 - 0.15);
+    pilot.userData.part = 'barrel';
+    g.add(pilot);
+
+    // —— 连接管（喷嘴到罐体）——
+    var pipe = new T.Mesh(new T.CylinderGeometry(0.014, 0.014, 0.2, 8), M.chrome);
+    pipe.rotation.x = Math.PI / 2;
+    pipe.position.set(0, -0.02, -L * 0.42 - 0.02);
+    g.add(pipe);
+
+    // —— 双燃料罐（主罐 + 副罐，CS 风格圆筒造型）——
+    var tankMain = new T.Mesh(new T.CylinderGeometry(0.085, 0.085, 0.24, 12), M.tacOrange);
+    tankMain.rotation.x = Math.PI / 2;
+    tankMain.position.set(-0.055, -0.06, -0.02);
+    g.add(tankMain);
+    // 罐体端盖
+    var capA = new T.Mesh(new T.CylinderGeometry(0.087, 0.085, 0.025, 12), M.gunmetal);
+    capA.rotation.x = Math.PI / 2;
+    capA.position.set(-0.055, -0.06, 0.1);
+    g.add(capA);
+    var capB = new T.Mesh(new T.CylinderGeometry(0.087, 0.085, 0.025, 12), M.gunmetal);
+    capB.rotation.x = Math.PI / 2;
+    capB.position.set(-0.055, -0.06, -0.14);
+    g.add(capB);
+
+    // 副罐（钢色，稍小）
+    var tankSub = new T.Mesh(new T.CylinderGeometry(0.07, 0.07, 0.2, 12), M.gunmetal);
+    tankSub.rotation.x = Math.PI / 2;
+    tankSub.position.set(0.06, -0.06, -0.02);
+    g.add(tankSub);
+    var capC = new T.Mesh(new T.CylinderGeometry(0.072, 0.07, 0.02, 12), M.bright);
+    capC.rotation.x = Math.PI / 2;
+    capC.position.set(0.06, -0.06, 0.1);
+    g.add(capC);
+
+    // 阀门（黄铜）
+    var valve = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.04, 8), M.brass);
+    valve.rotation.z = Math.PI / 2;
+    valve.position.set(-0.02, 0.02, -0.02);
+    g.add(valve);
+    // 阀轮
+    var wheel = new T.Mesh(new T.TorusGeometry(0.016, 0.005, 6, 8), M.brass);
+    wheel.position.set(0.0, 0.02, -0.02);
+    g.add(wheel);
+
+    // —— 气压表 ——
+    var gauge = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, 0.01, 8), M.bright);
+    gauge.rotation.x = Math.PI / 2;
+    gauge.position.set(0.035, 0.02, -L * 0.25);
+    g.add(gauge);
+    var gaugeFace = new T.Mesh(new T.CircleGeometry(0.014, 8), new T.MeshBasicMaterial({ color: 0x111111 }));
+    gaugeFace.position.set(0.035, 0.02, -L * 0.25 - 0.006);
+    gaugeFace.rotation.y = Math.PI / 2;
+    g.add(gaugeFace);
+
+    // —— 肩托（前移）——
+    var brace = new T.Mesh(new T.BoxGeometry(0.05, 0.07, 0.1), M.gunmetal);
+    brace.position.set(0, 0.015, -0.04);
     brace.userData.part = 'stock';
     g.add(brace);
-    // 握把 + 扳机
-    const grip = new T.Mesh(new T.BoxGeometry(0.048, 0.1, 0.055), M.dark);
-    grip.position.set(0, -0.1, -L * 0.18);
-    grip.rotation.x = 0.2;
+    var pad = new T.Mesh(new T.BoxGeometry(0.052, 0.075, 0.02), M.rubber);
+    pad.position.set(0, 0.015, 0.01);
+    pad.userData.part = 'stock';
+    g.add(pad);
+
+    // —— 握把 + 扳机 ——
+    var grip = new T.Mesh(new T.BoxGeometry(0.046, 0.1, 0.05), M.polymer);
+    grip.position.set(0, -0.09, -L * 0.18);
+    grip.rotation.x = 0.18;
     g.add(grip);
-    // 气压表
-    const gauge = new T.Mesh(new T.CylinderGeometry(0.019, 0.019, 0.011, 8), M.steel);
-    gauge.rotation.x = Math.PI / 2;
-    gauge.position.set(0.038, 0.01, -L * 0.28);
-    g.add(gauge);
+    addGripTexture(g, T, M, 0.025, -0.05, -L * 0.18 + 0.025, 4, 2, M.rubber);
+    addGripTexture(g, T, M, -0.025, -0.05, -L * 0.18 + 0.025, 4, 2, M.rubber);
+    var guard = new T.Mesh(new T.TorusGeometry(0.02, 0.005, 6, 10, Math.PI), M.gunmetal);
+    guard.position.set(0, -0.025, -L * 0.18 - 0.04);
+    guard.rotation.x = Math.PI / 2;
+    g.add(guard);
+
     return anim;
   }
 
-  // ============ 火箭筒（PSX 风格：粗发射管 + 喇叭口 + 弹头） ============
+  // ============ AWP 狙击（CS 风格：长枪管 + 消音器 + 大倍率镜 + 两脚架 + 战术枪托） ============
+  function buildSniper(g, M, T, st) {
+    var L = st.len;
+    var anim = { mag: null, pump: null, bolt: null, tube: null };
+
+    // —— 长枪管 ——
+    var barrel = new T.Mesh(new T.CylinderGeometry(0.015, 0.017, st.barrelLen + 0.06, 10), M.chrome);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.012, -L * 0.38 - 0.08 - (st.barrelLen + 0.06) / 2);
+    barrel.userData.part = 'barrel';
+    g.add(barrel);
+    // 枪管喉部
+    var barrelH = new T.Mesh(new T.CylinderGeometry(0.024, 0.017, 0.04, 10), M.gunmetal);
+    barrelH.rotation.x = Math.PI / 2;
+    barrelH.position.set(0, 0.012, -L * 0.38 - 0.08);
+    barrelH.userData.part = 'barrel';
+    g.add(barrelH);
+    // 消音器（CS AWP 标志）
+    var suppressor = new T.Mesh(new T.CylinderGeometry(0.026, 0.024, 0.12, 12), M.gunmetal);
+    suppressor.rotation.x = Math.PI / 2;
+    suppressor.position.set(0, 0.012, -L * 0.38 - 0.08 - (st.barrelLen + 0.06) - 0.06);
+    suppressor.userData.part = 'barrel';
+    g.add(suppressor);
+    // 消音器纹理（环形槽）
+    for (var si2 = 0; si2 < 6; si2++) {
+      var ring = new T.Mesh(new T.CylinderGeometry(0.027, 0.027, 0.006, 12), M.bright);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(0, 0.012, -L * 0.38 - 0.08 - (st.barrelLen + 0.06) - 0.02 - si2 * 0.018);
+      ring.userData.part = 'barrel';
+      g.add(ring);
+    }
+
+    // —— 机匣 ——
+    var receiver = new T.Mesh(new T.BoxGeometry(0.058, 0.07, 0.18), M.gunmetal);
+    receiver.position.set(0, 0.01, -L * 0.4);
+    g.add(receiver);
+    // 机匣顶部导轨（长）
+    addRailTeeth(g, T, M, 0, 0.048, -L * 0.4 - 0.06, 0.18, 9, 0.05);
+
+    // —— 战术枪托（CS 风格可调底板）——
+    var stock = new T.Mesh(new T.BoxGeometry(0.05, 0.09, 0.16), M.polymer);
+    stock.position.set(0, -0.012, -0.07);
+    stock.userData.part = 'stock';
+    g.add(stock);
+    // 贴腮垫
+    var cheek = new T.Mesh(new T.BoxGeometry(0.042, 0.025, 0.12), M.rubber);
+    cheek.position.set(0, 0.035, -0.07);
+    cheek.userData.part = 'stock';
+    g.add(cheek);
+    // 底板
+    var butt = new T.Mesh(new T.BoxGeometry(0.052, 0.095, 0.015), M.rubber);
+    butt.position.set(0, -0.012, 0.01);
+    butt.userData.part = 'stock';
+    g.add(butt);
+    // 缓冲垫
+    var pad = new T.Mesh(new T.BoxGeometry(0.05, 0.08, 0.01), M.fde);
+    pad.position.set(0, -0.012, 0.018);
+    pad.userData.part = 'stock';
+    g.add(pad);
+
+    // —— 大倍率瞄准镜（CS AWP 标志性长筒镜）——
+    var scope = new T.Mesh(new T.CylinderGeometry(0.028, 0.028, 0.24, 12), M.gunmetal);
+    scope.rotation.x = Math.PI / 2;
+    scope.position.set(0, 0.075, -L * 0.44);
+    g.add(scope);
+    // 镜筒前后端
+    var scopeFront = new T.Mesh(new T.CylinderGeometry(0.035, 0.028, 0.03, 12), M.gunmetal);
+    scopeFront.rotation.x = Math.PI / 2;
+    scopeFront.position.set(0, 0.075, -L * 0.44 - 0.13);
+    g.add(scopeFront);
+    var scopeRear = new T.Mesh(new T.CylinderGeometry(0.032, 0.028, 0.025, 12), M.gunmetal);
+    scopeRear.rotation.x = Math.PI / 2;
+    scopeRear.position.set(0, 0.075, -L * 0.44 + 0.13);
+    g.add(scopeRear);
+    // 遮光罩
+    var sunshade = new T.Mesh(new T.CylinderGeometry(0.03, 0.035, 0.04, 12), M.bright);
+    sunshade.rotation.x = Math.PI / 2;
+    sunshade.position.set(0, 0.075, -L * 0.44 - 0.16);
+    g.add(sunshade);
+    // 透镜
+    var lens = new T.Mesh(new T.CircleGeometry(0.026, 12), M.lens);
+    lens.rotation.y = Math.PI / 2;
+    lens.position.set(0, 0.075, -L * 0.44 - 0.14);
+    g.add(lens);
+    // 镜架环
+    for (var rsi = 0; rsi < 2; rsi++) {
+      var sr = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.015, 8), M.bright);
+      sr.rotation.x = Math.PI / 2;
+      sr.position.set(0, 0.075, -L * 0.44 - 0.06 + rsi * 0.12);
+      g.add(sr);
+    }
+    // 镜上调节旋钮
+    var knob = new T.Mesh(new T.CylinderGeometry(0.01, 0.01, 0.018, 8), M.bright);
+    knob.position.set(0, 0.108, -L * 0.44);
+    g.add(knob);
+
+    // —— 拉机柄（右侧，球状把手）——
+    var bolt = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 0.05, 6), M.chrome);
+    bolt.rotation.z = Math.PI / 2;
+    bolt.position.set(0.04, 0.035, -L * 0.4 + 0.05);
+    g.add(bolt);
+    var boltKnob = new T.Mesh(new T.SphereGeometry(0.013, 6, 5), M.bright);
+    boltKnob.position.set(0.052, 0.035, -L * 0.4 + 0.05);
+    g.add(boltKnob);
+    anim.bolt = bolt;
+
+    // —— 握把 + 弹匣 ——
+    var grip = new T.Mesh(new T.BoxGeometry(0.04, 0.08, 0.045), M.polymer);
+    grip.position.set(0, -0.08, -L * 0.4 + 0.01);
+    grip.rotation.x = 0.2;
+    g.add(grip);
+    addGripTexture(g, T, M, 0.022, -0.045, -L * 0.4 + 0.015, 3, 2, M.rubber);
+    addGripTexture(g, T, M, -0.022, -0.045, -L * 0.4 + 0.015, 3, 2, M.rubber);
+    var mag = new T.Mesh(new T.BoxGeometry(0.034, 0.055, 0.045), M.gunmetal);
+    mag.position.set(0, -0.1, -L * 0.4 - 0.01);
+    mag.rotation.x = 0.06;
+    g.add(mag);
+    anim.mag = mag;
+
+    // —— 两脚架（折叠状态，贴枪管）——
+    for (var bi2 = 0; bi2 < 2; bi2++) {
+      var leg = new T.Mesh(new T.CylinderGeometry(0.005, 0.004, 0.08, 5), M.gunmetal);
+      leg.position.set((bi2 === 0 ? -0.03 : 0.03), -0.02, -L * 0.38 - 0.18);
+      leg.rotation.x = -0.3;
+      leg.rotation.z = (bi2 === 0 ? 0.2 : -0.2);
+      leg.userData.part = 'barrel';
+      g.add(leg);
+    }
+
+    // —— 扳机护圈 ——
+    var guard = new T.Mesh(new T.TorusGeometry(0.018, 0.005, 6, 10, Math.PI), M.gunmetal);
+    guard.position.set(0, -0.022, -L * 0.4 - 0.02);
+    guard.rotation.x = Math.PI / 2;
+    g.add(guard);
+
+    return anim;
+  }
+
+  // ============ 火箭筒（CS 风格：粗发射管 + 喇叭口 + 光学瞄具 + 肩垫） ============
   function buildRocket(g, M, T, st) {
-    const L = st.len;
-    const anim = { mag: null, pump: null, bolt: null, tube: null };
-    const tube = new T.Mesh(new T.CylinderGeometry(0.048, 0.048, L * 0.95, 10), M.dark);
+    var L = st.len;
+    var anim = { mag: null, pump: null, bolt: null, tube: null };
+
+    // —— 主发射管 ——
+    var tube = new T.Mesh(new T.CylinderGeometry(0.05, 0.048, L * 0.92, 12), M.gunmetal);
     tube.rotation.x = Math.PI / 2;
-    tube.position.set(0, 0.0, -L * 0.6);
+    tube.position.set(0, 0.0, -L * 0.55);
     tube.userData.part = 'barrel';
     g.add(tube);
-    const flare = new T.Mesh(new T.CylinderGeometry(0.078, 0.048, 0.1, 10), M.dark);
+    // 管体纹理环（CS 风格段纹）
+    for (var ti2 = 0; ti2 < 4; ti2++) {
+      var tring = new T.Mesh(new T.CylinderGeometry(0.052, 0.052, 0.008, 12), M.bright);
+      tring.rotation.x = Math.PI / 2;
+      tring.position.set(0, 0, -L * 0.2 - ti2 * L * 0.18);
+      tring.userData.part = 'barrel';
+      g.add(tring);
+    }
+
+    // —— 喇叭口 ——
+    var flare = new T.Mesh(new T.CylinderGeometry(0.08, 0.05, 0.1, 12), M.gunmetal);
     flare.rotation.x = Math.PI / 2;
-    flare.position.set(0, 0.0, -L * 0.6 - 0.1);
+    flare.position.set(0, 0.0, -L * 0.55 - 0.1);
     flare.userData.part = 'barrel';
     g.add(flare);
-    // 弹头（换弹动画：后抽再装入；整体在管口后方、相机前方）
-    const warhead = new T.Mesh(new T.CylinderGeometry(0.042, 0.026, 0.24, 10), M.accent);
+    // 喇叭口内圈
+    var flareInner = new T.Mesh(new T.CylinderGeometry(0.07, 0.04, 0.08, 12), M.polymer);
+    flareInner.rotation.x = Math.PI / 2;
+    flareInner.position.set(0, 0.0, -L * 0.55 - 0.09);
+    flareInner.userData.part = 'barrel';
+    g.add(flareInner);
+
+    // —— 弹头/火箭弹（换弹动画）——
+    var warhead = new T.Mesh(new T.CylinderGeometry(0.038, 0.024, 0.22, 10), M.tacOrange);
     warhead.rotation.x = Math.PI / 2;
     warhead.position.set(0, 0.0, -0.02);
     g.add(warhead);
+    // 弹头尖端
+    var warTip = new T.Mesh(new T.ConeGeometry(0.024, 0.06, 10), M.bright);
+    warTip.rotation.x = -Math.PI / 2;
+    warTip.position.set(0, 0.0, -0.15);
+    g.add(warTip);
     anim.tube = warhead;
-    // 握把
-    const grip = new T.Mesh(new T.BoxGeometry(0.076, 0.14, 0.08), M.dark);
-    grip.position.set(0, -0.11, -L * 0.44);
-    grip.rotation.x = 0.16;
+
+    // —— 握把（大手枪式，带扳机）——
+    var grip = new T.Mesh(new T.BoxGeometry(0.07, 0.15, 0.075), M.polymer);
+    grip.position.set(0, -0.11, -L * 0.42);
+    grip.rotation.x = 0.14;
     g.add(grip);
-    // 光学瞄具
-    const rscope = new T.Mesh(new T.CylinderGeometry(0.038, 0.038, 0.12, 10), M.dark);
-    rscope.rotation.x = Math.PI / 2;
-    rscope.position.set(0, 0.07, -L * 0.36);
-    g.add(rscope);
-    // 肩垫（前移！旧版 z=+0.09 在相机后方）
-    const pad = new T.Mesh(new T.BoxGeometry(0.062, 0.042, 0.07), M.accent);
-    pad.position.set(0, -0.018, -0.05);
+    addGripTexture(g, T, M, 0.038, -0.07, -L * 0.42 + 0.02, 5, 3, M.rubber);
+    addGripTexture(g, T, M, -0.038, -0.07, -L * 0.42 + 0.02, 5, 3, M.rubber);
+    // 扳机
+    var trigger = new T.Mesh(new T.BoxGeometry(0.012, 0.028, 0.008), M.polymer);
+    trigger.position.set(0, -0.05, -L * 0.42 - 0.02);
+    g.add(trigger);
+    var guard = new T.Mesh(new T.TorusGeometry(0.02, 0.005, 6, 10, Math.PI), M.gunmetal);
+    guard.position.set(0, -0.03, -L * 0.42 - 0.04);
+    guard.rotation.x = Math.PI / 2;
+    g.add(guard);
+
+    // —— 光学瞄具 ——
+    var scopeBase = new T.Mesh(new T.BoxGeometry(0.05, 0.02, 0.08), M.gunmetal);
+    scopeBase.position.set(0, 0.055, -L * 0.36);
+    g.add(scopeBase);
+    var scope = new T.Mesh(new T.CylinderGeometry(0.032, 0.032, 0.1, 10), M.gunmetal);
+    scope.rotation.x = Math.PI / 2;
+    scope.position.set(0, 0.08, -L * 0.36);
+    g.add(scope);
+    // 瞄具透镜
+    var scopeLens = new T.Mesh(new T.CircleGeometry(0.024, 10), M.lens);
+    scopeLens.rotation.y = Math.PI / 2;
+    scopeLens.position.set(0, 0.08, -L * 0.36 - 0.052);
+    g.add(scopeLens);
+    // 瞄具遮光罩
+    var scopeHood = new T.Mesh(new T.CylinderGeometry(0.036, 0.032, 0.03, 10), M.bright);
+    scopeHood.rotation.x = Math.PI / 2;
+    scopeHood.position.set(0, 0.08, -L * 0.36 - 0.06);
+    g.add(scopeHood);
+
+    // —— 肩垫 ——
+    var pad = new T.Mesh(new T.BoxGeometry(0.06, 0.045, 0.06), M.rubber);
+    pad.position.set(0, -0.015, -0.05);
     pad.userData.part = 'stock';
     g.add(pad);
+    var pad2 = new T.Mesh(new T.BoxGeometry(0.058, 0.04, 0.01), M.fde);
+    pad2.position.set(0, -0.015, -0.02);
+    pad2.userData.part = 'stock';
+    g.add(pad2);
+
+    // —— 前握把（战术风格）——
+    var foregrip = new T.Mesh(new T.CylinderGeometry(0.02, 0.018, 0.08, 8), M.polymer);
+    foregrip.position.set(0, -0.06, -L * 0.6);
+    foregrip.rotation.x = 0.15;
+    foregrip.userData.part = 'barrel';
+    g.add(foregrip);
+
     return anim;
   }
 
-  // v8.2 双手持枪（CS 风格）：右手握把 + 左手护木/枪身，换弹时左手移向弹匣操作
+  // v9.1 CS 风格双手持枪：右手握把 + 左手护木/弹匣
   function buildHands(g, T, type, anim) {
-    const skin = new T.MeshStandardMaterial({ color: 0xd9a37f, roughness: 0.7, metalness: 0 });
-    const skin2 = new T.MeshStandardMaterial({ color: 0xc98d5f, roughness: 0.7, metalness: 0 });
-    const sleeve = new T.MeshStandardMaterial({ color: 0x2b303a, roughness: 0.85, metalness: 0 });
+    var skin = new T.MeshStandardMaterial({ color: 0xd9a37f, roughness: 0.7, metalness: 0 });
+    var skin2 = new T.MeshStandardMaterial({ color: 0xc98d5f, roughness: 0.7, metalness: 0 });
+    var sleeve = new T.MeshStandardMaterial({ color: 0x2b303a, roughness: 0.85, metalness: 0 });
+    var glove = new T.MeshStandardMaterial({ color: 0x1a1c20, roughness: 0.8, metalness: 0.05 });
 
-    function makeHand(mat, sleeveOn) {
-      const h = new T.Group();
-      // 手掌（扁长 box）
-      const palm = new T.Mesh(new T.BoxGeometry(0.072, 0.05, 0.065), mat);
+    function makeHand(mat, sleeveOn, gloveOn) {
+      var h = new T.Group();
+      // 手掌
+      var palm = new T.Mesh(new T.BoxGeometry(0.07, 0.05, 0.065), gloveOn ? glove : mat);
       palm.position.set(0, -0.008, 0);
       palm.userData.isHand = true;
       h.add(palm);
-      // v8.3 4 根手指（圆柱指节，抓握弯曲，比 box 拳更接近人手）
-      for (let fi = 0; fi < 4; fi++) {
-        const finger = new T.Mesh(new T.CylinderGeometry(0.0105, 0.0115, 0.075, 6), mat);
+      // 4 根手指
+      for (var fi = 0; fi < 4; fi++) {
+        var finger = new T.Mesh(new T.CylinderGeometry(0.0105, 0.0115, 0.075, 6), gloveOn ? glove : mat);
         finger.position.set(-0.027 + fi * 0.018, -0.042, 0.006);
-        finger.rotation.x = 0.55 + fi * 0.05;   // 抓握弯曲
+        finger.rotation.x = 0.55 + fi * 0.05;
         finger.userData.isHand = true;
         h.add(finger);
       }
-      // 拇指（从侧面环绕）
-      const thumb = new T.Mesh(new T.CylinderGeometry(0.012, 0.013, 0.05, 6), mat);
+      // 拇指
+      var thumb = new T.Mesh(new T.CylinderGeometry(0.012, 0.013, 0.05, 6), gloveOn ? glove : mat);
       thumb.position.set(0.044, -0.02, 0.0);
       thumb.rotation.z = -0.7;
       thumb.userData.isHand = true;
       h.add(thumb);
       // 前臂
-      const forearm = new T.Mesh(new T.CylinderGeometry(0.036, 0.052, 0.34, 8), sleeveOn ? sleeve : mat);
+      var forearm = new T.Mesh(new T.CylinderGeometry(0.036, 0.052, 0.34, 8), sleeveOn ? sleeve : mat);
       forearm.position.set(0, -0.19, 0.05);
       forearm.rotation.x = 0.62;
       forearm.userData.isHand = true;
@@ -443,23 +809,22 @@
       return h;
     }
 
-    // 握把（右手）/ 护木（左手）位置（按枪型）
     var grip, support;
     switch (type) {
       case 'pistol': grip = [0, -0.05, -0.04]; support = [0, -0.13, -0.02]; break;
-      case 'rifle': grip = [0, -0.07, -0.19]; support = [0, -0.02, -0.31]; break;
+      case 'rifle': grip = [0, -0.07, -L_pos(type)]; support = [0, -0.02, -0.31]; break;
       case 'shotgun': grip = [0, -0.07, -0.15]; support = [0, -0.02, -0.29]; break;
       case 'flamethrower': grip = [0, -0.07, -0.06]; support = [0, 0.0, -0.26]; break;
       case 'sniper': grip = [0, -0.06, -0.22]; support = [0, 0.0, -0.33]; break;
-      case 'rocket': grip = [0, -0.08, -0.24]; support = [0, -0.02, -0.32]; break;
+      case 'rocket': grip = [0, -0.08, -0.24]; support = [0, -0.06, -0.34]; break;
       default: grip = [0, -0.05, -0.04]; support = [0, -0.13, -0.02];
     }
 
-    const handR = makeHand(skin, true);   // 右手（带袖子）
+    var handR = makeHand(skin, true, true);
     handR.position.set(grip[0], grip[1], grip[2]);
     g.add(handR);
 
-    const handL = makeHand(skin2, false); // 左手（肤色）
+    var handL = makeHand(skin2, false, true);
     handL.position.set(support[0], support[1], support[2]);
     g.add(handL);
 
@@ -469,16 +834,22 @@
     anim.handLBase = new T.Vector3(support[0], support[1], support[2]);
   }
 
+  // 辅助：根据枪型获取握把 z 位置
+  function L_pos(type) {
+    var st = STYLES[type] || STYLES.pistol;
+    return st.len * 0.38;
+  }
+
   global.MODELS.gun = {
     name: 'gun',
 
     create: function (config) {
-      const T = global.THREE;
-      const type = (config && config.type) || 'pistol';
-      const st = STYLES[type] || STYLES.pistol;
-      const M = mats(global);
-      const g = new T.Group();
-      const L = st.len;
+      var T = global.THREE;
+      var type = (config && config.type) || 'pistol';
+      var st = STYLES[type] || STYLES.pistol;
+      var M = mats(global);
+      var g = new T.Group();
+      var L = st.len;
 
       var anim;
       if (type === 'rifle') anim = buildAK47(g, M, T, st);
@@ -489,33 +860,31 @@
       else anim = buildDesertEagle(g, M, T, st);
 
       // 枪口锚点（曳光弹起点）
-      const muzzle = new T.Object3D();
-      muzzle.position.set(0, 0.02, -L * 0.45 - st.barrelLen - 0.05);
+      var muzzle = new T.Object3D();
+      muzzle.position.set(0, 0.015, -L * 0.42 - st.barrelLen - 0.08);
       g.add(muzzle);
 
-      // v8.3 枪管准星发光点（绿=常态，红=狂暴），放在枪口上方
-      const sightGlow = new T.Mesh(
-        new T.SphereGeometry(0.014, 8, 6),
+      // 枪管准星发光点（绿=常态，红=狂暴）
+      var sightGlow = new T.Mesh(
+        new T.SphereGeometry(0.012, 8, 6),
         new T.MeshBasicMaterial({ color: 0x33ff66 })
       );
-      sightGlow.position.set(0, 0.055, -L * 0.45 - st.barrelLen - 0.02);
-      sightGlow.userData.isHand = true;   // 标记，避免 gunClipTest 视锥检测误判
-      sightGlow.userData.part = 'sight';  // v8.4 瞄准时保留的准星发光点
+      sightGlow.position.set(0, 0.05, -L * 0.42 - st.barrelLen - 0.02);
+      sightGlow.userData.isHand = true;
+      sightGlow.userData.part = 'sight';
       g.add(sightGlow);
 
-      // 枪口喷火（v6.9 多层火焰）
-      const flame = buildMuzzleFlash(T, muzzle.position);
+      // 枪口喷火
+      var flame = buildMuzzleFlash(T, muzzle.position);
       g.add(flame.group);
 
-      // 抛壳锚点（右侧抛壳窗，v6.9）
-      const eject = new T.Object3D();
+      // 抛壳锚点（右侧抛壳窗）
+      var eject = new T.Object3D();
       eject.position.set(0.06, 0.04, -L * 0.42);
       g.add(eject);
 
-      // v8.4 需求5：删除持枪手型（画面只显示半个枪身，无需双手）
-      // buildHands(g, T, type, anim);
-
-      // v8.6 需求2：完美显示整把枪（枪托恢复显示，不再隐藏）
+      // v9.1 双手持枪（CS 标准视角）
+      buildHands(g, T, type, anim);
 
       // 换弹动画状态
       var animBase = {};
@@ -550,30 +919,28 @@
     },
 
     update: function (inst, dt, ctx) {
-      const u = inst.userData;
+      var u = inst.userData;
       u.phase += dt;
 
-      // 移动状态（决定晃动幅度）
-      const p = (ctx && ctx.player) || null;
-      const moving = p && p.vel && (Math.abs(p.vel.x) + Math.abs(p.vel.z)) > 0.1;
+      var p = (ctx && ctx.player) || null;
+      var moving = p && p.vel && (Math.abs(p.vel.x) + Math.abs(p.vel.z)) > 0.1;
 
-      // v8.3 枪管准星发光点变色（绿=常态，红=狂暴）
+      // 准星发光点变色
       if (u.sightGlow) {
-        const berserk = p && p.berserk;
+        var berserk = p && p.berserk;
         u.sightGlow.material.color.setHex(berserk ? 0xff3333 : 0x33ff66);
       }
 
-      // 后坐恢复 + 枪口喷火脉冲（kick 由武器类型决定）
+      // 后坐恢复 + 枪口喷火脉冲
       if (u.recoil > 0) {
         u.recoil -= dt * (u.kick * 4.2);
-        const r = Math.max(0, u.recoil);
-        const k = r * r;
+        var r = Math.max(0, u.recoil);
+        var k = r * r;
         inst.position.z = u.basePos.z + Math.sin(r * Math.PI) * 0.09 * u.kick;
         inst.position.y = u.basePos.y + k * 0.045 * u.kick;
         inst.position.x = u.basePos.x + k * 0.025 * u.kick + (Math.random() - 0.5) * 0.004;
         inst.rotation.x = k * 0.07 * u.kick;
         inst.rotation.z = (Math.random() - 0.5) * 0.015 * u.kick;
-        // 枪口火焰层：透明度随 recoil，尺寸抖动
         u.flash.visible = true;
         for (var i = 0; i < u.flameLayers.length; i++) {
           var layer = u.flameLayers[i];
@@ -588,15 +955,15 @@
         u.flash.visible = false;
       }
 
-      // 换弹动画：弹匣抽出/装入、泵动护木、拉机柄、火箭弹头（v6.9）
+      // 换弹动画
       if (u.reloading) {
         u.reloadT += dt;
-        const pr = Math.min(1, u.reloadT / u.reloadDur);
+        var pr = Math.min(1, u.reloadT / u.reloadDur);
         if (pr >= 1) u.reloading = false;
-        inst.rotation.x += 0.07;   // 换弹时轻微低头看枪
+        inst.rotation.x += 0.07;
 
         if (u.anim.mag && u.anim.mag.userData) {
-          const bp = u.anim.mag.userData.basePos;
+          var bp = u.anim.mag.userData.basePos;
           var mp;
           if (pr < 0.28) mp = -0.15 * (pr / 0.28);
           else if (pr < 0.55) mp = -0.15;
@@ -606,40 +973,40 @@
           u.anim.mag.position.z = bp.z + Math.abs(mp) * 0.2;
         }
         if (u.anim.pump && u.anim.pump.userData) {
-          const bp2 = u.anim.pump.userData.basePos;
+          var bp2 = u.anim.pump.userData.basePos;
           var pp = 0;
           if (pr >= 0.15 && pr < 0.45) pp = 0.11 * Math.sin(((pr - 0.15) / 0.3) * Math.PI);
           else if (pr >= 0.45 && pr < 0.7) pp = -0.09 * Math.sin(((pr - 0.45) / 0.25) * Math.PI);
           u.anim.pump.position.z = bp2.z + pp;
         }
         if (u.anim.bolt && u.anim.bolt.userData) {
-          const bp3 = u.anim.bolt.userData.basePos;
+          var bp3 = u.anim.bolt.userData.basePos;
           var b3 = (pr >= 0.55 && pr < 0.8) ? 0.09 * Math.sin(((pr - 0.55) / 0.25) * Math.PI) : 0;
           u.anim.bolt.position.z = bp3.z + b3;
         }
         if (u.anim.tube && u.anim.tube.userData) {
-          const bp4 = u.anim.tube.userData.basePos;
+          var bp4 = u.anim.tube.userData.basePos;
           var tp;
           if (pr < 0.35) tp = 0.12 * (pr / 0.35);
           else if (pr < 0.65) tp = 0.12;
           else tp = 0.12 * (1 - (pr - 0.65) / 0.35);
           u.anim.tube.position.z = bp4.z + tp;
         }
-        // v8.2 换弹时左手移向弹匣操作（CS 风格：左手下移抽/装弹匣）
+        // 换弹时左手移向弹匣
         if (u.anim.handL && u.anim.handLBase) {
-          const hb = u.anim.handLBase;
-          const hoff = Math.sin(pr * Math.PI) * 0.1;
+          var hb = u.anim.handLBase;
+          var hoff = Math.sin(pr * Math.PI) * 0.1;
           u.anim.handL.position.y = hb.y - hoff;
           u.anim.handL.position.z = hb.z - hoff * 0.3;
         }
       }
-      // v8.2 非换弹时左手回到护木握持位
+      // 非换弹时左手回到握持位
       if (!u.reloading && u.anim.handL && u.anim.handLBase) {
         u.anim.handL.position.copy(u.anim.handLBase);
       }
 
-      // 移动晃动 + 轻微呼吸
-      const bob = moving ? 1 : 0.25;
+      // 移动晃动 + 呼吸
+      var bob = moving ? 1 : 0.25;
       inst.position.x = u.basePos.x + Math.sin(u.phase * 8) * 0.004 * bob;
       inst.position.y = (u.recoil > 0 ? inst.position.y : u.basePos.y) + Math.cos(u.phase * 10) * 0.004 * bob;
     }
