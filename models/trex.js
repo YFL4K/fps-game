@@ -175,10 +175,10 @@
       // ---- 受击闪红 ----
       if (u.hitFlash > 0) {
         u.hitFlash -= dt;
-        u.skin.emissive = new T.Color(0xff2222);
+        u.skin.emissive.setHex(0xff2222);   // v9.0 复用 emissive 对象，避免每帧 new Color
         u.skin.emissiveIntensity = 1.0;
       } else {
-        u.skin.emissive = new T.Color(0x000000);
+        u.skin.emissive.setHex(0x000000);
         u.skin.emissiveIntensity = 0;
       }
 
