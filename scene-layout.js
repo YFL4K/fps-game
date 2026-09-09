@@ -89,6 +89,93 @@
       }
     }
 
+    // ---- v10.1 墙体掩体结构：走廊/胡同/L形拐角/直墙（利用现有 wall 模型拼接）----
+    // wall 默认 8x4x0.5，scale[0] 控制长度，rotation[1] 控制朝向；高度 4 米可作完整掩体
+    function placeWallRow(cx, cz, rotY, segCount, segLen, gap) {
+      var gp = gap || 0;
+      var totalLen = segCount * segLen + (segCount - 1) * gp;
+      for (var si = 0; si < segCount; si++) {
+        var off = -totalLen / 2 + si * (segLen + gp) + segLen / 2;
+        entities.push({
+          id: nextId('wall'), model: 'wall',
+          position: [cx + off * Math.cos(rotY), 0, cz + off * Math.sin(rotY)],
+          rotation: [0, rotY, 0], scale: [segLen / 8, 1, 1], collision: true
+        });
+      }
+    }
+    // 检测候选位置是否被出生点/刷怪点/建筑占据（保证掩体不堵关键区域）
+    function wallBlocked(cx, cz, margin) {
+      margin = margin || 7;
+      if (Math.sqrt(cx * cx + (cz - 14) * (cz - 14)) < margin + 6) return true;   // 出生点（额外 6 安全）
+      if (cx > -30 - margin && cx < -15 + margin && cz > -30 - margin && cz < -15 + margin) return true;  // 刷怪点1
+      if (cx > 15 - margin && cx < 30 + margin && cz > -30 - margin && cz < -15 + margin) return true;      // 刷怪点2
+      for (var bi = 0; bi < buildings.length; bi++) {
+        var b = buildings[bi];
+        if (Math.abs(cx - b.x) < b.w / 2 + margin && Math.abs(cz - b.z) < b.d / 2 + margin) return true;    // 建筑
+      }
+      return false;
+    }
+    function tryPlaceWallStruct(maxTry, span, placeFn) {
+      for (var t = 0; t < maxTry; t++) {
+        var cx = rand(-38, 38), cz = rand(-38, 38);
+        if (!wallBlocked(cx, cz, Math.max(span / 2, 6))) { placeFn(cx, cz); return; }
+      }
+    }
+
+    // 结构1：走廊（两面平行长墙形成直通道掩体，中间 3.2~4.2 米宽可供玩家通过）
+    for (var co = 0; co < randInt(2, 3); co++) {
+      var ch = Math.random() < 0.5;
+      var rotY = ch ? 0 : Math.PI / 2;
+      var len = rand(12, 18);
+      var seg = Math.max(1, Math.floor(len / 8));
+      var width = rand(3.2, 4.2);
+      var ox = ch ? 0 : width / 2, oz = ch ? width / 2 : 0;
+      tryPlaceWallStruct(8, len, function (cx, cz) {
+        placeWallRow(cx + ox, cz + oz, rotY, seg, len / seg, 0.3);
+        placeWallRow(cx - ox, cz - oz, rotY, seg, len / seg, 0.3);
+      });
+    }
+    // 结构2：胡同（短墙交错排列形成曲折通道，交替左右侧）
+    for (var al = 0; al < randInt(2, 3); al++) {
+      var ah = Math.random() < 0.5;
+      var arot = ah ? 0 : Math.PI / 2;
+      var segLen = rand(4, 6);
+      var segCount = randInt(3, 5);
+      var aw = rand(3, 3.8);
+      var span = segCount * segLen;
+      var ax = ah ? 0 : aw, az = ah ? aw : 0;
+      tryPlaceWallStruct(8, span, function (cx, cz) {
+        for (var s = 0; s < segCount; s++) {
+          var side = s % 2 === 0 ? 1 : -1;
+          var soff = -span / 2 + s * (span / segCount) + (span / segCount) / 2;
+          entities.push({
+            id: nextId('wall'), model: 'wall',
+            position: [cx + ax * side + soff * Math.cos(arot), 0, cz + az * side + soff * Math.sin(arot)],
+            rotation: [0, arot, 0], scale: [segLen / 8, 1, 1], collision: true
+          });
+        }
+      });
+    }
+    // 结构3：L 形拐角墙（两段成 90 度，形成拐角掩体）
+    for (var lc = 0; lc < randInt(3, 5); lc++) {
+      var base = randChoice([0, Math.PI / 2, Math.PI, -Math.PI / 2]);
+      var l1 = rand(6, 10), l2 = rand(6, 10);
+      var bdx = l1 / 2 * Math.cos(base), bdz = l1 / 2 * Math.sin(base);
+      tryPlaceWallStruct(6, 10, function (cx, cz) {
+        placeWallRow(cx, cz, base, 1, l1, 0);
+        placeWallRow(cx + bdx, cz + bdz, base + Math.PI / 2, 1, l2, 0);
+      });
+    }
+    // 结构4：独立直墙段（1~2 段连续墙，含 45 度斜墙，简单掩体）
+    for (var sc = 0; sc < randInt(4, 6); sc++) {
+      var sr = randChoice([0, Math.PI / 2, Math.PI / 4, -Math.PI / 4]);
+      var ss = randInt(1, 2);
+      var sl = rand(5, 8);
+      tryPlaceWallStruct(6, sl * ss, function (cx, cz) {
+        placeWallRow(cx, cz, sr, ss, sl, 0.2);
+      });
+    }
+
     // ---- 新场景模型 ----
     // 大型货车（semi）
     if (Math.random() > 0.4) {

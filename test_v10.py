@@ -21,7 +21,7 @@ with sync_playwright() as p:
     page.goto(URL)
     page.wait_for_timeout(2500)
 
-    check("versionTag == v10.0", page.text_content("#versionTag").strip() == "v10.0")
+    check("versionTag == v10.1", page.text_content("#versionTag").strip() == "v10.1")
 
     page.click("#modeStoryBtn")
     page.wait_for_timeout(1200)
