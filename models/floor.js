@@ -37,7 +37,7 @@
 
       const plane = new T.Mesh(
         new T.PlaneGeometry(40, 40),
-        new T.MeshStandardMaterial({ map: tex, roughness: 0.9, metalness: 0.1 })
+        new T.MeshLambertMaterial({ map: tex})
       );
       plane.rotation.x = -Math.PI / 2;
       plane.receiveShadow = true;

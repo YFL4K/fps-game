@@ -15,7 +15,7 @@
       // 支柱
       const pole = new T.Mesh(
         new T.CylinderGeometry(0.05, 0.08, 1.4, 10),
-        new T.MeshStandardMaterial({ color: 0x555a66, roughness: 0.6, metalness: 0.5 })
+        new T.MeshLambertMaterial({ color: 0x555a66})
       );
       pole.position.y = 0.7;
       g.add(pole);
@@ -23,7 +23,7 @@
       // 底座
       const base = new T.Mesh(
         new T.CylinderGeometry(0.28, 0.34, 0.08, 12),
-        new T.MeshStandardMaterial({ color: 0x33373f, roughness: 0.7, metalness: 0.4 })
+        new T.MeshLambertMaterial({ color: 0x33373f})
       );
       base.position.y = 0.04;
       g.add(base);
@@ -40,7 +40,7 @@
       rings.forEach(ring => {
         const m = new T.Mesh(
           new T.CircleGeometry(ring.r, 24),
-          new T.MeshStandardMaterial({ color: ring.c, roughness: 0.7, metalness: 0.1, side: T.DoubleSide })
+          new T.MeshLambertMaterial({ color: ring.c, side: T.DoubleSide })
         );
         m.position.z = 0.02;
         face.add(m);

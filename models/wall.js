@@ -41,7 +41,7 @@
 
       const box = new T.Mesh(
         new T.BoxGeometry(8, 4, 0.5),
-        new T.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0 })
+        new T.MeshLambertMaterial({ map: tex})
       );
       box.position.y = 2; // 底部中心在原点
       box.castShadow = true;

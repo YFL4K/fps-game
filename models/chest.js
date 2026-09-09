@@ -16,9 +16,9 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const woodMat = new T.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.72, metalness: 0.15 });
-      const goldMat = new T.MeshStandardMaterial({
-        color: 0xf1c40f, roughness: 0.25, metalness: 0.9,
+      const woodMat = new T.MeshLambertMaterial({ color: 0x6b4a2b});
+      const goldMat = new T.MeshLambertMaterial({
+        color: 0xf1c40f,
         emissive: 0x7a5c00, emissiveIntensity: 0.5
       });
       const glowMat = new T.MeshBasicMaterial({

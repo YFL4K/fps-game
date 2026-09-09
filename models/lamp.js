@@ -14,7 +14,7 @@
       // 柱子
       const pole = new T.Mesh(
         new T.CylinderGeometry(0.07, 0.1, 3.0, 10),
-        new T.MeshStandardMaterial({ color: 0x4a4f58, roughness: 0.5, metalness: 0.6 })
+        new T.MeshLambertMaterial({ color: 0x4a4f58})
       );
       pole.position.y = 1.5;
       pole.castShadow = true;
@@ -23,18 +23,16 @@
       // 底座
       const base = new T.Mesh(
         new T.CylinderGeometry(0.22, 0.28, 0.1, 12),
-        new T.MeshStandardMaterial({ color: 0x33373f, roughness: 0.6, metalness: 0.5 })
+        new T.MeshLambertMaterial({ color: 0x33373f})
       );
       base.position.y = 0.05;
       g.add(base);
 
       // 灯头
-      const lampMat = new T.MeshStandardMaterial({
+      const lampMat = new T.MeshLambertMaterial({
         color: 0xfff2c8,
         emissive: 0xffdd88,
         emissiveIntensity: 1.2,
-        roughness: 0.3,
-        metalness: 0.2
       });
       const bulb = new T.Mesh(new T.SphereGeometry(0.16, 12, 10), lampMat);
       bulb.position.y = 3.05;
@@ -43,7 +41,7 @@
       // 灯罩
       const shade = new T.Mesh(
         new T.CylinderGeometry(0.26, 0.2, 0.25, 12, 1, true),
-        new T.MeshStandardMaterial({ color: 0x5a5f68, roughness: 0.5, metalness: 0.5, side: T.DoubleSide })
+        new T.MeshLambertMaterial({ color: 0x5a5f68, side: T.DoubleSide })
       );
       shade.position.y = 3.12;
       g.add(shade);

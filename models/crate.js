@@ -38,7 +38,7 @@
       const tex = new T.CanvasTexture(c);
       const box = new T.Mesh(
         new T.BoxGeometry(1, 1, 1),
-        new T.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0.1 })
+        new T.MeshLambertMaterial({ map: tex})
       );
       box.castShadow = true;
       box.receiveShadow = true;

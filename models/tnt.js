@@ -20,11 +20,10 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const boxMat = new T.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.72, metalness: 0.15 });
-      const bandMat = new T.MeshStandardMaterial({ color: 0x16181c, roughness: 0.85, metalness: 0.15 });
-      const glowMat = new T.MeshStandardMaterial({
+      const boxMat = new T.MeshLambertMaterial({ color: 0xc0392b});
+      const bandMat = new T.MeshLambertMaterial({ color: 0x16181c});
+      const glowMat = new T.MeshLambertMaterial({
         color: 0xffcc44, emissive: 0xff8800, emissiveIntensity: 1.4,
-        roughness: 0.4, metalness: 0.2
       });
 
       // 主体木箱

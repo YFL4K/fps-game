@@ -36,10 +36,8 @@
         }
         geo.computeVertexNormals();
         
-        const mat = new T.MeshStandardMaterial({
+        const mat = new T.MeshLambertMaterial({
           color: mountainColors[i % mountainColors.length],
-          roughness: 0.85,
-          metalness: 0.1,
           flatShading: true
         });
         const mesh = new T.Mesh(geo, mat);
@@ -50,10 +48,8 @@
       }
 
       // ---- 云彩（白色 fluffy 群）----
-      const cloudMat = new T.MeshStandardMaterial({
+      const cloudMat = new T.MeshLambertMaterial({
         color: 0xffffff,
-        roughness: 1,
-        metalness: 0,
         transparent: true,
         opacity: 0.85
       });

@@ -20,10 +20,10 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const bodyMat = new T.MeshStandardMaterial({ color: cfg.color || 0xc0392b, roughness: 0.45, metalness: 0.5 });
-      const ringMat = new T.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.4, metalness: 0.7 });
-      const stripeMat = new T.MeshStandardMaterial({
-        color: 0xf1c40f, roughness: 0.55, metalness: 0.3,
+      const bodyMat = new T.MeshLambertMaterial({ color: cfg.color || 0xc0392b});
+      const ringMat = new T.MeshLambertMaterial({ color: 0x2c3e50});
+      const stripeMat = new T.MeshLambertMaterial({
+        color: 0xf1c40f,
         emissive: 0x8a6d00, emissiveIntensity: 0.45
       });
 

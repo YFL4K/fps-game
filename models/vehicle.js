@@ -24,13 +24,13 @@
       const g = new T.Group();
 
       const bodyColor = cfg.color || v.bodyColor;
-      const bodyMat = new T.MeshStandardMaterial({ color: bodyColor, roughness: 0.45, metalness: 0.5 });
-      const darkMat = new T.MeshStandardMaterial({ color: 0x14161a, roughness: 0.7, metalness: 0.4 });
-      const glassMat = new T.MeshStandardMaterial({
-        color: 0x1b2b3a, roughness: 0.15, metalness: 0.8,
+      const bodyMat = new T.MeshLambertMaterial({ color: bodyColor});
+      const darkMat = new T.MeshLambertMaterial({ color: 0x14161a});
+      const glassMat = new T.MeshLambertMaterial({
+        color: 0x1b2b3a,
         emissive: 0x0a1a26, emissiveIntensity: 0.5
       });
-      const wheelMat = new T.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.9, metalness: 0.2 });
+      const wheelMat = new T.MeshLambertMaterial({ color: 0x0d0d0f});
 
       const L = v.bodyLen, H = v.bodyH, W = v.bodyW;
 
@@ -74,7 +74,7 @@
 
       // 车轮
       const wheelGeo = new T.CylinderGeometry(0.4, 0.4, 0.3, 14);
-      const hubMat = new T.MeshStandardMaterial({ color: 0x6a6f76, roughness: 0.4, metalness: 0.8 });
+      const hubMat = new T.MeshLambertMaterial({ color: 0x6a6f76});
       const hubGeo = new T.CylinderGeometry(0.18, 0.18, 0.32, 8);
       const wp = [
         [-W / 2 - 0.12, v.wheelY, -L * 0.34], [W / 2 + 0.12, v.wheelY, -L * 0.34],

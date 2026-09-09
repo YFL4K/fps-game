@@ -16,17 +16,13 @@
       const d = cfg.d || 5;
       const h = cfg.h || 3.4;
 
-      const wallMat = new T.MeshStandardMaterial({
+      const wallMat = new T.MeshLambertMaterial({
         color: cfg.color || 0x8a9bb0,
-        roughness: 0.9,
-        metalness: 0.05
       });
-      const roofMat = new T.MeshStandardMaterial({
+      const roofMat = new T.MeshLambertMaterial({
         color: cfg.roofColor || 0x5d4a3a,
-        roughness: 0.85,
-        metalness: 0.1
       });
-      const windowMat = new T.MeshStandardMaterial({
+      const windowMat = new T.MeshLambertMaterial({
         color: 0xffe9a8,
         emissive: 0xffcf6e,
         emissiveIntensity: 0.9
@@ -63,7 +59,7 @@
       ].forEach(function (p) {
         const win = new T.Mesh(
           new T.BoxGeometry(winW, winH, 0.06),
-          new T.MeshStandardMaterial({ color: 0xffe9a8, emissive: 0xffcf6e, emissiveIntensity: 0.9 })
+          new T.MeshLambertMaterial({ color: 0xffe9a8, emissive: 0xffcf6e, emissiveIntensity: 0.9 })
         );
         win.position.set(p[0], p[1], p[2]);
         win.rotation.set(p[3], p[4], p[5]);
@@ -73,7 +69,7 @@
       // 门（正面：门框 + 暗色门板）
       const doorW = Math.min(1.2, w * 0.3);
       const doorH = 1.9;
-      const doorMat = new T.MeshStandardMaterial({ color: 0x3a2f24, roughness: 0.9 });
+      const doorMat = new T.MeshLambertMaterial({ color: 0x3a2f24});
       const door = new T.Mesh(new T.BoxGeometry(doorW, doorH, 0.08), doorMat);
       door.position.set(0, doorH / 2, d / 2 + 0.01);
       g.add(door);

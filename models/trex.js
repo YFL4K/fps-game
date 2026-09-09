@@ -27,11 +27,11 @@
       const g = new T.Group();
 
       // 黑灰皮肤 + 红眼 + 白牙 + 深色爪
-      const skin = new T.MeshStandardMaterial({ color: 0x4a4d52, roughness: 0.65, metalness: 0.2, flatShading: true });
-      const skinDark = new T.MeshStandardMaterial({ color: 0x2f3236, roughness: 0.7, metalness: 0.2, flatShading: true });
-      const belly = new T.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.7, metalness: 0.2, flatShading: true });
-      const toothMat = new T.MeshStandardMaterial({ color: 0xf0f0e8, roughness: 0.4, metalness: 0 });
-      const clawMat = new T.MeshStandardMaterial({ color: 0x1f2124, roughness: 0.6, metalness: 0.2 });
+      const skin = new T.MeshLambertMaterial({ color: 0x4a4d52, flatShading: true });
+      const skinDark = new T.MeshLambertMaterial({ color: 0x2f3236, flatShading: true });
+      const belly = new T.MeshLambertMaterial({ color: 0x3a3d42, flatShading: true });
+      const toothMat = new T.MeshLambertMaterial({ color: 0xf0f0e8});
+      const clawMat = new T.MeshLambertMaterial({ color: 0x1f2124});
       const eye = new T.MeshBasicMaterial({ color: 0xff2020 });
 
       // 身体（前倾：胸大腹小）

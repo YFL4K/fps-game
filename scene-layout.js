@@ -161,10 +161,10 @@
         collision: false
       });
     }
-    // v9.1 樱花树（大/中/小三种尺寸，替代椰子树）
+    // v10 删除樱花树，回归椰子树装饰（性能开销更低）
     for (var bdi = 0; bdi < randInt(4, 7); bdi++) {
       entities.push({
-        id: nextId('sakura'), model: 'sakura',
+        id: nextId('coconut'), model: 'coconut',
         position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
         collision: true,
         variant: randChoice(['large', 'medium', 'small'])

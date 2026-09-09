@@ -17,12 +17,12 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const gold = new T.MeshStandardMaterial({
-        color: 0xf5c518, roughness: 0.3, metalness: 0.75,
+      const gold = new T.MeshLambertMaterial({
+        color: 0xf5c518,
         emissive: 0x8a6d00, emissiveIntensity: 0.55
       });
-      const goldDark = new T.MeshStandardMaterial({
-        color: 0xb8860b, roughness: 0.35, metalness: 0.7,
+      const goldDark = new T.MeshLambertMaterial({
+        color: 0xb8860b,
         emissive: 0x5a4600, emissiveIntensity: 0.45
       });
 

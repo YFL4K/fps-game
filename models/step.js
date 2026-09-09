@@ -12,7 +12,7 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const mat = new T.MeshStandardMaterial({ color: 0x8d949e, roughness: 0.92, metalness: 0.05 });
+      const mat = new T.MeshLambertMaterial({ color: 0x8d949e});
       const box = new T.Mesh(new T.BoxGeometry(1, 0.28, 1.6), mat);
       box.castShadow = true;
       box.receiveShadow = true;

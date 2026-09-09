@@ -15,8 +15,8 @@
       const sc = config && config.scale;
       const s = (Array.isArray(sc) ? (sc[0] || 1) : (sc || 1)) * 1.6;
 
-      const baseMat = new T.MeshStandardMaterial({ color: 0x4c8c3f, roughness: 1, metalness: 0 });
-      const tuftMat = new T.MeshStandardMaterial({ color: 0x6aa84f, roughness: 1, metalness: 0 });
+      const baseMat = new T.MeshLambertMaterial({ color: 0x4c8c3f});
+      const tuftMat = new T.MeshLambertMaterial({ color: 0x6aa84f});
       const flowerColors = [0xf4c542, 0xe86b5e, 0x9b59b6, 0x5dade2];
 
       // 草皮基底（扁圆柱）
@@ -44,7 +44,7 @@
         const stem = new T.Mesh(new T.CylinderGeometry(0.02 * s, 0.02 * s, 0.4 * s, 4), tuftMat);
         stem.position.set(Math.cos(ang) * rad, 0.2 * s, Math.sin(ang) * rad);
         g.add(stem);
-        const head = new T.Mesh(new T.SphereGeometry(0.09 * s, 6, 5), new T.MeshStandardMaterial({ color: flowerColors[i % flowerColors.length], roughness: 0.7 }));
+        const head = new T.Mesh(new T.SphereGeometry(0.09 * s, 6, 5), new T.MeshLambertMaterial({ color: flowerColors[i % flowerColors.length]}));
         head.position.set(Math.cos(ang) * rad, 0.42 * s, Math.sin(ang) * rad);
         g.add(head);
       }

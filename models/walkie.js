@@ -13,10 +13,10 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const bodyMat = new T.MeshStandardMaterial({ color: 0x2f3b2f, roughness: 0.6, metalness: 0.35 });
-      const darkMat = new T.MeshStandardMaterial({ color: 0x1a1f1a, roughness: 0.55, metalness: 0.3 });
-      const accentMat = new T.MeshStandardMaterial({ color: 0xd9412e, roughness: 0.45, metalness: 0.4, emissive: 0xd9412e, emissiveIntensity: 0.35 });
-      const screenMat = new T.MeshStandardMaterial({ color: 0x9fe8c8, emissive: 0x52d9a2, emissiveIntensity: 0.9, roughness: 0.3 });
+      const bodyMat = new T.MeshLambertMaterial({ color: 0x2f3b2f});
+      const darkMat = new T.MeshLambertMaterial({ color: 0x1a1f1a});
+      const accentMat = new T.MeshLambertMaterial({ color: 0xd9412e, emissive: 0xd9412e, emissiveIntensity: 0.35 });
+      const screenMat = new T.MeshLambertMaterial({ color: 0x9fe8c8, emissive: 0x52d9a2, emissiveIntensity: 0.9});
 
       // 机身
       const body = new T.Mesh(new T.BoxGeometry(0.34, 0.6, 0.14), bodyMat);

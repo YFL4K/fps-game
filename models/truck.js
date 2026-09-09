@@ -17,12 +17,12 @@
 
       const g = new T.Group();
 
-      const cabMat = new T.MeshStandardMaterial({ color: cabColor, roughness: 0.4, metalness: 0.6 });
-      const trailerMat = new T.MeshStandardMaterial({ color: trailerColor, roughness: 0.6, metalness: 0.2 });
-      const darkMat = new T.MeshStandardMaterial({ color: 0x111111, roughness: 0.8, metalness: 0.3 });
-      const glassMat = new T.MeshStandardMaterial({ color: 0x1b2b3a, roughness: 0.1, metalness: 0.9, transparent: true, opacity: 0.6 });
-      const wheelMat = new T.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9, metalness: 0.1 });
-      const hubMat = new T.MeshStandardMaterial({ color: 0x555555, roughness: 0.4, metalness: 0.8 });
+      const cabMat = new T.MeshLambertMaterial({ color: cabColor});
+      const trailerMat = new T.MeshLambertMaterial({ color: trailerColor});
+      const darkMat = new T.MeshLambertMaterial({ color: 0x111111});
+      const glassMat = new T.MeshLambertMaterial({ color: 0x1b2b3a, transparent: true, opacity: 0.6 });
+      const wheelMat = new T.MeshLambertMaterial({ color: 0x1a1a1a});
+      const hubMat = new T.MeshLambertMaterial({ color: 0x555555});
       const lightMat = new T.MeshBasicMaterial({ color: 0xffffcc });
       const tailMat = new T.MeshBasicMaterial({ color: 0xff2222 });
 

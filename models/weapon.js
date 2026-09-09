@@ -27,12 +27,12 @@
       const L = look.len;
       const g = new T.Group();
 
-      const bodyMat = new T.MeshStandardMaterial({ color: 0x22252b, roughness: 0.45, metalness: 0.7 });
-      const accentMat = new T.MeshStandardMaterial({
-        color: look.color, roughness: 0.4, metalness: 0.6,
+      const bodyMat = new T.MeshLambertMaterial({ color: 0x22252b});
+      const accentMat = new T.MeshLambertMaterial({
+        color: look.color,
         emissive: look.color, emissiveIntensity: 0.5
       });
-      const woodMat = new T.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.85, metalness: 0.05 });
+      const woodMat = new T.MeshLambertMaterial({ color: 0x6b4423});
 
       // 枪身
       const body = new T.Mesh(new T.BoxGeometry(0.07, 0.1, L), bodyMat);

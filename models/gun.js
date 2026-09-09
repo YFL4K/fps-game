@@ -58,25 +58,25 @@
     var T = global.THREE;
     return {
       // 枪械钢 — 深灰高金属度（CS 标准机匣色）
-      gunmetal: new T.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.35, metalness: 0.75, emissive: 0x0a0b0d, emissiveIntensity: 0.25 }),
+      gunmetal: new T.MeshLambertMaterial({ color: 0x2a2d33, emissive: 0x0a0b0d, emissiveIntensity: 0.25 }),
       // 聚合物 — 哑光黑（握把/护木/枪托）
-      polymer: new T.MeshStandardMaterial({ color: 0x1a1c20, roughness: 0.7, metalness: 0.1, emissive: 0x050507, emissiveIntensity: 0.2 }),
+      polymer: new T.MeshLambertMaterial({ color: 0x1a1c20, emissive: 0x050507, emissiveIntensity: 0.2 }),
       // FDE 沙色聚合物 — 战术色（CS:GO 风格）
-      fde: new T.MeshStandardMaterial({ color: 0x8c7355, roughness: 0.65, metalness: 0.1, emissive: 0x1a1408, emissiveIntensity: 0.2 }),
+      fde: new T.MeshLambertMaterial({ color: 0x8c7355, emissive: 0x1a1408, emissiveIntensity: 0.2 }),
       // 铬钢 — 亮金属（枪管/导气管）
-      chrome: new T.MeshStandardMaterial({ color: 0x3d4248, roughness: 0.25, metalness: 0.9, emissive: 0x0c0e10, emissiveIntensity: 0.3 }),
+      chrome: new T.MeshLambertMaterial({ color: 0x3d4248, emissive: 0x0c0e10, emissiveIntensity: 0.3 }),
       // 亮银 — 高光金属（消焰器/管口装置）
-      bright: new T.MeshStandardMaterial({ color: 0x555a62, roughness: 0.2, metalness: 0.95, emissive: 0x10121a, emissiveIntensity: 0.3 }),
+      bright: new T.MeshLambertMaterial({ color: 0x555a62, emissive: 0x10121a, emissiveIntensity: 0.3 }),
       // 木质 — 深褐带暖色（AK/霰弹枪护木枪托）
-      wood: new T.MeshStandardMaterial({ color: 0x6b4226, roughness: 0.8, metalness: 0.05, emissive: 0x180c04, emissiveIntensity: 0.2 }),
+      wood: new T.MeshLambertMaterial({ color: 0x6b4226, emissive: 0x180c04, emissiveIntensity: 0.2 }),
       // 深木 — 枪托深色
-      woodDark: new T.MeshStandardMaterial({ color: 0x4a2d18, roughness: 0.85, metalness: 0.03, emissive: 0x100804, emissiveIntensity: 0.2 }),
+      woodDark: new T.MeshLambertMaterial({ color: 0x4a2d18, emissive: 0x100804, emissiveIntensity: 0.2 }),
       // 黄铜 — 弹匣/弹链
-      brass: new T.MeshStandardMaterial({ color: 0xb8860b, roughness: 0.4, metalness: 0.8, emissive: 0x2a1c00, emissiveIntensity: 0.25 }),
+      brass: new T.MeshLambertMaterial({ color: 0xb8860b, emissive: 0x2a1c00, emissiveIntensity: 0.25 }),
       // 战术橙 — 喷火器/火箭筒标识
-      tacOrange: new T.MeshStandardMaterial({ color: 0xe0530f, roughness: 0.5, metalness: 0.3, emissive: 0x3a1000, emissiveIntensity: 0.35 }),
+      tacOrange: new T.MeshLambertMaterial({ color: 0xe0530f, emissive: 0x3a1000, emissiveIntensity: 0.35 }),
       // 黑橡胶 — 握把纹理
-      rubber: new T.MeshStandardMaterial({ color: 0x141416, roughness: 0.95, metalness: 0.0, emissive: 0x040404, emissiveIntensity: 0.15 }),
+      rubber: new T.MeshLambertMaterial({ color: 0x141416, emissive: 0x040404, emissiveIntensity: 0.15 }),
       // 透镜
       lens: new T.MeshBasicMaterial({ color: 0x88ccff }),
       // 红点
@@ -778,10 +778,10 @@
 
   // v9.1 CS 风格双手持枪：右手握把 + 左手护木/弹匣
   function buildHands(g, T, type, anim) {
-    var skin = new T.MeshStandardMaterial({ color: 0xd9a37f, roughness: 0.7, metalness: 0 });
-    var skin2 = new T.MeshStandardMaterial({ color: 0xc98d5f, roughness: 0.7, metalness: 0 });
-    var sleeve = new T.MeshStandardMaterial({ color: 0x2b303a, roughness: 0.85, metalness: 0 });
-    var glove = new T.MeshStandardMaterial({ color: 0x1a1c20, roughness: 0.8, metalness: 0.05 });
+    var skin = new T.MeshLambertMaterial({ color: 0xd9a37f});
+    var skin2 = new T.MeshLambertMaterial({ color: 0xc98d5f});
+    var sleeve = new T.MeshLambertMaterial({ color: 0x2b303a});
+    var glove = new T.MeshLambertMaterial({ color: 0x1a1c20});
 
     function makeHand(mat, sleeveOn, gloveOn) {
       var h = new T.Group();

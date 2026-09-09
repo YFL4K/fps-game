@@ -21,15 +21,14 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const bodyMat = new T.MeshStandardMaterial({ color: 0x3a4a3a, roughness: 0.45, metalness: 0.6 });
-      const glassMat = new T.MeshStandardMaterial({
-        color: 0x1b2b3a, roughness: 0.2, metalness: 0.7,
+      const bodyMat = new T.MeshLambertMaterial({ color: 0x3a4a3a});
+      const glassMat = new T.MeshLambertMaterial({
+        color: 0x1b2b3a,
         emissive: 0x081822, emissiveIntensity: 0.55
       });
-      const darkMat = new T.MeshStandardMaterial({ color: 0x14161a, roughness: 0.6, metalness: 0.5 });
-      const redMat = new T.MeshStandardMaterial({
+      const darkMat = new T.MeshLambertMaterial({ color: 0x14161a});
+      const redMat = new T.MeshLambertMaterial({
         color: 0xc0392b, emissive: 0x6a1010, emissiveIntensity: 0.6,
-        roughness: 0.5, metalness: 0.4
       });
 
       // 机身
@@ -63,7 +62,7 @@
       // 主旋翼（长条叶片，高速旋转）
       const mainRotor = new T.Group();
       mainRotor.position.set(0, 0.62, 0);
-      const bladeMat = new T.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.6, metalness: 0.4 });
+      const bladeMat = new T.MeshLambertMaterial({ color: 0x0d0d0f});
       const b1 = new T.Mesh(new T.BoxGeometry(6.2, 0.04, 0.22), bladeMat);
       const b2 = new T.Mesh(new T.BoxGeometry(0.22, 0.04, 6.2), bladeMat);
       mainRotor.add(b1, b2);

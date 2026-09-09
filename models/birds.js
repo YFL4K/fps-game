@@ -14,17 +14,14 @@
       const g = new T.Group();
       const variant = (config && config.variant) || 'white';
 
-      const bodyMat = new T.MeshStandardMaterial({
+      const bodyMat = new T.MeshLambertMaterial({
         color: variant === 'white' ? 0xf2f4f6 : 0x37414b,
-        roughness: 0.8
       });
-      const bellyMat = new T.MeshStandardMaterial({
+      const bellyMat = new T.MeshLambertMaterial({
         color: variant === 'white' ? 0xc9ced6 : 0xb9c2cc,
-        roughness: 0.8
       });
-      const wingTipMat = new T.MeshStandardMaterial({
+      const wingTipMat = new T.MeshLambertMaterial({
         color: variant === 'white' ? 0x5c6670 : 0x14181d,
-        roughness: 0.8
       });
 
       const birds = [];

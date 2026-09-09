@@ -38,7 +38,7 @@
       // 菌柄（微锥圆柱，底部略宽）
       const stem = new T.Mesh(
         new T.CylinderGeometry(0.13, 0.22, 0.55, 8),
-        new T.MeshStandardMaterial({ color: stemColor, roughness: 0.9, metalness: 0, flatShading: true })
+        new T.MeshLambertMaterial({ color: stemColor, flatShading: true })
       );
       stem.position.y = 0.275;
       stem.castShadow = false;
@@ -47,7 +47,7 @@
       // 菌盖（半球，略微压扁）
       const cap = new T.Mesh(
         new T.SphereGeometry(0.5, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2),
-        new T.MeshStandardMaterial({ color: capColor, roughness: 0.7, metalness: 0, flatShading: true })
+        new T.MeshLambertMaterial({ color: capColor, flatShading: true })
       );
       cap.position.y = 0.55;
       cap.scale.y = 0.72;
@@ -56,7 +56,7 @@
 
       // 菌盖白斑（毒蝇伞/红斑菇）
       if (spotted) {
-        const spotMat = new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75, metalness: 0 });
+        const spotMat = new T.MeshLambertMaterial({ color: 0xffffff});
         for (let i = 0; i < 5; i++) {
           const spot = new T.Mesh(new T.SphereGeometry(0.07, 6, 5), spotMat);
           const a = Math.random() * Math.PI * 2;

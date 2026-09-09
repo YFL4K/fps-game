@@ -12,11 +12,9 @@
       const T = global.THREE;
       const cfg = config || {};
 
-      const trunkMat = new T.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.95, metalness: 0 });
-      const leafMat = new T.MeshStandardMaterial({
+      const trunkMat = new T.MeshLambertMaterial({ color: 0x6b4a2f});
+      const leafMat = new T.MeshLambertMaterial({
         color: cfg.color || 0x2d6a3f,
-        roughness: 0.85,
-        metalness: 0
       });
 
       const g = new T.Group();

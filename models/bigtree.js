@@ -13,10 +13,10 @@
       const g = new T.Group();
       const s = (config && config.scaleX) || 1;
 
-      const trunkMat = new T.MeshStandardMaterial({ color: 0x5d4030, roughness: 0.95, metalness: 0 });
-      const branchMat = new T.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.95, metalness: 0 });
-      const leafMat = new T.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.9, metalness: 0 });
-      const leafMat2 = new T.MeshStandardMaterial({ color: 0x388e3c, roughness: 0.9, metalness: 0 });
+      const trunkMat = new T.MeshLambertMaterial({ color: 0x5d4030});
+      const branchMat = new T.MeshLambertMaterial({ color: 0x4e342e});
+      const leafMat = new T.MeshLambertMaterial({ color: 0x2e7d32});
+      const leafMat2 = new T.MeshLambertMaterial({ color: 0x388e3c});
 
       // 粗树干（锥形）
       const trunk = new T.Mesh(new T.CylinderGeometry(0.55 * s, 0.85 * s, 5.4 * s, 9), trunkMat);

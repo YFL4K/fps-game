@@ -77,12 +77,12 @@
       var cfg = config || {};
       var g = new T.Group();
 
-      var fur = new T.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.85, metalness: 0.05 });
-      var furDark = new T.MeshStandardMaterial({ color: 0x5f3d1d, roughness: 0.9, metalness: 0.02 });
-      var tuskMat = new T.MeshStandardMaterial({ color: 0xf7f2e8, roughness: 0.35, metalness: 0.1 });
-      var eyeMat = new T.MeshStandardMaterial({ color: 0x0a2a10, emissive: 0x00ff55, emissiveIntensity: 2.4 });
-      var noseMat = new T.MeshStandardMaterial({ color: 0xc97b4a, roughness: 0.6 });
-      var holeMat = new T.MeshStandardMaterial({ color: 0x3a1e0c });
+      var fur = new T.MeshLambertMaterial({ color: 0x8a5a2b});
+      var furDark = new T.MeshLambertMaterial({ color: 0x5f3d1d});
+      var tuskMat = new T.MeshLambertMaterial({ color: 0xf7f2e8});
+      var eyeMat = new T.MeshLambertMaterial({ color: 0x0a2a10, emissive: 0x00ff55, emissiveIntensity: 2.4 });
+      var noseMat = new T.MeshLambertMaterial({ color: 0xc97b4a});
+      var holeMat = new T.MeshLambertMaterial({ color: 0x3a1e0c });
 
       // 身体（椭圆，z 轴为前进方向）
       var body = new T.Mesh(new T.SphereGeometry(1.0, 24, 18), fur);
@@ -173,11 +173,11 @@
       // 状态
       var u = {
         kind: 'pig',
-        health: cfg.health || 800,
-        maxHealth: cfg.health || 800,
+        health: cfg.health || 55000,
+        maxHealth: cfg.health || 55000,
         dead: false,
         life: cfg.life || 30,
-        speed: cfg.speed || 13,
+        speed: cfg.speed || 39,
         hitPlayerCd: 0,
         hitEnemyCd: 0,
         runPhase: 0,

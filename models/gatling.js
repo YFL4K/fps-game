@@ -22,13 +22,13 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const conMat = new T.MeshStandardMaterial({ color: 0x6e6b61, roughness: 0.92, metalness: 0.06 });
-      const steelMat = new T.MeshStandardMaterial({ color: 0x41474f, roughness: 0.4, metalness: 0.82 });
-      const gunMat = new T.MeshStandardMaterial({ color: 0x2c3138, roughness: 0.5, metalness: 0.6 });
-      const darkMat = new T.MeshStandardMaterial({ color: 0x1c2024, roughness: 0.55, metalness: 0.55 });
-      const brassMat = new T.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.35, metalness: 0.75 });
-      const boxMat = new T.MeshStandardMaterial({ color: 0x55603a, roughness: 0.8, metalness: 0.12 });
-      const accentMat = new T.MeshStandardMaterial({ color: 0xe06a1f, roughness: 0.5, metalness: 0.3 });
+      const conMat = new T.MeshLambertMaterial({ color: 0x6e6b61});
+      const steelMat = new T.MeshLambertMaterial({ color: 0x41474f});
+      const gunMat = new T.MeshLambertMaterial({ color: 0x2c3138});
+      const darkMat = new T.MeshLambertMaterial({ color: 0x1c2024});
+      const brassMat = new T.MeshLambertMaterial({ color: 0xc9a227});
+      const boxMat = new T.MeshLambertMaterial({ color: 0x55603a});
+      const accentMat = new T.MeshLambertMaterial({ color: 0xe06a1f});
 
       // ========== 底座（低矮定位圆台，不遮挡枪口） ==========
       const base = new T.Mesh(new T.CylinderGeometry(0.95, 1.15, 0.2, 12), conMat);

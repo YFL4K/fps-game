@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v9.2</div>
+<div id="versionTag">v10.0</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -195,7 +195,6 @@
 <script src="models/ferriswheel.js" onerror="window.__modErr('models/ferriswheel.js')"></script>
 <script src="models/grass.js" onerror="window.__modErr('models/grass.js')"></script>
 <script src="models/coconut.js" onerror="window.__modErr('models/coconut.js')"></script>
-  <script src="models/sakura.js?v=92" onerror="window.__modErr('models/sakura.js')"></script>
 <script src="models/mushroom.js" onerror="window.__modErr('models/mushroom.js')"></script>
 <script src="models/jetpack.js" onerror="window.__modErr('models/jetpack.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
@@ -362,11 +361,10 @@
 
   /* ================= 2. 渲染器 / 场景 / 相机 ================= */
   var renderer = new THREE.WebGLRenderer({ antialias: true });
-  // v7.9 性能优化：pixelRatio 上限 2 → 1.5（高 DPR 屏大幅降低渲染像素/内存占用）
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  // v10 性能优化：pixelRatio 限制 1.0（低 DPR 屏减少渲染压力）
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.0));
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = false;   // v10 完全关闭阴影，消除阴影 pass 渲染开销
   if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
   appEl.appendChild(renderer.domElement);
 
@@ -404,11 +402,6 @@
     if (light) scene.add(light);
   });
 
-  // 枪口闪光点光源（挂在相机上，射击时脉冲）
-  var muzzleLight = new THREE.PointLight(0xffaa44, 0, 14, 1);
-  muzzleLight.position.set(0.2, -0.15, -0.6);
-  camera.add(muzzleLight);
-
   /* ================= 4. 通用实体系统 ================= */
   var entities = [];
   var colliders = [];
@@ -428,9 +421,17 @@
   var _fireballGeo14 = null;    // 火球 Sphere(1,14,12)
   var _fireballGeo12 = null;    // 内焰 Sphere(1,12,10)
   var _smokeGeo = null;         // 烟雾 Sphere(1,6,6)（scale 控制尺寸）
+  var _sparkGeo = null;         // v10 spark 共享几何体
+  var _sparkMats = {};          // v10 spark 材料按颜色缓存
+  var _ringMats = {};           // v10 ring 材料按颜色缓存
+  var _flameGeoA = null;        // v10 火焰几何 A
+  var _flameGeoB = null;        // v10 火焰几何 B
+  var _flameMats = {};          // v10 火焰材料按颜色缓存
+  var _tracerMats = {};         // v10 tracer 材料按颜色缓存
+  var _tracerGeoPool = [];      // v10 tracer BufferGeometry 对象池
   var _tmpColor = new THREE.Color();
   // v7.9 特效上限（内存占用保护）：fx 超过上限时丢弃最老的特效
-  var FX_MAX = 450;
+  var FX_MAX = 300;   // v10 降低上限，减少粒子累积
 
   var ctx = {
     THREE: THREE,
@@ -459,7 +460,7 @@
     var g = new THREE.Group();
     var box = new THREE.Mesh(
       new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshStandardMaterial({ color: 0xff2222, transparent: true, opacity: 0.5 })
+      new THREE.MeshLambertMaterial({ color: 0xff2222, transparent: true, opacity: 0.5 })
     );
     var wire = new THREE.LineSegments(
       new THREE.EdgesGeometry(box.geometry),
@@ -1385,7 +1386,7 @@
       // 尾烟
       r.smokeTimer -= dt;
       if (r.smokeTimer <= 0) {
-        r.smokeTimer = 0.035;
+        r.smokeTimer = 0.09;
         var sm = new THREE.Mesh(
           new THREE.SphereGeometry(0.16, 5, 5),
           new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.55 })
@@ -1402,10 +1403,20 @@
     }
   }
 
+  // v10 tracer 材质按颜色缓存 + BufferGeometry 对象池（原每发子弹 new，5秒累积60+未回收→GC卡顿）
   function spawnTracer(from, to, color) {
-    var geo = new THREE.BufferGeometry().setFromPoints([from, to]);
-    var mat = new THREE.LineBasicMaterial({ color: color || 0xffcc66, transparent: true, opacity: 0.9 });
-    var line = new THREE.Line(geo, mat);
+    var c = color || 0xffcc66;
+    if (!_tracerMats[c]) {
+      _tracerMats[c] = new THREE.LineBasicMaterial({ color: c, transparent: true, opacity: 0.9 });
+    }
+    var geo;
+    if (_tracerGeoPool.length > 0) {
+      geo = _tracerGeoPool.pop();
+      geo.setFromPoints([from, to]);
+    } else {
+      geo = new THREE.BufferGeometry().setFromPoints([from, to]);
+    }
+    var line = new THREE.Line(geo, _tracerMats[c]);
     scene.add(line);
     fx.push({ type: 'tracer', obj: line, life: 0.07, maxLife: 0.07 });
   }
@@ -1419,7 +1430,7 @@
     var gt2 = GUN_TYPES[player.gun];
     if (gt2 && gt2.flame) return;          // 喷火枪不抛壳
     if (!_casingMat) {
-      _casingMat = new THREE.MeshStandardMaterial({ color: 0xc9a227, roughness: 0.35, metalness: 0.75 });
+      _casingMat = new THREE.MeshLambertMaterial({ color: 0xc9a227});
     }
     // v7.9 性能优化：弹壳共享几何
     if (!_casingGeo) _casingGeo = new THREE.BoxGeometry(0.028, 0.012, 0.012);
@@ -1472,11 +1483,12 @@
 
   function spawnSparks(point, color) {
     var c = color || 0xffaa44;
-    var sparkGeo = new THREE.SphereGeometry(0.035, 4, 4);
-    var mat = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 1 });
+    if (!_sparkGeo) _sparkGeo = new THREE.SphereGeometry(0.035, 4, 4);
+    if (!_sparkMats[c]) _sparkMats[c] = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 1 });
+    var mat = _sparkMats[c];
     var n = 8;
     for (var i = 0; i < n; i++) {
-      var m = new THREE.Mesh(sparkGeo, mat);
+      var m = new THREE.Mesh(_sparkGeo, mat);
       m.position.copy(point);
       var v = new THREE.Vector3(
         (Math.random() - 0.5) * 8,
@@ -1486,10 +1498,11 @@
       scene.add(m);
       fx.push({ type: 'spark', obj: m, vel: v, life: 0.32, maxLife: 0.32 });
     }
-    // v8.1 性能优化：冲击环几何缓存
+    // v8.1 性能优化：冲击环几何缓存 + v10 材料缓存
     if (!_ringGeo) _ringGeo = new THREE.RingGeometry(0.06, 0.12, 20);
     var ringGeo = _ringGeo;
-    var ringMat = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+    if (!_ringMats[c]) _ringMats[c] = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, side: THREE.DoubleSide });
+    var ringMat = _ringMats[c];
     var ring = new THREE.Mesh(ringGeo, ringMat);
     ring.position.copy(point);
     ring.lookAt(camera.position);
@@ -1503,15 +1516,19 @@
     var dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
     var spread = 0.12;
-    for (var i = 0; i < 12; i++) {
+    for (var i = 0; i < 8; i++) {
       var v = new THREE.Vector3(
         dir.x + (Math.random() - 0.5) * spread,
         dir.y + (Math.random() - 0.5) * spread,
         dir.z + (Math.random() - 0.5) * spread
       ).normalize();
+      var flameColor = Math.random() > 0.5 ? 0xff6600 : 0xff3300;
+      if (!_flameMats[flameColor]) _flameMats[flameColor] = new THREE.MeshBasicMaterial({ color: flameColor, transparent: true, opacity: 0.85 });
+      if (!_flameGeoA) _flameGeoA = new THREE.SphereGeometry(0.09, 5, 5);
+      if (!_flameGeoB) _flameGeoB = new THREE.SphereGeometry(0.13, 5, 5);
       var flame = new THREE.Mesh(
-        new THREE.SphereGeometry(0.08 + Math.random() * 0.06, 5, 5),
-        new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0xff6600 : 0xff3300, transparent: true, opacity: 0.85 })
+        Math.random() > 0.5 ? _flameGeoB : _flameGeoA,
+        _flameMats[flameColor]
       );
       flame.position.copy(origin).addScaledVector(v, 0.3);
       scene.add(flame);
@@ -1554,7 +1571,7 @@
     for (var i = 0; i < cnt; i++) {
       var m = new THREE.Mesh(
         _debrisGeo,
-        new THREE.MeshStandardMaterial({ color: col, roughness: 0.85, transparent: true, opacity: 1 })
+        new THREE.MeshLambertMaterial({ color: col, transparent: true, opacity: 1 })
       );
       var s = sz * (0.5 + Math.random());
       m.scale.set(s, s * (0.4 + Math.random() * 0.9), s);
@@ -1611,7 +1628,7 @@
     spawnSparks(point, 0xffaa44);
     // 烟雾（浓黑升腾，双层；v8.1 共享球几何 + scale 控制尺寸）
     if (!_smokeGeo) _smokeGeo = new T.SphereGeometry(1, 6, 6);
-    for (var i = 0; i < 22; i++) {
+    for (var i = 0; i < 3; i++) {
       var smoke = new T.Mesh(
         _smokeGeo,
         new T.MeshBasicMaterial({
@@ -1629,11 +1646,7 @@
         life: 2.0 + Math.random() * 1.5, maxLife: 3.5, growTo: 3.5
       });
     }
-    // 闪光点光源
-    var light = new T.PointLight(0xffaa55, 8, radius * 4, 1.5);
-    light.position.copy(point);
-    scene.add(light);
-    fx.push({ type: 'flashlight', obj: light, life: 0.3, maxLife: 0.3 });
+    // v10 移除爆炸闪光点光源（动态 PointLight 触发 GPU 重传→卡顿）
     // 注：核弹先闪光由 detonateNuke 统一处理（250ms），此处不再设置避免定时器覆盖
   }
 
@@ -2438,10 +2451,10 @@
       collision: false,
       dynamic: true,
       respawn: 0,
-      // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000；v8.2 再提升 2 倍：12000 → 24000
-      health: 24000,
-      // v7.7 猪头佳移动速度 +40%：13 → 18.2
-      speed: 18.2,
+      // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000；v8.2 再提升 2 倍：12000 → 24000；v10 再提升至 55000
+      health: 55000,
+      // v7.7 猪头佳移动速度 +40%：13 → 18.2；v10 再 ×3：18.2 → 39
+      speed: 39,
       life: 90    // v7.9 超时自爆 30 → 90 秒
     };
     buildEntity(cfg);
@@ -2524,7 +2537,7 @@
     // v7.7 伤害 +50% → 36/45/54；速度 +40%（取关卡 boss.speed，已同步 +40%）
     var dmgTable = [36, 36, 36, 45, 54];
     var bossDmg = (typeof b.damage === 'number' && b.damage > 0) ? b.damage : (dmgTable[levelIndex] || 36);
-    var bossSpeed = (typeof b.speed === 'number' && b.speed > 0) ? b.speed : 1.4;
+    var bossSpeed = ((typeof b.speed === 'number' && b.speed > 0) ? b.speed : 1.4) * 3;   // v10 移动速度×3
     var bossScale = b.scale || 3.0;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(side * (22 + Math.random() * 12), 0, -30 - Math.random() * 8);
@@ -2546,7 +2559,7 @@
       defense: b.defense || 2,
       weapon: b.weapon || 'rocket',
       shootRange: 35,
-      shootCooldown: 1.0,
+      shootCooldown: 0.2,   // v10 火箭射速×5（原 1.0 秒/发 → 0.2 秒/发）
       stopDist: 12,
       score: 2000
     };
@@ -3435,13 +3448,15 @@
         });
       }
       if (f.life <= 0) {
+        // v10 tracer 几何体归还对象池
+        if (f.type === 'tracer' && f.obj && f.obj.geometry) {
+          _tracerGeoPool.push(f.obj.geometry);
+        }
         scene.remove(f.obj);
-        if (f.obj.geometry) f.obj.geometry.dispose();
-        if (f.obj.material) f.obj.material.dispose();
+        // v10 不 dispose 共享几何/材质！会破坏缓存并触发 GPU 重传→持续掉帧
         fx.splice(i, 1);
       }
     }
-    if (muzzleLight.intensity > 0) muzzleLight.intensity = Math.max(0, muzzleLight.intensity - dt * 30);
   }
 
   /* ================= 15. HUD ================= */
@@ -4298,7 +4313,7 @@
       var spd = pig.inst.userData.speed;
       var life = pig.inst.userData.life;
       var defense = pig.inst.userData.defense;
-      var ok = Math.abs(spd - 18.2) < 0.001 && life === 90 && defense === 2;
+      var ok = Math.abs(spd - 39) < 0.001 && life === 90 && defense === 2;
       return { ok: ok, speed: spd, life: life, defense: defense };
     };
     // v7.7 需求1b：猪头佳撞玩家基础伤害 ×1.5（8~30），钳制后 8~20；激光玩家 DPS 设定 30
@@ -4360,7 +4375,7 @@
       bossAlive = false; bossAppeared = false;
       levelIndex = savedIdx;
       out.ok = out.l3.damage === 36 && Math.abs(out.l3.speed - 1.4) < 0.001 &&
-               out.cfg && out.cfg.damage === 36 && Math.abs(out.cfg.speed - 1.4) < 0.001;
+               out.cfg && out.cfg.damage === 36 && Math.abs(out.cfg.speed - 4.2) < 0.001;
       return out;
     };
     // v7.7 需求3：玩家被猪头佳/BOSS 挡体推挤（不再从下方穿模）
@@ -4478,7 +4493,7 @@
       out.pixelRatio = renderer.getPixelRatio ? renderer.getPixelRatio() : -1;
       out.fxMax = FX_MAX;
       // debris 不再投射阴影：spawnDebris 内部置 castShadow=false，这里验证几何共享标记
-      out.ok = out.pixelRatio <= 1.5 && out.fxMax === 450;
+      out.ok = out.pixelRatio <= 1.0 && out.fxMax === 300;
       return out;
     };
     // v7.9 需求3：玩家武器数值检查（火箭筒伤害 +50%）
@@ -4570,17 +4585,11 @@
       out.ok = ok === true && out.health === 24000 && out.life === 60 && out.speed === 8 && out.scale === 1.6;
       return out;
     };
-    // v9.1 樱花树替代椰子树：sakura 4~7 棵（大中小），coconut 0
-    window.__fpsTest.sakuraTest = function () {
-      var out = {};
-      var sakuras = entities.filter(function (e) { return e.cfg && e.cfg.model === 'sakura'; });
+    // v10 樱花树已删除，椰子树回归
+    window.__fpsTest.coconutTest = function () {
       var coconuts = entities.filter(function (e) { return e.cfg && e.cfg.model === 'coconut'; });
-      out.sakuraCount = sakuras.length;
-      out.coconutCount = coconuts.length;
-      out.variants = {};
-      sakuras.forEach(function (c) { out.variants[c.cfg.variant] = (out.variants[c.cfg.variant] || 0) + 1; });
-      out.ok = out.sakuraCount >= 4 && out.sakuraCount <= 7 && out.coconutCount === 0;
-      return out;
+      var sakuras = entities.filter(function (e) { return e.cfg && e.cfg.model === 'sakura'; });
+      return { ok: coconuts.length >= 4 && coconuts.length <= 7 && sakuras.length === 0, coconutCount: coconuts.length, sakuraCount: sakuras.length };
     };
     // v8.5 自动拾取枪不切换，只给对应枪加备弹
     window.__fpsTest.gunPickupTest = function () {
@@ -4711,7 +4720,7 @@
       var bo = null;
       for (var j = 0; j < entities.length; j++) if (entities[j].cfg.id === boCfg.id) { bo = entities[j]; break; }
       if (bo) { out.boss = bo.inst.userData.maxHealth || bo.inst.userData.health; removeEntity(bo); }
-      out.ok = out.he === 750 && out.pig === 24000 && out.boss === 22500;
+      out.ok = out.he === 750 && out.pig === 55000 && out.boss === 22500;
       return out;
     };
     // v7.4 需求4：狂暴模式 30% 阈值 + hitPlayer 伤害结算点立即触发
