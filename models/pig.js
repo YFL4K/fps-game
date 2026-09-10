@@ -177,7 +177,7 @@
         maxHealth: cfg.health || 55000,
         dead: false,
         life: cfg.life || 30,
-        speed: cfg.speed || 39,
+        speed: cfg.speed || 1,
         hitPlayerCd: 0,
         hitEnemyCd: 0,
         runPhase: 0,
@@ -246,30 +246,17 @@
         return;
       }
 
-      // 选择最近目标（玩家/敌人/爆炸物）无差别冲撞
+      // v10.2 优先攻击玩家（取消 v8.3 优先攻击 BOSS 的设定）
       var px = inst.position.x, pz = inst.position.z;
       var list = ctx.entities || [];
       var best = null, bestD = Infinity;
-      // v8.3 地图中有 BOSS 时，猪头佳优先攻击 BOSS
-      var bossRec = null, bossD2 = Infinity;
-      for (var bi = 0; bi < list.length; bi++) {
-        var brec = list[bi];
-        if (!brec.alive || !brec.cfg || brec.cfg.enemyType !== 'boss') continue;
-        var bcu = brec.inst.userData;
-        if (bcu && bcu.dead) continue;
-        var bdx = brec.inst.position.x - px, bdz = brec.inst.position.z - pz;
-        var bd2 = bdx * bdx + bdz * bdz;
-        if (bd2 < bossD2) { bossD2 = bd2; bossRec = brec; }
-      }
-      if (bossRec) {
-        best = { x: bossRec.inst.position.x, z: bossRec.inst.position.z };
-        bestD = bossD2;
-      } else if (!ctx.player.dead) {
+      if (!ctx.player.dead) {
+        // 玩家存活：始终锁定玩家
         var dxp = ctx.player.pos.x - px, dzp = ctx.player.pos.z - pz;
-        var dp = dxp * dxp + dzp * dzp;
-        if (dp < bestD) { bestD = dp; best = { x: ctx.player.pos.x, z: ctx.player.pos.z }; }
-      }
-      if (!bossRec) {
+        bestD = dxp * dxp + dzp * dzp;
+        best = { x: ctx.player.pos.x, z: ctx.player.pos.z };
+      } else {
+        // 玩家死亡：才寻找最近的其他目标（敌人/爆炸物）
         for (var i = 0; i < list.length; i++) {
           var rec = list[i];
           if (!rec.alive || rec === u._rec) continue;
@@ -296,6 +283,15 @@
       }
       inst.position.x += dirX * u.speed * dt;
       inst.position.z += dirZ * u.speed * dt;
+
+      // v10.3 撞开前方障碍物（大型敌人前进时自动破坏挡路的墙/房/箱）
+      if (best && ctx.breakObstacleAhead) {
+        u._ramT = (u._ramT || 0) + dt;
+        if (u._ramT > 0.25) {
+          u._ramT = 0;
+          ctx.breakObstacleAhead(inst.position, dirX, dirZ, 3.5 * (inst.scale.x || 1), 400);
+        }
+      }
 
       // 奔跑动画：四腿摆动 + 头部轻晃
       u.runPhase += dt * (11 + u.speed * 0.5);

@@ -20,10 +20,10 @@
     // ---- 基础环境 ----
     entities.push({ id: nextId('sky'), model: 'sky', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
     entities.push({ id: nextId('floor'), model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [2.5, 1, 2.5], collision: false });
-    entities.push({ id: nextId('wall-n'), model: 'wall', position: [0, 0, -45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true });
-    entities.push({ id: nextId('wall-s'), model: 'wall', position: [0, 0, 45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true });
-    entities.push({ id: nextId('wall-e'), model: 'wall', position: [45, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true });
-    entities.push({ id: nextId('wall-w'), model: 'wall', position: [-45, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true });
+    entities.push({ id: nextId('wall-n'), model: 'wall', position: [0, 0, -45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true, destructible: false });
+    entities.push({ id: nextId('wall-s'), model: 'wall', position: [0, 0, 45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true, destructible: false });
+    entities.push({ id: nextId('wall-e'), model: 'wall', position: [45, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true, destructible: false });
+    entities.push({ id: nextId('wall-w'), model: 'wall', position: [-45, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true, destructible: false });
 
     // ---- 建筑（随机放置 6-10 栋）----
     var buildings = [];
@@ -248,15 +248,7 @@
         collision: false
       });
     }
-    // v10 删除樱花树，回归椰子树装饰（性能开销更低）
-    for (var bdi = 0; bdi < randInt(4, 7); bdi++) {
-      entities.push({
-        id: nextId('coconut'), model: 'coconut',
-        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
-        collision: true,
-        variant: randChoice(['large', 'medium', 'small'])
-      });
-    }
+    // v10.2 椰子树已删除
     // v8.0 蘑菇装饰：不同尺寸/颜色随机分布，提升画面美感（不参与碰撞）
     for (var msi = 0; msi < randInt(6, 12); msi++) {
       var ms = rand(0.4, 1.6);

@@ -385,6 +385,15 @@
         moving = true;
       }
 
+      // v10.3 BOSS 撞开前方障碍物（前进时自动破坏挡路的墙/房/箱）
+      if (u.type === 'boss' && moving && dist > stopDist && ctx.breakObstacleAhead) {
+        u._ramT = (u._ramT || 0) + dt;
+        if (u._ramT > 0.25) {
+          u._ramT = 0;
+          ctx.breakObstacleAhead(inst.position, dx / dist, dz / dist, 4.0 * s, 400);
+        }
+      }
+
       // ---- 动画 ----
       u.walkPhase += dt * (moving ? 8 : 2);
       const swing = Math.sin(u.walkPhase) * (moving ? 0.85 : 0.1);

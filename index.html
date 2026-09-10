@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v10.1</div>
+<div id="versionTag">v10.3</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -194,7 +194,6 @@
 <script src="models/highwall.js" onerror="window.__modErr('models/highwall.js')"></script>
 <script src="models/ferriswheel.js" onerror="window.__modErr('models/ferriswheel.js')"></script>
 <script src="models/grass.js" onerror="window.__modErr('models/grass.js')"></script>
-<script src="models/coconut.js" onerror="window.__modErr('models/coconut.js')"></script>
 <script src="models/mushroom.js" onerror="window.__modErr('models/mushroom.js')"></script>
 <script src="models/jetpack.js" onerror="window.__modErr('models/jetpack.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
@@ -283,10 +282,10 @@
       ],
       entities: [
         { id: 'floor-1', model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false },
-        { id: 'wall-n', model: 'wall', position: [0, 0, -45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true },
-        { id: 'wall-s', model: 'wall', position: [0, 0, 45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true },
-        { id: 'wall-e', model: 'wall', position: [45, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true },
-        { id: 'wall-w', model: 'wall', position: [-45, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true }
+        { id: 'wall-n', model: 'wall', position: [0, 0, -45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true, destructible: false },
+        { id: 'wall-s', model: 'wall', position: [0, 0, 45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true, destructible: false },
+        { id: 'wall-e', model: 'wall', position: [45, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true, destructible: false },
+        { id: 'wall-w', model: 'wall', position: [-45, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true, destructible: false }
       ]
     };
     showError('scene-layout.js 加载失败，使用内置默认场景');
@@ -1246,7 +1245,12 @@
         if (hit.rec.cfg.model === 'enemy' || hit.rec.cfg.model === 'helicopter') hitEnemy = true;
         try {
           var hs = null;
-          if (hit.rec.def && hit.rec.def.onHit) hs = hit.rec.def.onHit(hit.rec.inst, hit.point, ctx);
+          if (hit.rec.def && hit.rec.def.onHit) {
+            hs = hit.rec.def.onHit(hit.rec.inst, hit.point, ctx);
+          } else if (isDestructible(hit.rec)) {
+            // v10.2 静态可破坏物品（墙/建筑/箱子/树等）被子弹命中扣血，血尽破碎
+            damageStaticEntity(hit.rec, ctx.currentDamage || 15, hit.point);
+          }
           if (hs) headshot = true;
         } catch (e) { showError('onHit 失败 (' + hit.rec.cfg.id + '): ' + e.message); }
         score += hit.rec.cfg.score || 0;
@@ -1536,10 +1540,23 @@
   }
 
   /* ================= 9.5 爆炸 / 碎片 / 破坏系统 ================= */
-  var DESTRUCTIBLE_MODELS = { crate: 1, obstacle: 1, barrel: 1, tnt: 1, vehicle: 1, step: 1, building: 1, tree: 1, lamp: 1 };
+  // v10.2 所有静态场景物品均可被破坏（房子/箱子/墙体等）
+  var DESTRUCTIBLE_MODELS = { crate: 1, obstacle: 1, barrel: 1, tnt: 1, vehicle: 1, step: 1, building: 1, tree: 1, lamp: 1, wall: 1, highwall: 1, bigtree: 1, container: 1, truck: 1, plane: 1, pot: 1, chest: 1, ferriswheel: 1 };
+  // v10.2 静态物品血量：武器命中扣血，血尽破碎（参考武器伤害：手枪60/步枪35/狙击300/火箭210）
+  var STATIC_HP = { crate: 1500, obstacle: 60, barrel: 40, tnt: 30, vehicle: 150, step: 60, building: 1500, tree: 80, lamp: 50, wall: 1500, highwall: 150, bigtree: 150, container: 200, truck: 250, plane: 300, pot: 30, chest: 80, ferriswheel: 250 };
   function isDestructible(rec) {
     if (rec.cfg.destructible === false) return false;
     return !!DESTRUCTIBLE_MODELS[rec.cfg.model];
+  }
+  // v10.2 静态物品受击：扣血，血尽标记 destroyed（由调用方统一 spawnDebris+destroyEntity）
+  function damageStaticEntity(rec, dmg, point) {
+    if (!rec || !rec.alive) return;
+    var u = rec.inst.userData || (rec.inst.userData = {});
+    if (u.destroyed) return;
+    if (u._hp === undefined) u._hp = STATIC_HP[rec.cfg.model] || 100;
+    u._hp -= dmg;
+    if (point) spawnSparks(point, 0xcccccc);
+    if (u._hp <= 0) u.destroyed = true;
   }
 
   function spawnDebris(arg, count, size, color) {
@@ -2451,8 +2468,8 @@
       respawn: 0,
       // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000；v8.2 再提升 2 倍：12000 → 24000；v10 再提升至 55000
       health: 55000,
-      // v7.7 猪头佳移动速度 +40%：13 → 18.2；v10 再 ×3：18.2 → 39
-      speed: 39,
+      // v7.7 猪头佳移动速度 +40%：13 → 18.2；v10 再 ×3：18.2 → 39；v10.3 降低到与普通敌人一致（speed 1）
+      speed: 1,
       life: 90    // v7.9 超时自爆 30 → 90 秒
     };
     buildEntity(cfg);
@@ -2535,7 +2552,7 @@
     // v7.7 伤害 +50% → 36/45/54；速度 +40%（取关卡 boss.speed，已同步 +40%）
     var dmgTable = [36, 36, 36, 45, 54];
     var bossDmg = (typeof b.damage === 'number' && b.damage > 0) ? b.damage : (dmgTable[levelIndex] || 36);
-    var bossSpeed = ((typeof b.speed === 'number' && b.speed > 0) ? b.speed : 1.4) * 3;   // v10 移动速度×3
+    var bossSpeed = 1;   // v10.3 降低到与普通敌人一致的移动速度
     var bossScale = b.scale || 3.0;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(side * (22 + Math.random() * 12), 0, -30 - Math.random() * 8);
@@ -3283,11 +3300,37 @@
           var push = (r - d) / d;
           rec.inst.position.x += dx * push;
           rec.inst.position.z += dz * push;
+          // v10.2 大型敌人（猪头佳/BOSS）撞击可破坏场景物品：卡住时撞开障碍继续追杀玩家
+          if ((rm === 'pig' || rec.cfg.enemyType === 'boss') && isDestructible(c)) {
+            if (u._ramTarget !== c) { u._ramTarget = c; u._ramTimer = 0; }
+            u._ramTimer = (u._ramTimer || 0) + _lastDt;
+            if (u._ramTimer > 0.45) {
+              u._ramTimer = 0;
+              damageStaticEntity(c, 90, c.inst.position);
+              if (c.inst.userData && c.inst.userData.destroyed) {
+                spawnDebris(c);
+                destroyEntity(c);
+              }
+            }
+          }
         } else if (d2 <= 1e-8) {
           var px = Math.min(rec.inst.position.x - ab.min.x, ab.max.x - rec.inst.position.x);
           var pz = Math.min(rec.inst.position.z - ab.min.z, ab.max.z - rec.inst.position.z);
           if (px < pz) rec.inst.position.x = (rec.inst.position.x - ab.min.x < ab.max.x - rec.inst.position.x) ? ab.min.x - r : ab.max.x + r;
           else rec.inst.position.z = (rec.inst.position.z - ab.min.z < ab.max.z - rec.inst.position.z) ? ab.min.z - r : ab.max.z + r;
+          // v10.2 大型敌人撞击破坏（正中心情况）
+          if ((rm === 'pig' || rec.cfg.enemyType === 'boss') && isDestructible(c)) {
+            if (u._ramTarget !== c) { u._ramTarget = c; u._ramTimer = 0; }
+            u._ramTimer = (u._ramTimer || 0) + _lastDt;
+            if (u._ramTimer > 0.45) {
+              u._ramTimer = 0;
+              damageStaticEntity(c, 90, c.inst.position);
+              if (c.inst.userData && c.inst.userData.destroyed) {
+                spawnDebris(c);
+                destroyEntity(c);
+              }
+            }
+          }
         }
       }
       // v7.4 世界边界硬钳制：敌人（蜘蛛/陆行敌人/猪/BOSS）绝不越过围墙
@@ -3296,6 +3339,29 @@
       rec.inst.position.z = clamp(rec.inst.position.z, -wl, wl);
     }
   }
+
+  /** v10.3 大型敌人撞开前方障碍物：检测移动方向前方的可破坏碰撞体并造成伤害 */
+  function breakObstacleAhead(pos, dirX, dirZ, range, damage) {
+    for (var i = colliders.length - 1; i >= 0; i--) {
+      var rec = colliders[i];
+      if (!rec.alive || !isDestructible(rec)) continue;
+      var dx = rec.inst.position.x - pos.x;
+      var dz = rec.inst.position.z - pos.z;
+      var d = Math.sqrt(dx * dx + dz * dz);
+      if (d > range) continue;
+      // 前方判断：目标在移动方向一侧
+      if (dirX * dx + dirZ * dz < -0.5) continue;
+      // 横向偏移（垂直距离）不超过 3 米才算正前方
+      var perp = Math.abs(dirX * dz - dirZ * dx);
+      if (perp > 3.0) continue;
+      damageStaticEntity(rec, damage, rec.inst.position);
+      if (rec.inst.userData && rec.inst.userData.destroyed) {
+        spawnDebris(rec);
+        destroyEntity(rec);
+      }
+    }
+  }
+  ctx.breakObstacleAhead = breakObstacleAhead;
 
   /* ================= 13. 实体更新循环（含 respawn / 移除） ================= */
   function updateEntities(dt) {
@@ -4311,7 +4377,7 @@
       var spd = pig.inst.userData.speed;
       var life = pig.inst.userData.life;
       var defense = pig.inst.userData.defense;
-      var ok = Math.abs(spd - 39) < 0.001 && life === 90 && defense === 2;
+      var ok = Math.abs(spd - 1) < 0.001 && life === 90 && defense === 2;
       return { ok: ok, speed: spd, life: life, defense: defense };
     };
     // v7.7 需求1b：猪头佳撞玩家基础伤害 ×1.5（8~30），钳制后 8~20；激光玩家 DPS 设定 30
@@ -4373,7 +4439,7 @@
       bossAlive = false; bossAppeared = false;
       levelIndex = savedIdx;
       out.ok = out.l3.damage === 36 && Math.abs(out.l3.speed - 1.4) < 0.001 &&
-               out.cfg && out.cfg.damage === 36 && Math.abs(out.cfg.speed - 4.2) < 0.001;
+               out.cfg && out.cfg.damage === 36 && Math.abs(out.cfg.speed - 1) < 0.001;
       return out;
     };
     // v7.7 需求3：玩家被猪头佳/BOSS 挡体推挤（不再从下方穿模）
@@ -4583,11 +4649,11 @@
       out.ok = ok === true && out.health === 24000 && out.life === 60 && out.speed === 8 && out.scale === 1.6;
       return out;
     };
-    // v10 樱花树已删除，椰子树回归
+    // v10.2 椰子树已删除（樱花树已于 v10.0 删除，两者均不存在）
     window.__fpsTest.coconutTest = function () {
       var coconuts = entities.filter(function (e) { return e.cfg && e.cfg.model === 'coconut'; });
       var sakuras = entities.filter(function (e) { return e.cfg && e.cfg.model === 'sakura'; });
-      return { ok: coconuts.length >= 4 && coconuts.length <= 7 && sakuras.length === 0, coconutCount: coconuts.length, sakuraCount: sakuras.length };
+      return { ok: coconuts.length === 0 && sakuras.length === 0, coconutCount: coconuts.length, sakuraCount: sakuras.length };
     };
     // v8.5 自动拾取枪不切换，只给对应枪加备弹
     window.__fpsTest.gunPickupTest = function () {
