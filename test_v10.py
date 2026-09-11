@@ -21,7 +21,7 @@ with sync_playwright() as p:
     page.goto(URL)
     page.wait_for_timeout(2500)
 
-    check("versionTag == v10.3", page.text_content("#versionTag").strip() == "v10.3")
+    check("versionTag == v10.4", page.text_content("#versionTag").strip() == "v10.4")
 
     page.click("#modeStoryBtn")
     page.wait_for_timeout(1200)
@@ -32,14 +32,14 @@ with sync_playwright() as p:
     # 猪头佳系列
     check("pigTrigger(10kills)", page.evaluate("window.__fpsTest.pigTriggerTest()")["ok"])
     check("pig health 55000", page.evaluate("window.__fpsTest.enemyHealthTest()")["ok"])
-    check("pig speed 1/life 90/defense 2", page.evaluate("window.__fpsTest.pigSpeedTest()")["ok"])
+    check("pig speed 2.7/life 90/defense 2", page.evaluate("window.__fpsTest.pigSpeedTest()")["ok"])
     check("pig laser 20deg", page.evaluate("window.__fpsTest.pigLaserPitchSweepTest()")["ok"])
 
     # 战斗系统
     check("berserk 30%", page.evaluate("window.__fpsTest.berserkTest()")["ok"])
     check("shield 15s cap", page.evaluate("window.__fpsTest.shieldKillTest()")["ok"])
     check("bgm volume 0.24", page.evaluate("window.__fpsTest.bgmVolumeTest()")["ok"])
-    check("boss L3 dmg36/speed1", page.evaluate("window.__fpsTest.bossStatsTest()")["ok"])
+    check("boss L3 dmg36/speed2.7", page.evaluate("window.__fpsTest.bossStatsTest()")["ok"])
     check("big-enemy no-clip", page.evaluate("window.__fpsTest.collideBigTest()")["ok"])
 
     # 空中支援/核弹

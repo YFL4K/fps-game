@@ -177,7 +177,7 @@
         maxHealth: cfg.health || 55000,
         dead: false,
         life: cfg.life || 30,
-        speed: cfg.speed || 1,
+        speed: cfg.speed || 2.7,
         hitPlayerCd: 0,
         hitEnemyCd: 0,
         runPhase: 0,

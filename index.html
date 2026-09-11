@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v10.3</div>
+<div id="versionTag">v10.4</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -298,7 +298,7 @@
   var GUN_TYPES = {
     pistol:     { name: '手枪',     damage: 60, mag: 12,  maxAmmo: 96,  fireRate: 6.0,  reload: 0.5,  spread: 0.012, pellets: 1,   range: 70,   auto: false, aimFov: 50, scopeLens: false },   // v7.2: 伤害28→60 射速4→6 换弹0.78→0.5
     rifle:      { name: '步枪',     damage: 35, mag: 30,  maxAmmo: 240, fireRate: 15.0, reload: 1.0,  spread: 0.02,  pellets: 1,   range: 120,  auto: true,  aimFov: 45, scopeLens: false },   // v7.2: 伤害20→35 射速9→15 换弹1.17→1，初始自带
-    flamethrower: { name: '喷火器', damage: 100, mag: 5,  maxAmmo: 30,  fireRate: 35.0, reload: 1.5,  spread: 0.08,  pellets: 1,   range: 60,   auto: true, flame: true, flameRadius: 9, aimFov: 55, scopeLens: false },  // v7.2: 伤害216→100 射速12→35 换弹2.0→1.5 射程80→60
+    flamethrower: { name: '喷火器', damage: 300, mag: 5,  maxAmmo: 30,  fireRate: 35.0, reload: 1.5,  spread: 0.08,  pellets: 1,   range: 80,   auto: true, flame: true, flameRadius: 12, aimFov: 55, scopeLens: false },  // v7.2: 伤害216→100 射速12→35 换弹2.0→1.5 射程80→60；v10.4: 伤害100→300 射程60→80 范围9→12
     sniper:     { name: '狙击枪',   damage: 300, mag: 5,  maxAmmo: 40,  fireRate: 3.0,  reload: 1.0,  spread: 0.003, pellets: 1,   range: 300,  auto: false, aimFov: 18, scopeLens: true },   // v7.2: 伤害120→300 射速0.9→1 换弹1.82→2 射程260→300；v8.4: 射速1→3 换弹2→1
     rocket:     { name: '火箭筒',   damage: 210, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 200,  auto: false, aoe: { radius: 6, damage: 255 }, aimFov: 35, scopeLens: false }   // v7.2: 射程240→200；v7.9: 伤害140→210、爆炸170→255（+50%）
   };
@@ -2041,7 +2041,7 @@
     if (player.jetpack.count >= 1) return;
     player.jetpack.count = 1;
     if (sfx) sfx.playPickup();
-    showToast('✈ 获得喷气飞行器！按 空格 启动向上飞行（15 秒）', 0x55ccff);
+    showToast('✈ 获得喷气飞行器！按 B 启动向上飞行（15 秒）', 0x55ccff);
   }
 
   /** v7.8 核弹发放统一入口：上限 1，不使用不能累积，不能重复拾取
@@ -2068,7 +2068,7 @@
       // v8.4 喷气飞行器：每 5000 分自动获得 1 个（不累积，上限 1，用完作废）
       if (player.jetpack.count < 1) {
         player.jetpack.count = 1;
-        showToast('✈ 积分奖励：喷气飞行器 ×1（按 空格 起飞）', 0x55ccff);
+        showToast('✈ 积分奖励：喷气飞行器 ×1（按 B 起飞）', 0x55ccff);
       }
       if (sfx && sfx.playLevelUp) sfx.playLevelUp();
     }
@@ -2468,8 +2468,8 @@
       respawn: 0,
       // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000；v8.2 再提升 2 倍：12000 → 24000；v10 再提升至 55000
       health: 55000,
-      // v7.7 猪头佳移动速度 +40%：13 → 18.2；v10 再 ×3：18.2 → 39；v10.3 降低到与普通敌人一致（speed 1）
-      speed: 1,
+      // v7.7 猪头佳移动速度 +40%：13 → 18.2；v10 再 ×3：18.2 → 39；v10.3 降低到与普通敌人一致（speed 1）；v10.4 +170%（×2.7）
+      speed: 2.7,
       life: 90    // v7.9 超时自爆 30 → 90 秒
     };
     buildEntity(cfg);
@@ -2552,7 +2552,7 @@
     // v7.7 伤害 +50% → 36/45/54；速度 +40%（取关卡 boss.speed，已同步 +40%）
     var dmgTable = [36, 36, 36, 45, 54];
     var bossDmg = (typeof b.damage === 'number' && b.damage > 0) ? b.damage : (dmgTable[levelIndex] || 36);
-    var bossSpeed = 1;   // v10.3 降低到与普通敌人一致的移动速度
+    var bossSpeed = 2.7;   // v10.3 降低到与普通敌人一致；v10.4 +170%（×2.7）
     var bossScale = b.scale || 3.0;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(side * (22 + Math.random() * 12), 0, -30 - Math.random() * 8);
@@ -2847,8 +2847,8 @@
     if (player.shieldTime > 0) {
       player.shieldTime = Math.min(15, player.shieldTime + 0.5);
     }
-    // v7.1 图鉴表掉落：金盾 10%
-    if (Math.random() < 0.10) {
+    // v7.1 图鉴表掉落：金盾 10% → v10.4 提升至 20%
+    if (Math.random() < 0.20) {
       spawnShieldDrop(pos);
     }
     // v8.4 喷气飞行器：击杀普通敌人 5% 掉落（上限 1，已有不掉）
@@ -3086,8 +3086,8 @@
     player.vel.z = tmpVec.z;
     player.vel.y += (W.gravity || -22) * dt;
 
-    if (keys.Space && player.jetpack.count > 0 && !player.jetpack.active) {
-      // v8.4 喷气飞行器启动（空格），用完作废
+    if (keys.KeyB && player.jetpack.count > 0 && !player.jetpack.active) {
+      // v8.4 喷气飞行器启动（v10.4 由空格改为 B 键），用完作废
       player.jetpack.count = 0;
       player.jetpack.active = true;
       player.jetpack.time = 15;
@@ -4377,7 +4377,7 @@
       var spd = pig.inst.userData.speed;
       var life = pig.inst.userData.life;
       var defense = pig.inst.userData.defense;
-      var ok = Math.abs(spd - 1) < 0.001 && life === 90 && defense === 2;
+      var ok = Math.abs(spd - 2.7) < 0.001 && life === 90 && defense === 2;
       return { ok: ok, speed: spd, life: life, defense: defense };
     };
     // v7.7 需求1b：猪头佳撞玩家基础伤害 ×1.5（8~30），钳制后 8~20；激光玩家 DPS 设定 30
@@ -4439,7 +4439,7 @@
       bossAlive = false; bossAppeared = false;
       levelIndex = savedIdx;
       out.ok = out.l3.damage === 36 && Math.abs(out.l3.speed - 1.4) < 0.001 &&
-               out.cfg && out.cfg.damage === 36 && Math.abs(out.cfg.speed - 1) < 0.001;
+               out.cfg && out.cfg.damage === 36 && Math.abs(out.cfg.speed - 2.7) < 0.001;
       return out;
     };
     // v7.7 需求3：玩家被猪头佳/BOSS 挡体推挤（不再从下方穿模）
@@ -4566,8 +4566,10 @@
       var g = GUN_TYPES;
       out.rocket = { dmg: g.rocket.damage, aoe: g.rocket.aoe.damage };
       out.sniper = { fireRate: g.sniper.fireRate, reload: g.sniper.reload };
+      out.flame = { dmg: g.flamethrower.damage, range: g.flamethrower.range, radius: g.flamethrower.flameRadius };
       out.ok = g.rocket.damage === 210 && g.rocket.aoe.damage === 255 &&
-               g.sniper.fireRate === 3.0 && g.sniper.reload === 1.0;
+               g.sniper.fireRate === 3.0 && g.sniper.reload === 1.0 &&
+               g.flamethrower.damage === 300 && g.flamethrower.range === 80 && g.flamethrower.flameRadius === 12;
       return out;
     };
     // v8.0 蘑菇装饰：地图随机生成（不同尺寸/颜色）
