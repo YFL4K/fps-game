@@ -13,10 +13,10 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const bodyMat = new T.MeshLambertMaterial({ color: 0x2f3b2f});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x1a1f1a});
-      const accentMat = new T.MeshLambertMaterial({ color: 0xd9412e, emissive: 0xd9412e, emissiveIntensity: 0.35 });
-      const screenMat = new T.MeshLambertMaterial({ color: 0x9fe8c8, emissive: 0x52d9a2, emissiveIntensity: 0.9});
+      const bodyMat = new window.MARIO.mat({ color: 0x2f3b2f});
+      const darkMat = new window.MARIO.mat({ color: 0x1a1f1a});
+      const accentMat = new window.MARIO.mat({ color: 0xd9412e, emissive: 0xd9412e, emissiveIntensity: 0.35 });
+      const screenMat = new window.MARIO.mat({ color: 0x9fe8c8, emissive: 0x52d9a2, emissiveIntensity: 0.9});
 
       // 机身
       const body = new T.Mesh(new T.BoxGeometry(0.34, 0.6, 0.14), bodyMat);
@@ -62,13 +62,13 @@
       // 光晕（提示可拾取）
       const ring = new T.Mesh(
         new T.TorusGeometry(0.34, 0.03, 8, 24),
-        new T.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.85 })
+        new window.MARIO.basic({ color: 0x66ccff, transparent: true, opacity: 0.85 })
       );
       ring.rotation.x = Math.PI / 2;
       g.add(ring);
       const glow = new T.Mesh(
         new T.SphereGeometry(0.42, 10, 8),
-        new T.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.16 })
+        new window.MARIO.basic({ color: 0x66ccff, transparent: true, opacity: 0.16 })
       );
       g.add(glow);
 

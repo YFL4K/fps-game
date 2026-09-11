@@ -16,12 +16,12 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const woodMat = new T.MeshLambertMaterial({ color: 0x6b4a2b});
-      const goldMat = new T.MeshLambertMaterial({
+      const woodMat = new window.MARIO.mat({ color: 0x6b4a2b});
+      const goldMat = new window.MARIO.mat({
         color: 0xf1c40f,
         emissive: 0x7a5c00, emissiveIntensity: 0.5
       });
-      const glowMat = new T.MeshBasicMaterial({
+      const glowMat = new window.MARIO.basic({
         color: 0xffe27a, transparent: true, opacity: 0.45,
         side: T.DoubleSide, depthWrite: false
       });
@@ -58,7 +58,7 @@
       // 内部金色光晕（从箱口溢出）
       const core = new T.Mesh(
         new T.BoxGeometry(0.7, 0.08, 0.46),
-        new T.MeshBasicMaterial({ color: 0xffe680 })
+        new window.MARIO.basic({ color: 0xffe680 })
       );
       core.position.y = 0.58;
       g.add(core);

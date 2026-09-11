@@ -26,74 +26,103 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      // 黑灰皮肤 + 红眼 + 白牙 + 深色爪
-      const skin = new T.MeshLambertMaterial({ color: 0x4a4d52, flatShading: true });
-      const skinDark = new T.MeshLambertMaterial({ color: 0x2f3236, flatShading: true });
-      const belly = new T.MeshLambertMaterial({ color: 0x3a3d42, flatShading: true });
-      const toothMat = new T.MeshLambertMaterial({ color: 0xf0f0e8});
-      const clawMat = new T.MeshLambertMaterial({ color: 0x1f2124});
-      const eye = new T.MeshBasicMaterial({ color: 0xff2020 });
+      // —— 超级马里奥奥德赛恐龙风格：强壮夸张、饱满肉感、凶恶黄瞳 + 圆角背刺 ——
+      const skin = new window.MARIO.mat({ color: 0x6b8f3a });        // 鲜绿皮肤（明亮）
+      const skinDark = new window.MARIO.mat({ color: 0x4a6b2a });    // 深绿
+      const belly = new window.MARIO.mat({ color: 0xc8e0a0 });       // 浅绿肚皮
+      const toothMat = new window.MARIO.mat({ color: 0xffffff });    // 白亮牙齿
+      const clawMat = new window.MARIO.mat({ color: 0xd8c8a0 });     // 米黄爪
+      const eye = new window.MARIO.basic({ color: 0xffcc00 });       // 凶恶黄色瞳孔
+      const pupil = new window.MARIO.basic({ color: 0x1a0a00 });     // 深色瞳仁
+      const browMat = new window.MARIO.mat({ color: 0x3a5520 });     // 眉骨深绿
 
-      // 身体（前倾：胸大腹小）
-      const chest = new T.Mesh(new T.BoxGeometry(1.15, 1.35, 1.2), skin);
-      chest.position.set(0, 1.55, -0.1);
+      // 身体（饱满前倾圆润：胸大腹小）
+      const chest = new T.Mesh(new T.SphereGeometry(0.85, 28, 22), skin);
+      chest.scale.set(1.05, 1.2, 1.1);
+      chest.position.set(0, 1.5, -0.1);
       g.add(chest);
-      const bellyBox = new T.Mesh(new T.BoxGeometry(0.95, 1.1, 1.0), belly);
-      bellyBox.position.set(0, 1.4, 0.55);
+      const bellyBox = new T.Mesh(new T.SphereGeometry(0.75, 24, 18), belly);
+      bellyBox.scale.set(0.9, 1.0, 0.8);
+      bellyBox.position.set(0, 1.35, 0.55);
       g.add(bellyBox);
 
-      // 头（巨大颅骨 + 前突吻部）
-      const skull = new T.Mesh(new T.BoxGeometry(0.6, 0.5, 0.7), skin);
+      // 头（巨大圆润颅骨 + 前突吻部）
+      const skull = new T.Mesh(new T.SphereGeometry(0.52, 24, 20), skin);
+      skull.scale.set(1.1, 0.9, 1.1);
       skull.position.set(0, 2.1, -1.25);
       g.add(skull);
-      const snout = new T.Mesh(new T.BoxGeometry(0.45, 0.32, 0.6), skin);
+      const snout = new T.Mesh(new T.SphereGeometry(0.4, 20, 16), skin);
+      snout.scale.set(1.0, 0.65, 1.3);
       snout.position.set(0, 1.95, -1.85);
       g.add(snout);
       // 下颚（张嘴）
-      const lowerJaw = new T.Mesh(new T.BoxGeometry(0.4, 0.18, 0.55), skinDark);
-      lowerJaw.position.set(0, 1.65, -1.85);
+      const lowerJaw = new T.Mesh(new T.SphereGeometry(0.35, 20, 16), skinDark);
+      lowerJaw.scale.set(0.9, 0.5, 1.1);
+      lowerJaw.position.set(0, 1.6, -1.85);
       lowerJaw.rotation.x = 0.15;
       g.add(lowerJaw);
-      // 牙齿（上下两排白色利齿）
-      for (let i = 0; i < 6; i++) {
-        const tooth = new T.Mesh(new T.BoxGeometry(0.045, 0.12, 0.045), toothMat);
-        tooth.position.set(-0.18 + i * 0.07, 1.8, -2.05);
+      // 白亮利齿（上下两排，圆润锥形）
+      for (let i = 0; i < 7; i++) {
+        const tooth = new T.Mesh(new T.ConeGeometry(0.04, 0.16, 8), toothMat);
+        tooth.position.set(-0.21 + i * 0.07, 1.78, -2.12);
         g.add(tooth);
-        const tooth2 = new T.Mesh(new T.BoxGeometry(0.045, 0.1, 0.045), toothMat);
-        tooth2.position.set(-0.18 + i * 0.07, 1.66, -2.05);
+        const tooth2 = new T.Mesh(new T.ConeGeometry(0.035, 0.13, 8), toothMat);
+        tooth2.position.set(-0.21 + i * 0.07, 1.6, -2.1);
         g.add(tooth2);
       }
-      // 红色发光眼睛（左右）
+      // 凶恶黄色瞳孔 + 拱起眉骨
       for (let i = 0; i < 2; i++) {
-        const e = new T.Mesh(new T.SphereGeometry(0.07, 8, 6), eye);
-        e.position.set((i === 0 ? -1 : 1) * 0.2, 2.2, -1.5);
-        g.add(e);
+        const side = (i === 0 ? -1 : 1);
+        const eg = new T.Group();
+        const e = new T.Mesh(new T.SphereGeometry(0.09, 14, 12), eye);
+        e.position.set(side * 0.2, 2.2, -1.52);
+        eg.add(e);
+        const p = new T.Mesh(new T.SphereGeometry(0.04, 10, 8), pupil);
+        p.position.set(side * 0.21, 2.2, -1.6);
+        eg.add(p);
+        const brow = new T.Mesh(new T.BoxGeometry(0.16, 0.09, 0.08), browMat);
+        brow.position.set(side * 0.2, 2.34, -1.5);
+        brow.rotation.z = side * -0.4;
+        eg.add(brow);
+        g.add(eg);
       }
 
-      // 尾巴（5 段渐细，水平向后伸展 + 微上翘）
+      // 圆角背刺（背部一排）
       for (let i = 0; i < 5; i++) {
-        const seg = new T.Mesh(new T.BoxGeometry(0.42 - i * 0.07, 0.4 - i * 0.06, 0.7), skinDark);
-        seg.position.set(0, 1.45 + Math.sin(i * 0.25) * 0.15, 1.0 + i * 0.65);
+        const spike = new T.Mesh(new T.ConeGeometry(0.09, 0.28, 8), skinDark);
+        spike.position.set(0, 2.5 - Math.abs(i - 2) * 0.08, -0.5 + i * 0.28);
+        spike.rotation.x = 0.6;
+        g.add(spike);
+      }
+
+      // 尾巴（圆润圆柱渐细，水平向后 + 微上翘）
+      for (let i = 0; i < 5; i++) {
+        const r = 0.32 - i * 0.05;
+        const seg = new T.Mesh(new T.CylinderGeometry(r, r * 0.85, 0.7, 14), skinDark);
+        seg.rotation.x = Math.PI / 2;
+        seg.position.set(0, 1.4 + Math.sin(i * 0.3) * 0.12, 1.0 + i * 0.65);
         g.add(seg);
       }
 
-      // 后腿（大腿 + 小腿 + 三趾脚掌，legL/legR 是 pivot 供行走动画）
+      // 后腿（圆润大腿 + 小腿 + 三趾，legL/legR 是 pivot 供行走动画）
       function buildLeg(side) {
         const pivot = new T.Group();
         pivot.position.set(side * 0.42, 1.15, 0.3);
-        const thigh = new T.Mesh(new T.BoxGeometry(0.4, 0.75, 0.5), skinDark);
+        const thigh = new T.Mesh(new T.CylinderGeometry(0.24, 0.28, 0.75, 16), skinDark);
         thigh.position.set(0, -0.2, 0);
         pivot.add(thigh);
-        const shin = new T.Mesh(new T.BoxGeometry(0.3, 0.7, 0.4), skin);
+        const shin = new T.Mesh(new T.CylinderGeometry(0.18, 0.16, 0.7, 14), skin);
         shin.position.set(0, -0.8, 0);
         pivot.add(shin);
-        const foot = new T.Mesh(new T.BoxGeometry(0.45, 0.15, 0.7), clawMat);
+        const foot = new T.Mesh(new T.SphereGeometry(0.26, 16, 12), clawMat);
+        foot.scale.set(1.1, 0.5, 1.3);
         foot.position.set(0, -1.15, 0.2);
         pivot.add(foot);
         // 三趾
         for (let j = 0; j < 3; j++) {
-          const toe = new T.Mesh(new T.BoxGeometry(0.08, 0.08, 0.18), clawMat);
-          toe.position.set(-0.12 + j * 0.12, -1.22, 0.45);
+          const toe = new T.Mesh(new T.ConeGeometry(0.05, 0.18, 6), clawMat);
+          toe.position.set(-0.14 + j * 0.14, -1.28, 0.48);
+          toe.rotation.x = -0.3;
           pivot.add(toe);
         }
         g.add(pivot);
@@ -102,15 +131,16 @@
       const legL = buildLeg(-1);
       const legR = buildLeg(1);
 
-      // 前肢（短小 + 双爪）
+      // 前肢（短小圆润 + 双爪）
       for (let i = 0; i < 2; i++) {
-        const arm = new T.Mesh(new T.BoxGeometry(0.14, 0.3, 0.14), skinDark);
-        arm.position.set((i === 0 ? -1 : 1) * 0.5, 1.5, -0.6);
-        arm.rotation.z = (i === 0 ? -1 : 1) * 0.2;
+        const side = (i === 0 ? -1 : 1);
+        const arm = new T.Mesh(new T.CylinderGeometry(0.09, 0.12, 0.3, 10), skinDark);
+        arm.position.set(side * 0.5, 1.5, -0.6);
+        arm.rotation.z = side * 0.3;
         g.add(arm);
         for (let j = 0; j < 2; j++) {
-          const claw = new T.Mesh(new T.BoxGeometry(0.04, 0.12, 0.04), clawMat);
-          claw.position.set((i === 0 ? -1 : 1) * 0.5 + (j === 0 ? -0.04 : 0.04), 1.35, -0.65);
+          const claw = new T.Mesh(new T.ConeGeometry(0.03, 0.12, 6), clawMat);
+          claw.position.set(side * 0.5 + (j === 0 ? -0.04 : 0.04), 1.32, -0.65);
           g.add(claw);
         }
       }

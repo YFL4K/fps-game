@@ -17,14 +17,14 @@
 
       const g = new T.Group();
 
-      const cabMat = new T.MeshLambertMaterial({ color: cabColor});
-      const trailerMat = new T.MeshLambertMaterial({ color: trailerColor});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x111111});
-      const glassMat = new T.MeshLambertMaterial({ color: 0x1b2b3a, transparent: true, opacity: 0.6 });
-      const wheelMat = new T.MeshLambertMaterial({ color: 0x1a1a1a});
-      const hubMat = new T.MeshLambertMaterial({ color: 0x555555});
-      const lightMat = new T.MeshBasicMaterial({ color: 0xffffcc });
-      const tailMat = new T.MeshBasicMaterial({ color: 0xff2222 });
+      const cabMat = new window.MARIO.mat({ color: cabColor});
+      const trailerMat = new window.MARIO.mat({ color: trailerColor});
+      const darkMat = new window.MARIO.mat({ color: 0x111111});
+      const glassMat = new window.MARIO.mat({ color: 0x1b2b3a, transparent: true, opacity: 0.6 });
+      const wheelMat = new window.MARIO.mat({ color: 0x1a1a1a});
+      const hubMat = new window.MARIO.mat({ color: 0x555555});
+      const lightMat = new window.MARIO.basic({ color: 0xffffcc });
+      const tailMat = new window.MARIO.basic({ color: 0xff2222 });
 
       if (isSemi) {
         // 驾驶室

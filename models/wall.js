@@ -41,7 +41,7 @@
 
       const box = new T.Mesh(
         new T.BoxGeometry(8, 4, 0.5),
-        new T.MeshLambertMaterial({ map: tex})
+        new window.MARIO.mat({ map: tex})
       );
       box.position.y = 2; // 底部中心在原点
       box.castShadow = true;

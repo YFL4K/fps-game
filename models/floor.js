@@ -37,7 +37,7 @@
 
       const plane = new T.Mesh(
         new T.PlaneGeometry(40, 40),
-        new T.MeshLambertMaterial({ map: tex})
+        new window.MARIO.mat({ map: tex})
       );
       plane.rotation.x = -Math.PI / 2;
       plane.receiveShadow = true;

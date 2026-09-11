@@ -14,13 +14,13 @@
       const g = new T.Group();
       const variant = (config && config.variant) || 'white';
 
-      const bodyMat = new T.MeshLambertMaterial({
+      const bodyMat = new window.MARIO.mat({
         color: variant === 'white' ? 0xf2f4f6 : 0x37414b,
       });
-      const bellyMat = new T.MeshLambertMaterial({
+      const bellyMat = new window.MARIO.mat({
         color: variant === 'white' ? 0xc9ced6 : 0xb9c2cc,
       });
-      const wingTipMat = new T.MeshLambertMaterial({
+      const wingTipMat = new window.MARIO.mat({
         color: variant === 'white' ? 0x5c6670 : 0x14181d,
       });
 

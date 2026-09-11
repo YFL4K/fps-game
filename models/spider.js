@@ -22,10 +22,10 @@
       const look = LOOKS.spider;
       const g = new T.Group();
 
-      const matBody = new T.MeshLambertMaterial({ color: look.body});
-      const matDark = new T.MeshLambertMaterial({ color: look.dark});
-      const matEye = new T.MeshLambertMaterial({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.2 });
-      const matLeg = new T.MeshLambertMaterial({ color: look.leg});
+      const matBody = new window.MARIO.mat({ color: look.body});
+      const matDark = new window.MARIO.mat({ color: look.dark});
+      const matEye = new window.MARIO.mat({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.2 });
+      const matLeg = new window.MARIO.mat({ color: look.leg});
 
       // 身体（椭圆形）
       const body = new T.Mesh(new T.SphereGeometry(0.35, 10, 8), matBody);
@@ -80,7 +80,7 @@
       // 毒囊（腹部末端）
       const poisonSac = new T.Mesh(
         new T.SphereGeometry(0.18, 8, 8),
-        new T.MeshLambertMaterial({ color: 0x8800ff, emissive: 0x440088, emissiveIntensity: 0.5 })
+        new window.MARIO.mat({ color: 0x8800ff, emissive: 0x440088, emissiveIntensity: 0.5 })
       );
       poisonSac.scale.set(1, 0.7, 1.1);
       poisonSac.position.set(0, 0.2, -0.4);

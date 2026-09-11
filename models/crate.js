@@ -38,7 +38,7 @@
       const tex = new T.CanvasTexture(c);
       const box = new T.Mesh(
         new T.BoxGeometry(1, 1, 1),
-        new T.MeshLambertMaterial({ map: tex})
+        new window.MARIO.mat({ map: tex})
       );
       box.castShadow = true;
       box.receiveShadow = true;

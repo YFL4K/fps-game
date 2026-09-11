@@ -20,9 +20,9 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const bodyMat = new T.MeshLambertMaterial({ color: cfg.color || 0xc0392b});
-      const ringMat = new T.MeshLambertMaterial({ color: 0x2c3e50});
-      const stripeMat = new T.MeshLambertMaterial({
+      const bodyMat = new window.MARIO.mat({ color: cfg.color || 0xc0392b});
+      const ringMat = new window.MARIO.mat({ color: 0x2c3e50});
+      const stripeMat = new window.MARIO.mat({
         color: 0xf1c40f,
         emissive: 0x8a6d00, emissiveIntensity: 0.45
       });
@@ -49,9 +49,9 @@
       g.add(stripe);
 
       // 黑色危险标签
-      const warn = new T.Mesh(new T.BoxGeometry(0.46, 0.2, 0.02), new T.MeshBasicMaterial({ color: 0x141414 }));
+      const warn = new T.Mesh(new T.BoxGeometry(0.46, 0.2, 0.02), new window.MARIO.basic({ color: 0x141414 }));
       warn.position.set(0, 0.68, 0.522);
-      const warn2 = new T.Mesh(new T.BoxGeometry(0.02, 0.2, 0.46), new T.MeshBasicMaterial({ color: 0x141414 }));
+      const warn2 = new T.Mesh(new T.BoxGeometry(0.02, 0.2, 0.46), new window.MARIO.basic({ color: 0x141414 }));
       warn2.position.set(0.522, 0.68, 0);
       g.add(warn, warn2);
 

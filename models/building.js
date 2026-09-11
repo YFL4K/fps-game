@@ -16,13 +16,13 @@
       const d = cfg.d || 5;
       const h = cfg.h || 3.4;
 
-      const wallMat = new T.MeshLambertMaterial({
+      const wallMat = new window.MARIO.mat({
         color: cfg.color || 0x8a9bb0,
       });
-      const roofMat = new T.MeshLambertMaterial({
+      const roofMat = new window.MARIO.mat({
         color: cfg.roofColor || 0x5d4a3a,
       });
-      const windowMat = new T.MeshLambertMaterial({
+      const windowMat = new window.MARIO.mat({
         color: 0xffe9a8,
         emissive: 0xffcf6e,
         emissiveIntensity: 0.9
@@ -45,34 +45,38 @@
       roof.castShadow = true;
       g.add(roof);
 
-      // 窗户（正面 + 背面，各两扇；发黄光）
-      const winW = Math.min(0.8, w * 0.22);
-      const winH = 0.7;
+      // 圆窗（正面 + 背面，各两扇；圆形发光）
+      const winR = Math.min(0.42, w * 0.12);
       const winY = h * 0.62;
       const winZ = d / 2 + 0.01;
       const off = Math.min(w * 0.24, 1.2);
       [
-        [-off, winY, winZ, 0, 0, 0],
-        [off, winY, winZ, 0, 0, 0],
-        [-off, winY, -winZ, 0, Math.PI, 0],
-        [off, winY, -winZ, 0, Math.PI, 0]
+        [-off, winY, winZ],
+        [off, winY, winZ],
+        [-off, winY, -winZ],
+        [off, winY, -winZ]
       ].forEach(function (p) {
         const win = new T.Mesh(
-          new T.BoxGeometry(winW, winH, 0.06),
-          new T.MeshLambertMaterial({ color: 0xffe9a8, emissive: 0xffcf6e, emissiveIntensity: 0.9 })
+          new T.SphereGeometry(winR, 14, 12),
+          new window.MARIO.mat({ color: 0xffe9a8, emissive: 0xffcf6e, emissiveIntensity: 0.9 })
         );
+        win.scale.set(1, 1, 0.2);
         win.position.set(p[0], p[1], p[2]);
-        win.rotation.set(p[3], p[4], p[5]);
         g.add(win);
       });
 
-      // 门（正面：门框 + 暗色门板）
+      // 拱形门（门框 + 暗色门板 + 顶部半圆）
       const doorW = Math.min(1.2, w * 0.3);
-      const doorH = 1.9;
-      const doorMat = new T.MeshLambertMaterial({ color: 0x3a2f24});
+      const doorH = 1.7;
+      const doorMat = new window.MARIO.mat({ color: 0x5a3a20 });
       const door = new T.Mesh(new T.BoxGeometry(doorW, doorH, 0.08), doorMat);
       door.position.set(0, doorH / 2, d / 2 + 0.01);
       g.add(door);
+      // 拱形圆顶
+      const arch = new T.Mesh(new T.SphereGeometry(doorW / 2, 12, 10), doorMat);
+      arch.scale.set(1, 1, 0.15);
+      arch.position.set(0, doorH, d / 2 + 0.01);
+      g.add(arch);
 
       // 檐口线（装饰）— 略窄于墙体，不扩大 AABB
       const eave = new T.Mesh(new T.BoxGeometry(w + 0.1, 0.14, d + 0.1), roofMat);

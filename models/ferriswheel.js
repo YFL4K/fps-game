@@ -15,9 +15,9 @@
       const sc = config && config.scale;
       const s = Array.isArray(sc) ? (sc[0] || 1) : (sc || 1);
 
-      const steel = new T.MeshLambertMaterial({ color: 0x5a6a7d});
-      const accent = new T.MeshLambertMaterial({ color: 0xe0563a});
-      const cabinMat = new T.MeshLambertMaterial({ color: 0x2f80c4});
+      const steel = new window.MARIO.mat({ color: 0x5a6a7d});
+      const accent = new window.MARIO.mat({ color: 0xe0563a});
+      const cabinMat = new window.MARIO.mat({ color: 0x2f80c4});
       const R = 6.5 * s;   // 轮盘半径
       const HUB = 13.5 * s; // 轮心高度
 

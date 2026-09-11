@@ -16,9 +16,9 @@
       const potColor = cfg.color || 0x8b4513;
 
       const g = new T.Group();
-      const potMat = new T.MeshLambertMaterial({ color: potColor});
-      const soilMat = new T.MeshLambertMaterial({ color: 0x3d2817});
-      const plantMat = new T.MeshLambertMaterial({ color: 0x228b22});
+      const potMat = new window.MARIO.mat({ color: potColor});
+      const soilMat = new window.MARIO.mat({ color: 0x3d2817});
+      const plantMat = new window.MARIO.mat({ color: 0x228b22});
 
       // 花盆主体（截锥体）
       const potBody = new T.Mesh(
@@ -69,7 +69,7 @@
         // 中心花
         const flower = new T.Mesh(
           new T.SphereGeometry(0.12 * scale, 8, 8),
-          new T.MeshLambertMaterial({ color: 0xff6b9d})
+          new window.MARIO.mat({ color: 0xff6b9d})
         );
         flower.position.y = 0.85 * scale;
         g.add(flower);

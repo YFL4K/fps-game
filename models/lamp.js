@@ -14,7 +14,7 @@
       // 柱子
       const pole = new T.Mesh(
         new T.CylinderGeometry(0.07, 0.1, 3.0, 10),
-        new T.MeshLambertMaterial({ color: 0x4a4f58})
+        new window.MARIO.mat({ color: 0x4a4f58})
       );
       pole.position.y = 1.5;
       pole.castShadow = true;
@@ -23,13 +23,13 @@
       // 底座
       const base = new T.Mesh(
         new T.CylinderGeometry(0.22, 0.28, 0.1, 12),
-        new T.MeshLambertMaterial({ color: 0x33373f})
+        new window.MARIO.mat({ color: 0x33373f})
       );
       base.position.y = 0.05;
       g.add(base);
 
       // 灯头
-      const lampMat = new T.MeshLambertMaterial({
+      const lampMat = new window.MARIO.mat({
         color: 0xfff2c8,
         emissive: 0xffdd88,
         emissiveIntensity: 1.2,
@@ -41,7 +41,7 @@
       // 灯罩
       const shade = new T.Mesh(
         new T.CylinderGeometry(0.26, 0.2, 0.25, 12, 1, true),
-        new T.MeshLambertMaterial({ color: 0x5a5f68, side: T.DoubleSide })
+        new window.MARIO.mat({ color: 0x5a5f68, side: T.DoubleSide })
       );
       shade.position.y = 3.12;
       g.add(shade);

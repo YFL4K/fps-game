@@ -17,11 +17,11 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const gold = new T.MeshLambertMaterial({
+      const gold = new window.MARIO.mat({
         color: 0xf5c518,
         emissive: 0x8a6d00, emissiveIntensity: 0.55
       });
-      const goldDark = new T.MeshLambertMaterial({
+      const goldDark = new window.MARIO.mat({
         color: 0xb8860b,
         emissive: 0x5a4600, emissiveIntensity: 0.45
       });
@@ -53,7 +53,7 @@
 
       // 发光光晕（提示可拾取）
       const glow = new T.Mesh(new T.RingGeometry(0.22, 0.32, 24),
-        new T.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false }));
+        new window.MARIO.basic({ color: 0xffe066, transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false }));
       glow.rotation.x = -Math.PI / 2;
       glow.position.y = 0.02;
       g.add(glow);

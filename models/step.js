@@ -12,7 +12,7 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const mat = new T.MeshLambertMaterial({ color: 0x8d949e});
+      const mat = new window.MARIO.mat({ color: 0x8d949e});
       const box = new T.Mesh(new T.BoxGeometry(1, 0.28, 1.6), mat);
       box.castShadow = true;
       box.receiveShadow = true;
@@ -28,7 +28,7 @@
       // 侧面防滑警示条
       const stripe = new T.Mesh(
         new T.BoxGeometry(0.98, 0.025, 0.2),
-        new T.MeshBasicMaterial({ color: 0xd9b23a })
+        new window.MARIO.basic({ color: 0xd9b23a })
       );
       stripe.position.set(0, 0.155, -0.68);
       g.add(stripe);

@@ -13,10 +13,10 @@
       const g = new T.Group();
       const s = (config && config.scaleX) || 1;
 
-      const trunkMat = new T.MeshLambertMaterial({ color: 0x5d4030});
-      const branchMat = new T.MeshLambertMaterial({ color: 0x4e342e});
-      const leafMat = new T.MeshLambertMaterial({ color: 0x2e7d32});
-      const leafMat2 = new T.MeshLambertMaterial({ color: 0x388e3c});
+      const trunkMat = new window.MARIO.mat({ color: 0x5d4030});
+      const branchMat = new window.MARIO.mat({ color: 0x4e342e});
+      const leafMat = new window.MARIO.mat({ color: 0x2e7d32});
+      const leafMat2 = new window.MARIO.mat({ color: 0x388e3c});
 
       // 粗树干（锥形）
       const trunk = new T.Mesh(new T.CylinderGeometry(0.55 * s, 0.85 * s, 5.4 * s, 9), trunkMat);

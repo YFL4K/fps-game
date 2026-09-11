@@ -18,11 +18,11 @@
       const color = cfg.color || 0x2e5a8c;
 
       const g = new T.Group();
-      const containerMat = new T.MeshLambertMaterial({ color: color});
-      const corrugMat = new T.MeshLambertMaterial({ color: new T.Color(color).multiplyScalar(0.85).getHex()});
-      const doorMat = new T.MeshLambertMaterial({ color: new T.Color(color).lerp(new T.Color(0xffffff), 0.15).getHex()});
-      const cornerMat = new T.MeshLambertMaterial({ color: 0x222222});
-      const wheelMat = new T.MeshLambertMaterial({ color: 0x1a1a1a});
+      const containerMat = new window.MARIO.mat({ color: color});
+      const corrugMat = new window.MARIO.mat({ color: new T.Color(color).multiplyScalar(0.85).getHex()});
+      const doorMat = new window.MARIO.mat({ color: new T.Color(color).lerp(new T.Color(0xffffff), 0.15).getHex()});
+      const cornerMat = new window.MARIO.mat({ color: 0x222222});
+      const wheelMat = new window.MARIO.mat({ color: 0x1a1a1a});
 
       // 主体（波纹板效果用分段Box模拟）
       const body = new T.Mesh(new T.BoxGeometry(w, h, d), containerMat);

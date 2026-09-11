@@ -14,7 +14,7 @@
       const isFlame = !!(config && config.type === 'flame');
       const g = new T.Group();
 
-      const baseMat = new T.MeshLambertMaterial({
+      const baseMat = new window.MARIO.mat({
         color: isFlame ? 0xe74c3c : (kind === 'health' ? 0x27ae60 : 0xf39c12),
         emissive: isFlame ? 0xc0392b : (kind === 'health' ? 0x1e8449 : 0xb9770e),
         emissiveIntensity: 0.6,
@@ -26,7 +26,7 @@
       g.add(core);
 
       // 十字标记
-      const markMat = new T.MeshLambertMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.8 });
+      const markMat = new window.MARIO.mat({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.8 });
       const m1 = new T.Mesh(new T.BoxGeometry(0.38, 0.1, 0.1), markMat);
       const m2 = new T.Mesh(new T.BoxGeometry(0.1, 0.38, 0.1), markMat);
       const m3 = new T.Mesh(new T.BoxGeometry(0.1, 0.1, 0.38), markMat);
@@ -35,7 +35,7 @@
       // 光环
       const ring = new T.Mesh(
         new T.TorusGeometry(0.28, 0.025, 8, 24),
-        new T.MeshBasicMaterial({ color: isFlame ? 0xff8844 : (kind === 'health' ? 0x7dffc0 : 0xffe08a) })
+        new window.MARIO.basic({ color: isFlame ? 0xff8844 : (kind === 'health' ? 0x7dffc0 : 0xffe08a) })
       );
       ring.rotation.x = Math.PI / 2;
       g.add(ring);

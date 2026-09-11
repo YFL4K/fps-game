@@ -15,10 +15,10 @@
       const stripeColor = cfg.color ? new T.Color(cfg.color).lerp(new T.Color(0x2244aa), 0.5).getHex() : 0x2244aa;
 
       const g = new T.Group();
-      const bodyMat = new T.MeshLambertMaterial({ color: color});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x222222});
-      const glassMat = new T.MeshLambertMaterial({ color: 0x3366aa, transparent: true, opacity: 0.65 });
-      const wheelMat = new T.MeshLambertMaterial({ color: 0x1a1a1a});
+      const bodyMat = new window.MARIO.mat({ color: color});
+      const darkMat = new window.MARIO.mat({ color: 0x222222});
+      const glassMat = new window.MARIO.mat({ color: 0x3366aa, transparent: true, opacity: 0.65 });
+      const wheelMat = new window.MARIO.mat({ color: 0x1a1a1a});
 
       // 机身（圆柱体横放）
       const fuselage = new T.Mesh(new T.CylinderGeometry(0.75, 0.65, 8.0, 12), bodyMat);
@@ -77,7 +77,7 @@
         g.add(w);
       });
       // 起落架支柱
-      const strutMat = new T.MeshLambertMaterial({ color: 0x444444});
+      const strutMat = new window.MARIO.mat({ color: 0x444444});
       [[2.5, 0.6, 0], [-1.5, 0.6, 1.0], [-1.5, 0.6, -1.0]].forEach(function (p) {
         const s = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.5, 6), strutMat);
         s.position.set(p[0], p[1], p[2]);
@@ -86,7 +86,7 @@
 
       // 条纹装饰
       const stripe = new T.Mesh(new T.CylinderGeometry(0.77, 0.67, 7.8, 12, 1, true), 
-        new T.MeshLambertMaterial({ color: stripeColor, side: T.DoubleSide }));
+        new window.MARIO.mat({ color: stripeColor, side: T.DoubleSide }));
       stripe.rotation.z = Math.PI / 2;
       stripe.position.set(0, 1.6, 0);
       g.add(stripe);

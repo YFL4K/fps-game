@@ -27,12 +27,12 @@
       const L = look.len;
       const g = new T.Group();
 
-      const bodyMat = new T.MeshLambertMaterial({ color: 0x22252b});
-      const accentMat = new T.MeshLambertMaterial({
+      const bodyMat = new window.MARIO.mat({ color: 0x22252b});
+      const accentMat = new window.MARIO.mat({
         color: look.color,
         emissive: look.color, emissiveIntensity: 0.5
       });
-      const woodMat = new T.MeshLambertMaterial({ color: 0x6b4423});
+      const woodMat = new window.MARIO.mat({ color: 0x6b4423});
 
       // 枪身
       const body = new T.Mesh(new T.BoxGeometry(0.07, 0.1, L), bodyMat);
@@ -112,7 +112,7 @@
       // 发光光环（区分类型）
       const ring = new T.Mesh(
         new T.TorusGeometry(0.32, 0.02, 8, 24),
-        new T.MeshBasicMaterial({ color: look.color, transparent: true, opacity: 0.7 })
+        new window.MARIO.basic({ color: look.color, transparent: true, opacity: 0.7 })
       );
       ring.rotation.x = Math.PI / 2;
       ring.position.y = -0.1;

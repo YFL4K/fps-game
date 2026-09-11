@@ -36,7 +36,7 @@
         }
         geo.computeVertexNormals();
         
-        const mat = new T.MeshLambertMaterial({
+        const mat = new window.MARIO.mat({
           color: mountainColors[i % mountainColors.length],
           flatShading: true
         });
@@ -48,7 +48,7 @@
       }
 
       // ---- 云彩（白色 fluffy 群）----
-      const cloudMat = new T.MeshLambertMaterial({
+      const cloudMat = new window.MARIO.mat({
         color: 0xffffff,
         transparent: true,
         opacity: 0.85

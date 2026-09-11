@@ -20,9 +20,9 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const boxMat = new T.MeshLambertMaterial({ color: 0xc0392b});
-      const bandMat = new T.MeshLambertMaterial({ color: 0x16181c});
-      const glowMat = new T.MeshLambertMaterial({
+      const boxMat = new window.MARIO.mat({ color: 0xc0392b});
+      const bandMat = new window.MARIO.mat({ color: 0x16181c});
+      const glowMat = new window.MARIO.mat({
         color: 0xffcc44, emissive: 0xff8800, emissiveIntensity: 1.4,
       });
 
@@ -54,7 +54,7 @@
       g.add(fuse);
       const spark = new T.Mesh(
         new T.SphereGeometry(0.07, 6, 6),
-        new T.MeshBasicMaterial({ color: 0xffee66 })
+        new window.MARIO.basic({ color: 0xffee66 })
       );
       spark.position.set(0.47, 1.12, 0.24);
       g.add(spark);

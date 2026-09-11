@@ -45,8 +45,8 @@
   /** 创建两条激光光束（挂在 scene 层级，不受猪 3 倍 scale 影响） */
   function ensureBeams(u, ctx) {
     if (u.laserBeams) return;
-    var outer = new T.MeshBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 0.8 });
-    var core = new T.MeshBasicMaterial({ color: 0xd2ffd2, transparent: true, opacity: 0.95 });
+    var outer = new window.MARIO.basic({ color: 0x00ff66, transparent: true, opacity: 0.8 });
+    var core = new window.MARIO.basic({ color: 0xd2ffd2, transparent: true, opacity: 0.95 });
     u.laserBeams = [];
     for (var i = 0; i < 2; i++) {
       var beam = new T.Mesh(new T.BoxGeometry(1, 1, 1), outer);
@@ -77,73 +77,107 @@
       var cfg = config || {};
       var g = new T.Group();
 
-      var fur = new T.MeshLambertMaterial({ color: 0x8a5a2b});
-      var furDark = new T.MeshLambertMaterial({ color: 0x5f3d1d});
-      var tuskMat = new T.MeshLambertMaterial({ color: 0xf7f2e8});
-      var eyeMat = new T.MeshLambertMaterial({ color: 0x0a2a10, emissive: 0x00ff55, emissiveIntensity: 2.4 });
-      var noseMat = new T.MeshLambertMaterial({ color: 0xc97b4a});
-      var holeMat = new T.MeshLambertMaterial({ color: 0x3a1e0c });
+      // —— 超级马里奥3D世界风格：圆润饱满猪头佳（凶悍硬汉）——
+      var fur = new window.MARIO.mat({ color: 0xb5704a });          // 明亮棕（身体）
+      var furDark = new window.MARIO.mat({ color: 0x8a5a30 });      // 深棕（腿/耳/鬃）
+      var belly = new window.MARIO.mat({ color: 0xf0cfa0 });        // 浅米肚皮
+      var tuskMat = new window.MARIO.mat({ color: 0xfff8e8 });      // 象牙白
+      var eyeMat = new window.MARIO.mat({ color: 0xffcc00, emissive: 0xffaa00, emissiveIntensity: 1.6 }); // 凶黄瞳孔
+      var pupilMat = new window.MARIO.mat({ color: 0x2a0a0a });     // 深色瞳仁
+      var browMat = new window.MARIO.mat({ color: 0x5a2f10 });      // 眉骨深棕
+      var vestMat = new window.MARIO.mat({ color: 0x6b3f1f });      // 皮质背心
+      var buckleMat = new window.MARIO.mat({ color: 0xffd700, metalness: 0.7, roughness: 0.2 }); // 金属扣件
+      var noseMat = new window.MARIO.mat({ color: 0xd98a55 });      // 猪鼻粉棕
+      var holeMat = new window.MARIO.mat({ color: 0x3a1e0c });
 
-      // 身体（椭圆，z 轴为前进方向）
-      var body = new T.Mesh(new T.SphereGeometry(1.0, 24, 18), fur);
-      body.scale.set(1.05, 0.92, 1.32);
+      // 身体（饱满圆润椭圆，高分段球）
+      var body = new T.Mesh(new T.SphereGeometry(1.0, 32, 24), fur);
+      body.scale.set(1.1, 0.95, 1.35);
       body.position.y = 1.05;
       body.castShadow = body.receiveShadow = true;
       g.add(body);
 
-      // 头
-      var head = new T.Mesh(new T.SphereGeometry(0.64, 20, 16), fur);
-      head.scale.set(0.95, 0.9, 0.88);
-      head.position.set(0, 1.18, 1.12);
+      // 肚皮（浅色，前下方圆润）
+      var bellyMesh = new T.Mesh(new T.SphereGeometry(0.78, 24, 18), belly);
+      bellyMesh.scale.set(0.8, 0.7, 0.85);
+      bellyMesh.position.set(0, 0.7, 0.6);
+      g.add(bellyMesh);
+
+      // 头（大圆润）
+      var head = new T.Mesh(new T.SphereGeometry(0.66, 28, 22), fur);
+      head.scale.set(0.95, 0.9, 0.9);
+      head.position.set(0, 1.24, 1.16);
       head.castShadow = true;
       g.add(head);
 
-      // 鼻子 + 鼻孔
-      var snout = new T.Mesh(new T.BoxGeometry(0.42, 0.26, 0.22), noseMat);
-      snout.position.set(0, 1.04, 1.6);
+      // 圆润猪鼻（突出球体 + 双鼻孔）
+      var snout = new T.Mesh(new T.SphereGeometry(0.22, 20, 16), noseMat);
+      snout.scale.set(1.1, 0.8, 0.7);
+      snout.position.set(0, 1.1, 1.72);
       g.add(snout);
-      var n1 = new T.Mesh(new T.SphereGeometry(0.07, 10, 8), holeMat);
-      n1.position.set(-0.1, 1.07, 1.72);
+      var n1 = new T.Mesh(new T.SphereGeometry(0.07, 12, 10), holeMat);
+      n1.position.set(-0.09, 1.13, 1.86);
       g.add(n1);
       var n2 = n1.clone();
-      n2.position.x = 0.1;
+      n2.position.x = 0.09;
       g.add(n2);
 
-      // 獠牙（白色，上弯外撇）
+      // 獠牙（白色外露上弯）
       function makeTusk(side) {
-        var tusk = new T.Mesh(new T.ConeGeometry(0.085, 0.6, 10), tuskMat);
-        tusk.position.set(side * 0.3, 0.95, 1.5);
-        tusk.rotation.z = side * -0.42;
-        tusk.rotation.x = 0.5;
+        var tusk = new T.Mesh(new T.ConeGeometry(0.09, 0.62, 12), tuskMat);
+        tusk.position.set(side * 0.24, 0.82, 1.62);
+        tusk.rotation.z = side * -0.35;
+        tusk.rotation.x = 0.55;
         tusk.castShadow = true;
         return tusk;
       }
       g.add(makeTusk(-1), makeTusk(1));
 
-      // 眼睛（绿色发光）
+      // 凶狠眼神：黄色发光瞳孔 + 深色瞳仁 + 锐利眉骨
       function makeEye(side) {
-        var e = new T.Mesh(new T.SphereGeometry(0.115, 12, 10), eyeMat);
+        var grp = new T.Group();
+        var e = new T.Mesh(new T.SphereGeometry(0.115, 16, 14), eyeMat);
         e.position.set(side * 0.42, 1.44, 1.26);
-        return e;
+        grp.add(e);
+        var pupil = new T.Mesh(new T.SphereGeometry(0.05, 10, 8), pupilMat);
+        pupil.position.set(side * 0.44, 1.44, 1.36);
+        grp.add(pupil);
+        var brow = new T.Mesh(new T.BoxGeometry(0.24, 0.08, 0.1), browMat);
+        brow.position.set(side * 0.42, 1.58, 1.26);
+        brow.rotation.z = side * -0.4;
+        grp.add(brow);
+        return grp;
       }
       var eyeL = makeEye(-1), eyeR = makeEye(1);
       g.add(eyeL, eyeR);
 
-      // 耳朵（立耳）
+      // 圆润立耳
       function makeEar(side) {
-        var ear = new T.Mesh(new T.ConeGeometry(0.15, 0.34, 8), furDark);
-        ear.position.set(side * 0.4, 1.7, 1.0);
-        ear.rotation.x = 0.5;
-        ear.rotation.z = side * 0.45;
+        var ear = new T.Mesh(new T.ConeGeometry(0.16, 0.36, 12), furDark);
+        ear.position.set(side * 0.42, 1.74, 1.0);
+        ear.rotation.x = 0.4;
+        ear.rotation.z = side * 0.35;
         ear.castShadow = true;
         return ear;
       }
       g.add(makeEar(-1), makeEar(1));
 
-      // 四腿（奔跑动画 pivot）
+      // 皮质战术背心（圆角环带 + 金属扣件）
+      var vest = new T.Mesh(new T.CylinderGeometry(1.14, 1.2, 0.55, 24), vestMat);
+      vest.scale.set(1.05, 0.95, 1.12);
+      vest.position.y = 1.12;
+      g.add(vest);
+      var buckle1 = new T.Mesh(new T.BoxGeometry(0.14, 0.1, 0.06), buckleMat);
+      buckle1.position.set(0, 1.2, 1.62);
+      g.add(buckle1);
+      var buckle2 = new T.Mesh(new T.BoxGeometry(0.14, 0.1, 0.06), buckleMat);
+      buckle2.position.set(0, 1.02, 1.62);
+      g.add(buckle2);
+
+      // 四腿（圆润圆柱 + 蹄，奔跑动画 pivot）
       var legs = [];
       function makeLeg(sx, sz) {
-        var leg = new T.Mesh(new T.CylinderGeometry(0.16, 0.13, 0.8, 10), furDark);
+        var leg = new T.Mesh(new T.CylinderGeometry(0.15, 0.13, 0.8, 16), furDark);
         leg.position.set(0, -0.4, 0);
         leg.castShadow = true;
         var pivot = new T.Group();
@@ -154,17 +188,17 @@
       }
       legs.push(makeLeg(-0.62, 0.8), makeLeg(0.62, 0.8), makeLeg(-0.62, -0.8), makeLeg(0.62, -0.8));
 
-      // 尾巴（翘起）
-      var tail = new T.Mesh(new T.CylinderGeometry(0.045, 0.09, 0.5, 8), furDark);
-      tail.position.set(0, 1.18, -1.42);
-      tail.rotation.x = 1.15;
+      // 尾巴（圆润卷尾）
+      var tail = new T.Mesh(new T.CylinderGeometry(0.05, 0.09, 0.5, 12), furDark);
+      tail.position.set(0, 1.2, -1.45);
+      tail.rotation.x = 1.1;
       tail.castShadow = true;
       g.add(tail);
 
-      // 背脊鬃毛（增强野猪感）
+      // 背脊鬃毛（圆润）
       function makeMane(z, s) {
-        var m = new T.Mesh(new T.ConeGeometry(0.1, 0.3, 6), furDark);
-        m.position.set(0, 1.85, z);
+        var m = new T.Mesh(new T.ConeGeometry(0.1, 0.32, 10), furDark);
+        m.position.set(0, 1.88, z);
         m.scale.set(1, s, 1);
         return m;
       }

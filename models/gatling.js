@@ -22,13 +22,13 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const conMat = new T.MeshLambertMaterial({ color: 0x6e6b61});
-      const steelMat = new T.MeshLambertMaterial({ color: 0x41474f});
-      const gunMat = new T.MeshLambertMaterial({ color: 0x2c3138});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x1c2024});
-      const brassMat = new T.MeshLambertMaterial({ color: 0xc9a227});
-      const boxMat = new T.MeshLambertMaterial({ color: 0x55603a});
-      const accentMat = new T.MeshLambertMaterial({ color: 0xe06a1f});
+      const conMat = new window.MARIO.mat({ color: 0x6e6b61});
+      const steelMat = new window.MARIO.mat({ color: 0x41474f});
+      const gunMat = new window.MARIO.mat({ color: 0x2c3138});
+      const darkMat = new window.MARIO.mat({ color: 0x1c2024});
+      const brassMat = new window.MARIO.mat({ color: 0xc9a227});
+      const boxMat = new window.MARIO.mat({ color: 0x55603a});
+      const accentMat = new window.MARIO.mat({ color: 0xe06a1f});
 
       // ========== 底座（低矮定位圆台，不遮挡枪口） ==========
       const base = new T.Mesh(new T.CylinderGeometry(0.95, 1.15, 0.2, 12), conMat);
@@ -135,7 +135,7 @@
       }
 
       // 枪口状态灯（青色 = 就绪）
-      const light = new T.Mesh(new T.SphereGeometry(0.07, 8, 6), new T.MeshBasicMaterial({ color: 0x66ccff }));
+      const light = new T.Mesh(new T.SphereGeometry(0.07, 8, 6), new window.MARIO.basic({ color: 0x66ccff }));
       light.position.set(0, 0.18, 1.68);
       turret.add(light);
 
