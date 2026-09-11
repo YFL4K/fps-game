@@ -12,8 +12,8 @@
       const g = new T.Group();
 
       const body = new T.Mesh(
-        new T.CylinderGeometry(0.5, 0.5, 1.2, 20),
-        new T.MeshLambertMaterial({ color: 0xc0392b})
+        new T.BoxGeometry((2*0.5), (1.2), (2*0.5)),
+        new window.PIXEL.matCompat({ color: 0xc0392b})
       );
       body.position.y = 0.6;
       body.castShadow = true;
@@ -21,18 +21,18 @@
       g.add(body);
 
       // 顶部/底部环箍
-      const ringMat = new T.MeshLambertMaterial({ color: 0x2c3e50});
-      const top = new T.Mesh(new T.CylinderGeometry(0.36, 0.36, 0.12, 20), ringMat);
+      const ringMat = new window.PIXEL.matCompat({ color: 0x2c3e50});
+      const top = new T.Mesh(new T.BoxGeometry((2*0.36), (0.12), (2*0.36)), ringMat);
       top.position.y = 1.2;
       g.add(top);
-      const rim = new T.Mesh(new T.CylinderGeometry(0.52, 0.52, 0.06, 20), ringMat);
+      const rim = new T.Mesh(new T.BoxGeometry((2*0.52), (0.06), (2*0.52)), ringMat);
       rim.position.y = 0.06;
       g.add(rim);
 
       // 危险条纹（斜贴片）
       const stripe = new T.Mesh(
         new T.BoxGeometry(0.55, 0.3, 0.02),
-        new T.MeshLambertMaterial({ color: 0xf1c40f})
+        new window.PIXEL.matCompat({ color: 0xf1c40f})
       );
       stripe.position.set(0, 0.7, 0.5);
       stripe.rotation.z = 0.4;

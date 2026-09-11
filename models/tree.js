@@ -12,15 +12,15 @@
       const T = global.THREE;
       const cfg = config || {};
 
-      const trunkMat = new T.MeshLambertMaterial({ color: 0x6b4a2f});
-      const leafMat = new T.MeshLambertMaterial({
+      const trunkMat = new window.PIXEL.matCompat({ color: 0x6b4a2f});
+      const leafMat = new window.PIXEL.matCompat({
         color: cfg.color || 0x2d6a3f,
       });
 
       const g = new T.Group();
 
       // 树干
-      const trunk = new T.Mesh(new T.CylinderGeometry(0.14, 0.22, 1.6, 7), trunkMat);
+      const trunk = new T.Mesh(new T.BoxGeometry((2*Math.max(0.14, 0.22)), (1.6), (2*Math.max(0.14, 0.22))), trunkMat);
       trunk.position.y = 0.8;
       trunk.castShadow = true;
       g.add(trunk);
@@ -32,7 +32,7 @@
         { r: 0.55, hgt: 0.9, y: 3.7 }
       ];
       sizes.forEach(function (s) {
-        const cone = new T.Mesh(new T.ConeGeometry(s.r, s.hgt, 8), leafMat);
+        const cone = new T.Mesh(new T.BoxGeometry((2*s.r), (s.hgt), (2*s.r)), leafMat);
         cone.position.y = s.y;
         cone.castShadow = true;
         g.add(cone);

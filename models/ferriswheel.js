@@ -15,20 +15,20 @@
       const sc = config && config.scale;
       const s = Array.isArray(sc) ? (sc[0] || 1) : (sc || 1);
 
-      const steel = new T.MeshLambertMaterial({ color: 0x5a6a7d});
-      const accent = new T.MeshLambertMaterial({ color: 0xe0563a});
-      const cabinMat = new T.MeshLambertMaterial({ color: 0x2f80c4});
+      const steel = new window.PIXEL.matCompat({ color: 0x5a6a7d});
+      const accent = new window.PIXEL.matCompat({ color: 0xe0563a});
+      const cabinMat = new window.PIXEL.matCompat({ color: 0x2f80c4});
       const R = 6.5 * s;   // 轮盘半径
       const HUB = 13.5 * s; // 轮心高度
 
       // A 型支腿 ×2
       for (let side = -1; side <= 1; side += 2) {
-        const leg = new T.Mesh(new T.CylinderGeometry(0.22 * s, 0.3 * s, 9 * s, 8), steel);
+        const leg = new T.Mesh(new T.BoxGeometry((2*Math.max(0.22 * s, 0.3 * s)), (9 * s), (2*Math.max(0.22 * s, 0.3 * s))), steel);
         leg.position.set(side * 1.7 * s, 9 * s - 2.5 * s, 0);
         leg.rotation.z = -side * 0.32;
         leg.castShadow = true;
         g.add(leg);
-        const leg2 = new T.Mesh(new T.CylinderGeometry(0.2 * s, 0.28 * s, 7.5 * s, 8), steel);
+        const leg2 = new T.Mesh(new T.BoxGeometry((2*Math.max(0.2 * s, 0.28 * s)), (7.5 * s), (2*Math.max(0.2 * s, 0.28 * s))), steel);
         leg2.position.set(side * 0.6 * s, 7.5 * s - 2 * s, 0.9 * s);
         leg2.rotation.z = -side * 0.12;
         leg2.castShadow = true;
@@ -40,10 +40,10 @@
       wheel.position.set(0, HUB, 0);
 
       // 外轮缘（双环）
-      const rimA = new T.Mesh(new T.TorusGeometry(R, 0.14 * s, 8, 36), steel);
+      const rimA = new T.Mesh(new T.BoxGeometry((2*(R+0.14 * s)), (2*0.14 * s), (2*(R+0.14 * s))), steel);
       rimA.rotation.y = Math.PI / 2;
       wheel.add(rimA);
-      const rimB = new T.Mesh(new T.TorusGeometry(R * 0.96, 0.1 * s, 8, 36), steel);
+      const rimB = new T.Mesh(new T.BoxGeometry((2*(R * 0.96+0.1 * s)), (2*0.1 * s), (2*(R * 0.96+0.1 * s))), steel);
       rimB.rotation.y = Math.PI / 2;
       wheel.add(rimB);
 
@@ -51,7 +51,7 @@
       const spokes = 12;
       for (let i = 0; i < spokes; i++) {
         const ang = (i / spokes) * Math.PI * 2;
-        const spoke = new T.Mesh(new T.CylinderGeometry(0.06 * s, 0.06 * s, R, 5), steel);
+        const spoke = new T.Mesh(new T.BoxGeometry((2*0.06 * s), (R), (2*0.06 * s)), steel);
         spoke.rotation.z = Math.PI / 2;
         spoke.rotation.y = ang;
         spoke.position.set(Math.cos(ang) * R / 2, Math.sin(ang) * R / 2, 0);
@@ -70,10 +70,10 @@
       }
 
       // 轮心
-      const hub = new T.Mesh(new T.CylinderGeometry(0.5 * s, 0.5 * s, 0.6 * s, 10), accent);
+      const hub = new T.Mesh(new T.BoxGeometry((2*0.5 * s), (0.6 * s), (2*0.5 * s)), accent);
       hub.rotation.x = Math.PI / 2;
       wheel.add(hub);
-      const hubcap = new T.Mesh(new T.SphereGeometry(0.55 * s, 10, 8), steel);
+      const hubcap = new T.Mesh(new T.BoxGeometry((2*0.55 * s), (2*0.55 * s), (2*0.55 * s)), steel);
       wheel.add(hubcap);
 
       g.add(wheel);

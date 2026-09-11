@@ -22,7 +22,7 @@
         const x = (Math.random() - 0.5) * 160;
         const z = -60 - Math.random() * 40;
         
-        const geo = new T.ConeGeometry(radius, height, 6 + Math.floor(Math.random() * 4), 2);
+        const geo = new T.BoxGeometry((2*radius), (height), (2*radius));
         // 随机扰动顶点，让山形更自然
         const posAttr = geo.attributes.position;
         for (let j = 0; j < posAttr.count; j++) {
@@ -36,7 +36,7 @@
         }
         geo.computeVertexNormals();
         
-        const mat = new T.MeshLambertMaterial({
+        const mat = new window.PIXEL.matCompat({
           color: mountainColors[i % mountainColors.length],
           flatShading: true
         });
@@ -48,7 +48,7 @@
       }
 
       // ---- 云彩（白色 fluffy 群）----
-      const cloudMat = new T.MeshLambertMaterial({
+      const cloudMat = new window.PIXEL.matCompat({
         color: 0xffffff,
         transparent: true,
         opacity: 0.85
@@ -64,7 +64,7 @@
         const puffCount = 3 + Math.floor(Math.random() * 5);
         for (let j = 0; j < puffCount; j++) {
           const puffRadius = 2 + Math.random() * 4;
-          const puffGeo = new T.SphereGeometry(puffRadius, 8, 6);
+          const puffGeo = new T.BoxGeometry((2*puffRadius), (2*puffRadius), (2*puffRadius));
           const puff = new T.Mesh(puffGeo, cloudMat.clone());
           puff.position.set(
             (Math.random() - 0.5) * 6,

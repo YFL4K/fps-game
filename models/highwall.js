@@ -13,8 +13,8 @@
       const g = new T.Group();
       const s = (config && config.scaleY) || 1;
 
-      const wallMat = new T.MeshLambertMaterial({ color: 0x8a8578});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x6e6a5f});
+      const wallMat = new window.PIXEL.matCompat({ color: 0x8a8578});
+      const darkMat = new window.PIXEL.matCompat({ color: 0x6e6a5f});
 
       // 主体墙体（宽 7.2 高 3.6 厚 0.8，居中在 origin）
       const body = new T.Mesh(new T.BoxGeometry(7.2, 3.6 * s, 0.8), wallMat);

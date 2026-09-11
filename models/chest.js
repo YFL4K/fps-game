@@ -16,12 +16,12 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const woodMat = new T.MeshLambertMaterial({ color: 0x6b4a2b});
-      const goldMat = new T.MeshLambertMaterial({
+      const woodMat = new window.PIXEL.matCompat({ color: 0x6b4a2b});
+      const goldMat = new window.PIXEL.matCompat({
         color: 0xf1c40f,
         emissive: 0x7a5c00, emissiveIntensity: 0.5
       });
-      const glowMat = new T.MeshBasicMaterial({
+      const glowMat = new window.PIXEL.basicCompat({
         color: 0xffe27a, transparent: true, opacity: 0.45,
         side: T.DoubleSide, depthWrite: false
       });
@@ -58,13 +58,13 @@
       // 内部金色光晕（从箱口溢出）
       const core = new T.Mesh(
         new T.BoxGeometry(0.7, 0.08, 0.46),
-        new T.MeshBasicMaterial({ color: 0xffe680 })
+        new window.PIXEL.basicCompat({ color: 0xffe680 })
       );
       core.position.y = 0.58;
       g.add(core);
 
       // 光柱
-      const beam = new T.Mesh(new T.CylinderGeometry(0.26, 0.42, 3.4, 14, 1, true), glowMat);
+      const beam = new T.Mesh(new T.BoxGeometry((2*Math.max(0.26, 0.42)), (3.4), (2*Math.max(0.26, 0.42))), glowMat);
       beam.position.y = 1.9;
       g.add(beam);
 

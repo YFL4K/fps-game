@@ -26,8 +26,8 @@
 
       const tex = new T.CanvasTexture(c);
       const sky = new T.Mesh(
-        new T.SphereGeometry(300, 16, 16),
-        new T.MeshBasicMaterial({ map: tex, side: T.BackSide, fog: false, depthWrite: false })
+        new T.BoxGeometry((2*300), (2*300), (2*300)),
+        new window.PIXEL.basicCompat({ map: tex, side: T.BackSide, fog: false, depthWrite: false })
       );
       sky.renderOrder = -1000;
       return sky;

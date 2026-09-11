@@ -11,22 +11,22 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const ringMat = new T.MeshBasicMaterial({ color: 0xaa55ff, transparent: true, opacity: 0.9 });
-      const ring = new T.Mesh(new T.TorusGeometry(1.0, 0.08, 10, 32), ringMat);
+      const ringMat = new window.PIXEL.basicCompat({ color: 0xaa55ff, transparent: true, opacity: 0.9 });
+      const ring = new T.Mesh(new T.BoxGeometry((2*(1.0+0.08)), (2*0.08), (2*(1.0+0.08))), ringMat);
       ring.rotation.x = Math.PI / 2;
       g.add(ring);
 
       const inner = new T.Mesh(
-        new T.TorusGeometry(0.7, 0.04, 8, 24),
-        new T.MeshBasicMaterial({ color: 0xff66cc, transparent: true, opacity: 0.8 })
+        new T.BoxGeometry((2*(0.7+0.04)), (2*0.04), (2*(0.7+0.04))),
+        new window.PIXEL.basicCompat({ color: 0xff66cc, transparent: true, opacity: 0.8 })
       );
       inner.rotation.x = Math.PI / 2;
       g.add(inner);
 
       // 光柱
       const pillar = new T.Mesh(
-        new T.CylinderGeometry(0.9, 0.9, 3, 16, 1, true),
-        new T.MeshBasicMaterial({
+        new T.BoxGeometry((2*0.9), (3), (2*0.9)),
+        new window.PIXEL.basicCompat({
           color: 0xaa55ff, transparent: true, opacity: 0.15,
           side: T.DoubleSide, depthWrite: false
         })

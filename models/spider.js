@@ -22,33 +22,33 @@
       const look = LOOKS.spider;
       const g = new T.Group();
 
-      const matBody = new T.MeshLambertMaterial({ color: look.body});
-      const matDark = new T.MeshLambertMaterial({ color: look.dark});
-      const matEye = new T.MeshLambertMaterial({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.2 });
-      const matLeg = new T.MeshLambertMaterial({ color: look.leg});
+      const matBody = new window.PIXEL.matCompat({ color: look.body});
+      const matDark = new window.PIXEL.matCompat({ color: look.dark});
+      const matEye = new window.PIXEL.matCompat({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.2 });
+      const matLeg = new window.PIXEL.matCompat({ color: look.leg});
 
       // 身体（椭圆形）
-      const body = new T.Mesh(new T.SphereGeometry(0.35, 10, 8), matBody);
+      const body = new T.Mesh(new T.BoxGeometry((2*0.35), (2*0.35), (2*0.35)), matBody);
       body.scale.set(1, 0.6, 1.3);
       body.position.y = 0.25;
       body.castShadow = true;
       g.add(body);
 
       // 头部
-      const head = new T.Mesh(new T.SphereGeometry(0.25, 8, 8), matBody);
+      const head = new T.Mesh(new T.BoxGeometry((2*0.25), (2*0.25), (2*0.25)), matBody);
       head.position.set(0, 0.3, 0.35);
       head.castShadow = true;
       g.add(head);
 
       // 眼睛（复眼效果）
-      const eyeL = new T.Mesh(new T.SphereGeometry(0.06, 6, 6), matEye);
+      const eyeL = new T.Mesh(new T.BoxGeometry((2*0.06), (2*0.06), (2*0.06)), matEye);
       eyeL.position.set(-0.12, 0.38, 0.52);
       const eyeR = eyeL.clone();
       eyeR.position.x = 0.12;
       g.add(eyeL, eyeR);
 
       // 大颚
-      const jawL = new T.Mesh(new T.ConeGeometry(0.06, 0.18, 6), matDark);
+      const jawL = new T.Mesh(new T.BoxGeometry((2*0.06), (0.18), (2*0.06)), matDark);
       jawL.position.set(-0.1, 0.15, 0.45);
       jawL.rotation.x = 0.3;
       const jawR = jawL.clone();
@@ -61,15 +61,15 @@
         for (var i = 0; i < 4; i++) {
           var pivot = new T.Group();
           pivot.position.set(side * 0.3, 0.15, -0.15 + i * 0.15);
-          var legSeg1 = new T.Mesh(new T.CylinderGeometry(0.025, 0.02, 0.25, 6), matLeg);
+          var legSeg1 = new T.Mesh(new T.BoxGeometry((2*Math.max(0.025, 0.02)), (0.25), (2*Math.max(0.025, 0.02))), matLeg);
           legSeg1.position.y = -0.12;
           legSeg1.rotation.z = side * 0.4;
           pivot.add(legSeg1);
-          var legSeg2 = new T.Mesh(new T.CylinderGeometry(0.02, 0.015, 0.22, 6), matLeg);
+          var legSeg2 = new T.Mesh(new T.BoxGeometry((2*Math.max(0.02, 0.015)), (0.22), (2*Math.max(0.02, 0.015))), matLeg);
           legSeg2.position.set(side * 0.12, -0.3, 0);
           legSeg2.rotation.z = side * 0.3;
           pivot.add(legSeg2);
-          var claw = new T.Mesh(new T.SphereGeometry(0.035, 6, 6), matDark);
+          var claw = new T.Mesh(new T.BoxGeometry((2*0.035), (2*0.035), (2*0.035)), matDark);
           claw.position.set(side * 0.22, -0.38, 0);
           pivot.add(claw);
           g.add(pivot);
@@ -79,8 +79,8 @@
 
       // 毒囊（腹部末端）
       const poisonSac = new T.Mesh(
-        new T.SphereGeometry(0.18, 8, 8),
-        new T.MeshLambertMaterial({ color: 0x8800ff, emissive: 0x440088, emissiveIntensity: 0.5 })
+        new T.BoxGeometry((2*0.18), (2*0.18), (2*0.18)),
+        new window.PIXEL.matCompat({ color: 0x8800ff, emissive: 0x440088, emissiveIntensity: 0.5 })
       );
       poisonSac.scale.set(1, 0.7, 1.1);
       poisonSac.position.set(0, 0.2, -0.4);

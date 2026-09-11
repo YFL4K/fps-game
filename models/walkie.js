@@ -13,10 +13,10 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const bodyMat = new T.MeshLambertMaterial({ color: 0x2f3b2f});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x1a1f1a});
-      const accentMat = new T.MeshLambertMaterial({ color: 0xd9412e, emissive: 0xd9412e, emissiveIntensity: 0.35 });
-      const screenMat = new T.MeshLambertMaterial({ color: 0x9fe8c8, emissive: 0x52d9a2, emissiveIntensity: 0.9});
+      const bodyMat = new window.PIXEL.matCompat({ color: 0x2f3b2f});
+      const darkMat = new window.PIXEL.matCompat({ color: 0x1a1f1a});
+      const accentMat = new window.PIXEL.matCompat({ color: 0xd9412e, emissive: 0xd9412e, emissiveIntensity: 0.35 });
+      const screenMat = new window.PIXEL.matCompat({ color: 0x9fe8c8, emissive: 0x52d9a2, emissiveIntensity: 0.9});
 
       // 机身
       const body = new T.Mesh(new T.BoxGeometry(0.34, 0.6, 0.14), bodyMat);
@@ -26,10 +26,10 @@
       const top = new T.Mesh(new T.BoxGeometry(0.3, 0.06, 0.12), darkMat);
       top.position.y = 0.31;
       g.add(top);
-      const antenna = new T.Mesh(new T.CylinderGeometry(0.02, 0.03, 0.34, 6), darkMat);
+      const antenna = new T.Mesh(new T.BoxGeometry((2*Math.max(0.02, 0.03)), (0.34), (2*Math.max(0.02, 0.03))), darkMat);
       antenna.position.set(-0.08, 0.5, 0);
       g.add(antenna);
-      const antennaTip = new T.Mesh(new T.SphereGeometry(0.03, 6, 5), accentMat);
+      const antennaTip = new T.Mesh(new T.BoxGeometry((2*0.03), (2*0.03), (2*0.03)), accentMat);
       antennaTip.position.set(-0.08, 0.68, 0);
       g.add(antennaTip);
 
@@ -50,7 +50,7 @@
       ptt.position.set(0.18, -0.05, 0);
       g.add(ptt);
       // 旋钮（顶部）
-      const knob = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.05, 8), darkMat);
+      const knob = new T.Mesh(new T.BoxGeometry((2*0.05), (0.05), (2*0.05)), darkMat);
       knob.position.set(0.08, 0.34, 0);
       g.add(knob);
 
@@ -61,14 +61,14 @@
 
       // 光晕（提示可拾取）
       const ring = new T.Mesh(
-        new T.TorusGeometry(0.34, 0.03, 8, 24),
-        new T.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.85 })
+        new T.BoxGeometry((2*(0.34+0.03)), (2*0.03), (2*(0.34+0.03))),
+        new window.PIXEL.basicCompat({ color: 0x66ccff, transparent: true, opacity: 0.85 })
       );
       ring.rotation.x = Math.PI / 2;
       g.add(ring);
       const glow = new T.Mesh(
-        new T.SphereGeometry(0.42, 10, 8),
-        new T.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.16 })
+        new T.BoxGeometry((2*0.42), (2*0.42), (2*0.42)),
+        new window.PIXEL.basicCompat({ color: 0x66ccff, transparent: true, opacity: 0.16 })
       );
       g.add(glow);
 

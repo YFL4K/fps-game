@@ -27,12 +27,12 @@
       const g = new T.Group();
 
       // 黑灰皮肤 + 红眼 + 白牙 + 深色爪
-      const skin = new T.MeshLambertMaterial({ color: 0x4a4d52, flatShading: true });
-      const skinDark = new T.MeshLambertMaterial({ color: 0x2f3236, flatShading: true });
-      const belly = new T.MeshLambertMaterial({ color: 0x3a3d42, flatShading: true });
-      const toothMat = new T.MeshLambertMaterial({ color: 0xf0f0e8});
-      const clawMat = new T.MeshLambertMaterial({ color: 0x1f2124});
-      const eye = new T.MeshBasicMaterial({ color: 0xff2020 });
+      const skin = new window.PIXEL.matCompat({ color: 0x4a4d52, flatShading: true });
+      const skinDark = new window.PIXEL.matCompat({ color: 0x2f3236, flatShading: true });
+      const belly = new window.PIXEL.matCompat({ color: 0x3a3d42, flatShading: true });
+      const toothMat = new window.PIXEL.matCompat({ color: 0xf0f0e8});
+      const clawMat = new window.PIXEL.matCompat({ color: 0x1f2124});
+      const eye = new window.PIXEL.basicCompat({ color: 0xff2020 });
 
       // 身体（前倾：胸大腹小）
       const chest = new T.Mesh(new T.BoxGeometry(1.15, 1.35, 1.2), skin);
@@ -65,7 +65,7 @@
       }
       // 红色发光眼睛（左右）
       for (let i = 0; i < 2; i++) {
-        const e = new T.Mesh(new T.SphereGeometry(0.07, 8, 6), eye);
+        const e = new T.Mesh(new T.BoxGeometry((2*0.07), (2*0.07), (2*0.07)), eye);
         e.position.set((i === 0 ? -1 : 1) * 0.2, 2.2, -1.5);
         g.add(e);
       }

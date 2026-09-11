@@ -15,12 +15,12 @@
       const sc = config && config.scale;
       const s = (Array.isArray(sc) ? (sc[0] || 1) : (sc || 1)) * 1.6;
 
-      const baseMat = new T.MeshLambertMaterial({ color: 0x4c8c3f});
-      const tuftMat = new T.MeshLambertMaterial({ color: 0x6aa84f});
+      const baseMat = new window.PIXEL.matCompat({ color: 0x4c8c3f});
+      const tuftMat = new window.PIXEL.matCompat({ color: 0x6aa84f});
       const flowerColors = [0xf4c542, 0xe86b5e, 0x9b59b6, 0x5dade2];
 
       // 草皮基底（扁圆柱）
-      const base = new T.Mesh(new T.CylinderGeometry(1.4 * s, 1.5 * s, 0.1 * s, 14), baseMat);
+      const base = new T.Mesh(new T.BoxGeometry((2*Math.max(1.4 * s, 1.5 * s)), (0.1 * s), (2*Math.max(1.4 * s, 1.5 * s))), baseMat);
       base.position.y = 0.05 * s;
       base.receiveShadow = true;
       g.add(base);
@@ -29,7 +29,7 @@
       for (let i = 0; i < 9; i++) {
         const ang = Math.random() * Math.PI * 2;
         const rad = Math.random() * 1.1 * s;
-        const tuft = new T.Mesh(new T.ConeGeometry(0.16 * s, 0.55 * s, 5), tuftMat);
+        const tuft = new T.Mesh(new T.BoxGeometry((2*0.16 * s), (0.55 * s), (2*0.16 * s)), tuftMat);
         tuft.position.set(Math.cos(ang) * rad, 0.28 * s, Math.sin(ang) * rad);
         tuft.rotation.z = (Math.random() - 0.5) * 0.25;
         tuft.rotation.x = (Math.random() - 0.5) * 0.25;
@@ -41,10 +41,10 @@
       for (let i = 0; i < 6; i++) {
         const ang = Math.random() * Math.PI * 2;
         const rad = Math.random() * 1.1 * s;
-        const stem = new T.Mesh(new T.CylinderGeometry(0.02 * s, 0.02 * s, 0.4 * s, 4), tuftMat);
+        const stem = new T.Mesh(new T.BoxGeometry((2*0.02 * s), (0.4 * s), (2*0.02 * s)), tuftMat);
         stem.position.set(Math.cos(ang) * rad, 0.2 * s, Math.sin(ang) * rad);
         g.add(stem);
-        const head = new T.Mesh(new T.SphereGeometry(0.09 * s, 6, 5), new T.MeshLambertMaterial({ color: flowerColors[i % flowerColors.length]}));
+        const head = new T.Mesh(new T.BoxGeometry((2*0.09 * s), (2*0.09 * s), (2*0.09 * s)), new window.PIXEL.matCompat({ color: flowerColors[i % flowerColors.length]}));
         head.position.set(Math.cos(ang) * rad, 0.42 * s, Math.sin(ang) * rad);
         g.add(head);
       }

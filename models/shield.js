@@ -17,29 +17,29 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const gold = new T.MeshLambertMaterial({
+      const gold = new window.PIXEL.matCompat({
         color: 0xf5c518,
         emissive: 0x8a6d00, emissiveIntensity: 0.55
       });
-      const goldDark = new T.MeshLambertMaterial({
+      const goldDark = new window.PIXEL.matCompat({
         color: 0xb8860b,
         emissive: 0x5a4600, emissiveIntensity: 0.45
       });
 
       // 盾面（扁圆柱）
-      const face = new T.Mesh(new T.CylinderGeometry(0.24, 0.26, 0.05, 20), gold);
+      const face = new T.Mesh(new T.BoxGeometry((2*Math.max(0.24, 0.26)), (0.05), (2*Math.max(0.24, 0.26))), gold);
       face.rotation.x = Math.PI / 2;
       face.position.y = 0.05;
       g.add(face);
 
       // 边缘环
-      const rim = new T.Mesh(new T.TorusGeometry(0.25, 0.02, 8, 24), goldDark);
+      const rim = new T.Mesh(new T.BoxGeometry((2*(0.25+0.02)), (2*0.02), (2*(0.25+0.02))), goldDark);
       rim.rotation.x = Math.PI / 2;
       rim.position.y = 0.05;
       g.add(rim);
 
       // 中心凸起（圆帽）
-      const boss = new T.Mesh(new T.SphereGeometry(0.07, 10, 8), goldDark);
+      const boss = new T.Mesh(new T.BoxGeometry((2*0.07), (2*0.07), (2*0.07)), goldDark);
       boss.position.set(0, 0.11, 0);
       g.add(boss);
 
@@ -52,8 +52,8 @@
       g.add(barV);
 
       // 发光光晕（提示可拾取）
-      const glow = new T.Mesh(new T.RingGeometry(0.22, 0.32, 24),
-        new T.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false }));
+      const glow = new T.Mesh(new T.BoxGeometry((2*0.32), (2*0.32), 0.01),
+        new window.PIXEL.basicCompat({ color: 0xffe066, transparent: true, opacity: 0.35, side: T.DoubleSide, depthWrite: false }));
       glow.rotation.x = -Math.PI / 2;
       glow.position.y = 0.02;
       g.add(glow);

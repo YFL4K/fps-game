@@ -16,13 +16,13 @@
       const d = cfg.d || 5;
       const h = cfg.h || 3.4;
 
-      const wallMat = new T.MeshLambertMaterial({
+      const wallMat = new window.PIXEL.matCompat({
         color: cfg.color || 0x8a9bb0,
       });
-      const roofMat = new T.MeshLambertMaterial({
+      const roofMat = new window.PIXEL.matCompat({
         color: cfg.roofColor || 0x5d4a3a,
       });
-      const windowMat = new T.MeshLambertMaterial({
+      const windowMat = new window.PIXEL.matCompat({
         color: 0xffe9a8,
         emissive: 0xffcf6e,
         emissiveIntensity: 0.9
@@ -39,7 +39,7 @@
 
       // 屋顶：四棱锥（坡屋顶），盖在主体上方
       // 半径 0.52 使锥体底边直径 = max(w,d)*1.04，略小于墙体，AABB 不超界
-      const roof = new T.Mesh(new T.ConeGeometry(Math.max(w, d) * 0.52, h * 0.55, 4), roofMat);
+      const roof = new T.Mesh(new T.BoxGeometry((2*Math.max(w, d) * 0.52), (h * 0.55), (2*Math.max(w, d) * 0.52)), roofMat);
       roof.position.y = h + h * 0.275;
       roof.rotation.y = Math.PI / 4;
       roof.castShadow = true;
@@ -59,7 +59,7 @@
       ].forEach(function (p) {
         const win = new T.Mesh(
           new T.BoxGeometry(winW, winH, 0.06),
-          new T.MeshLambertMaterial({ color: 0xffe9a8, emissive: 0xffcf6e, emissiveIntensity: 0.9 })
+          new window.PIXEL.matCompat({ color: 0xffe9a8, emissive: 0xffcf6e, emissiveIntensity: 0.9 })
         );
         win.position.set(p[0], p[1], p[2]);
         win.rotation.set(p[3], p[4], p[5]);
@@ -69,7 +69,7 @@
       // 门（正面：门框 + 暗色门板）
       const doorW = Math.min(1.2, w * 0.3);
       const doorH = 1.9;
-      const doorMat = new T.MeshLambertMaterial({ color: 0x3a2f24});
+      const doorMat = new window.PIXEL.matCompat({ color: 0x3a2f24});
       const door = new T.Mesh(new T.BoxGeometry(doorW, doorH, 0.08), doorMat);
       door.position.set(0, doorH / 2, d / 2 + 0.01);
       g.add(door);

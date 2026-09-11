@@ -14,31 +14,31 @@
       const g = new T.Group();
       const variant = (config && config.variant) || 'white';
 
-      const bodyMat = new T.MeshLambertMaterial({
+      const bodyMat = new window.PIXEL.matCompat({
         color: variant === 'white' ? 0xf2f4f6 : 0x37414b,
       });
-      const bellyMat = new T.MeshLambertMaterial({
+      const bellyMat = new window.PIXEL.matCompat({
         color: variant === 'white' ? 0xc9ced6 : 0xb9c2cc,
       });
-      const wingTipMat = new T.MeshLambertMaterial({
+      const wingTipMat = new window.PIXEL.matCompat({
         color: variant === 'white' ? 0x5c6670 : 0x14181d,
       });
 
       const birds = [];
       for (let b = 0; b < 3; b++) {
         const bird = new T.Group();
-        const body = new T.Mesh(new T.SphereGeometry(0.16, 8, 6), bodyMat);
+        const body = new T.Mesh(new T.BoxGeometry((2*0.16), (2*0.16), (2*0.16)), bodyMat);
         body.scale.set(1.5, 0.85, 0.9);
         bird.add(body);
-        const belly = new T.Mesh(new T.SphereGeometry(0.11, 8, 6), bellyMat);
+        const belly = new T.Mesh(new T.BoxGeometry((2*0.11), (2*0.11), (2*0.11)), bellyMat);
         belly.position.y = -0.05;
         belly.scale.set(1.5, 0.8, 0.9);
         bird.add(belly);
         // 头 + 喙
-        const head = new T.Mesh(new T.SphereGeometry(0.09, 8, 6), bodyMat);
+        const head = new T.Mesh(new T.BoxGeometry((2*0.09), (2*0.09), (2*0.09)), bodyMat);
         head.position.set(0.24, 0.06, 0);
         bird.add(head);
-        const beak = new T.Mesh(new T.ConeGeometry(0.035, 0.16, 5), bellyMat);
+        const beak = new T.Mesh(new T.BoxGeometry((2*0.035), (0.16), (2*0.035)), bellyMat);
         beak.rotation.z = Math.PI / 2;
         beak.position.set(0.36, 0.04, 0);
         bird.add(beak);

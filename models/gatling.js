@@ -22,16 +22,16 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      const conMat = new T.MeshLambertMaterial({ color: 0x6e6b61});
-      const steelMat = new T.MeshLambertMaterial({ color: 0x41474f});
-      const gunMat = new T.MeshLambertMaterial({ color: 0x2c3138});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x1c2024});
-      const brassMat = new T.MeshLambertMaterial({ color: 0xc9a227});
-      const boxMat = new T.MeshLambertMaterial({ color: 0x55603a});
-      const accentMat = new T.MeshLambertMaterial({ color: 0xe06a1f});
+      const conMat = new window.PIXEL.matCompat({ color: 0x6e6b61});
+      const steelMat = new window.PIXEL.matCompat({ color: 0x41474f});
+      const gunMat = new window.PIXEL.matCompat({ color: 0x2c3138});
+      const darkMat = new window.PIXEL.matCompat({ color: 0x1c2024});
+      const brassMat = new window.PIXEL.matCompat({ color: 0xc9a227});
+      const boxMat = new window.PIXEL.matCompat({ color: 0x55603a});
+      const accentMat = new window.PIXEL.matCompat({ color: 0xe06a1f});
 
       // ========== 底座（低矮定位圆台，不遮挡枪口） ==========
-      const base = new T.Mesh(new T.CylinderGeometry(0.95, 1.15, 0.2, 12), conMat);
+      const base = new T.Mesh(new T.BoxGeometry((2*Math.max(0.95, 1.15)), (0.2), (2*Math.max(0.95, 1.15))), conMat);
       base.position.y = 0.1;
       base.castShadow = true;
       base.receiveShadow = true;
@@ -39,15 +39,15 @@
 
       // ========== 重型三脚架：前二后一 ==========
       const legMat = steelMat;
-      const legFrontL = new T.Mesh(new T.CylinderGeometry(0.05, 0.06, 0.8, 8), legMat);
+      const legFrontL = new T.Mesh(new T.BoxGeometry((2*Math.max(0.05, 0.06)), (0.8), (2*Math.max(0.05, 0.06))), legMat);
       legFrontL.rotation.z = 0.42;
       legFrontL.position.set(-0.42, 0.42, 0.35);
       g.add(legFrontL);
-      const legFrontR = new T.Mesh(new T.CylinderGeometry(0.05, 0.06, 0.8, 8), legMat);
+      const legFrontR = new T.Mesh(new T.BoxGeometry((2*Math.max(0.05, 0.06)), (0.8), (2*Math.max(0.05, 0.06))), legMat);
       legFrontR.rotation.z = -0.42;
       legFrontR.position.set(0.42, 0.42, 0.35);
       g.add(legFrontR);
-      const legRear = new T.Mesh(new T.CylinderGeometry(0.05, 0.06, 0.85, 8), legMat);
+      const legRear = new T.Mesh(new T.BoxGeometry((2*Math.max(0.05, 0.06)), (0.85), (2*Math.max(0.05, 0.06))), legMat);
       legRear.rotation.z = Math.PI - 0.5;
       legRear.position.set(0, 0.44, -0.45);
       g.add(legRear);
@@ -57,13 +57,13 @@
       turret.position.y = 0.86;
 
       // 主枪身：横置粗圆筒电机外壳（Z 轴朝前）
-      const housing = new T.Mesh(new T.CylinderGeometry(0.2, 0.2, 1.25, 14), gunMat);
+      const housing = new T.Mesh(new T.BoxGeometry((2*0.2), (1.25), (2*0.2)), gunMat);
       housing.rotation.x = Math.PI / 2;          // 横躺
       housing.position.set(0, 0.02, 0.1);
       turret.add(housing);
       // 散热环（电机外壳上的凸环，枪身特征）
       for (let ri = 0; ri < 4; ri++) {
-        const ring = new T.Mesh(new T.CylinderGeometry(0.235, 0.235, 0.05, 12), darkMat);
+        const ring = new T.Mesh(new T.BoxGeometry((2*0.235), (0.05), (2*0.235)), darkMat);
         ring.rotation.x = Math.PI / 2;
         ring.position.set(0, 0.02, -0.35 + ri * 0.32);
         turret.add(ring);
@@ -84,21 +84,21 @@
       const B = 6;
       for (let i = 0; i < B; i++) {
         const ang = (i / B) * Math.PI * 2;
-        const barrel = new T.Mesh(new T.CylinderGeometry(0.042, 0.05, 1.55, 8), darkMat);
+        const barrel = new T.Mesh(new T.BoxGeometry((2*Math.max(0.042, 0.05)), (1.55), (2*Math.max(0.042, 0.05))), darkMat);
         barrel.rotation.x = Math.PI / 2;          // 沿 Z
         barrel.position.set(Math.sin(ang) * 0.165, 0.02 + Math.cos(ang) * 0.165, 0.62);
         barrelGroup.add(barrel);
       }
       // 前锁环（靠近枪口）+ 后锁环（根部）+ 枪口收束环
-      const frontRing = new T.Mesh(new T.CylinderGeometry(0.27, 0.27, 0.12, 10), steelMat);
+      const frontRing = new T.Mesh(new T.BoxGeometry((2*0.27), (0.12), (2*0.27)), steelMat);
       frontRing.rotation.x = Math.PI / 2;
       frontRing.position.set(0, 0.02, 1.28);
       barrelGroup.add(frontRing);
-      const rearRing = new T.Mesh(new T.CylinderGeometry(0.25, 0.25, 0.1, 10), steelMat);
+      const rearRing = new T.Mesh(new T.BoxGeometry((2*0.25), (0.1), (2*0.25)), steelMat);
       rearRing.rotation.x = Math.PI / 2;
       rearRing.position.set(0, 0.02, 0.02);
       barrelGroup.add(rearRing);
-      const muzzle = new T.Mesh(new T.CylinderGeometry(0.17, 0.09, 0.16, 10), accentMat);
+      const muzzle = new T.Mesh(new T.BoxGeometry((2*Math.max(0.17, 0.09)), (0.16), (2*Math.max(0.17, 0.09))), accentMat);
       muzzle.rotation.x = Math.PI / 2;
       muzzle.position.set(0, 0.02, 1.5);
       barrelGroup.add(muzzle);
@@ -127,7 +127,7 @@
       g.add(ammoLid);
       // 弹链：小段椭圆链节，从弹箱到供弹口（3 段）
       for (let li = 0; li < 3; li++) {
-        const belt = new T.Mesh(new T.SphereGeometry(0.055, 8, 6), brassMat);
+        const belt = new T.Mesh(new T.BoxGeometry((2*0.055), (2*0.055), (2*0.055)), brassMat);
         belt.scale.set(1, 0.7, 1.6);
         const t = li / 2;
         belt.position.set(0.6 - t * 0.28, 0.3 + t * 0.55, -0.32 + t * (-0.32));
@@ -135,7 +135,7 @@
       }
 
       // 枪口状态灯（青色 = 就绪）
-      const light = new T.Mesh(new T.SphereGeometry(0.07, 8, 6), new T.MeshBasicMaterial({ color: 0x66ccff }));
+      const light = new T.Mesh(new T.BoxGeometry((2*0.07), (2*0.07), (2*0.07)), new window.PIXEL.basicCompat({ color: 0x66ccff }));
       light.position.set(0, 0.18, 1.68);
       turret.add(light);
 

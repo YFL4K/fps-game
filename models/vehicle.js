@@ -24,13 +24,13 @@
       const g = new T.Group();
 
       const bodyColor = cfg.color || v.bodyColor;
-      const bodyMat = new T.MeshLambertMaterial({ color: bodyColor});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x14161a});
-      const glassMat = new T.MeshLambertMaterial({
+      const bodyMat = new window.PIXEL.matCompat({ color: bodyColor});
+      const darkMat = new window.PIXEL.matCompat({ color: 0x14161a});
+      const glassMat = new window.PIXEL.matCompat({
         color: 0x1b2b3a,
         emissive: 0x0a1a26, emissiveIntensity: 0.5
       });
-      const wheelMat = new T.MeshLambertMaterial({ color: 0x0d0d0f});
+      const wheelMat = new window.PIXEL.matCompat({ color: 0x0d0d0f});
 
       const L = v.bodyLen, H = v.bodyH, W = v.bodyW;
 
@@ -60,12 +60,12 @@
       g.add(bumperF, bumperR);
 
       // 车灯（前白后红）
-      const headMat = new T.MeshBasicMaterial({ color: 0xfff2c0 });
+      const headMat = new window.PIXEL.basicCompat({ color: 0xfff2c0 });
       const lampF1 = new T.Mesh(new T.BoxGeometry(0.22, 0.11, 0.06), headMat);
       lampF1.position.set(-W * 0.32, v.wheelY + 0.52, -L / 2 - 0.02);
       const lampF2 = lampF1.clone();
       lampF2.position.x = W * 0.32;
-      const tailMat = new T.MeshBasicMaterial({ color: 0xff3b3b });
+      const tailMat = new window.PIXEL.basicCompat({ color: 0xff3b3b });
       const lampR1 = new T.Mesh(new T.BoxGeometry(0.22, 0.11, 0.06), tailMat);
       lampR1.position.set(-W * 0.32, v.wheelY + 0.52, L / 2 + 0.02);
       const lampR2 = lampR1.clone();
@@ -73,9 +73,9 @@
       g.add(lampF1, lampF2, lampR1, lampR2);
 
       // 车轮
-      const wheelGeo = new T.CylinderGeometry(0.4, 0.4, 0.3, 14);
-      const hubMat = new T.MeshLambertMaterial({ color: 0x6a6f76});
-      const hubGeo = new T.CylinderGeometry(0.18, 0.18, 0.32, 8);
+      const wheelGeo = new T.BoxGeometry((2*0.4), (0.3), (2*0.4));
+      const hubMat = new window.PIXEL.matCompat({ color: 0x6a6f76});
+      const hubGeo = new T.BoxGeometry((2*0.18), (0.32), (2*0.18));
       const wp = [
         [-W / 2 - 0.12, v.wheelY, -L * 0.34], [W / 2 + 0.12, v.wheelY, -L * 0.34],
         [-W / 2 - 0.12, v.wheelY, L * 0.34], [W / 2 + 0.12, v.wheelY, L * 0.34]

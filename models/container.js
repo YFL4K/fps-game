@@ -18,11 +18,11 @@
       const color = cfg.color || 0x2e5a8c;
 
       const g = new T.Group();
-      const containerMat = new T.MeshLambertMaterial({ color: color});
-      const corrugMat = new T.MeshLambertMaterial({ color: new T.Color(color).multiplyScalar(0.85).getHex()});
-      const doorMat = new T.MeshLambertMaterial({ color: new T.Color(color).lerp(new T.Color(0xffffff), 0.15).getHex()});
-      const cornerMat = new T.MeshLambertMaterial({ color: 0x222222});
-      const wheelMat = new T.MeshLambertMaterial({ color: 0x1a1a1a});
+      const containerMat = new window.PIXEL.matCompat({ color: color});
+      const corrugMat = new window.PIXEL.matCompat({ color: new T.Color(color).multiplyScalar(0.85).getHex()});
+      const doorMat = new window.PIXEL.matCompat({ color: new T.Color(color).lerp(new T.Color(0xffffff), 0.15).getHex()});
+      const cornerMat = new window.PIXEL.matCompat({ color: 0x222222});
+      const wheelMat = new window.PIXEL.matCompat({ color: 0x1a1a1a});
 
       // 主体（波纹板效果用分段Box模拟）
       const body = new T.Mesh(new T.BoxGeometry(w, h, d), containerMat);
@@ -69,7 +69,7 @@
       g.add(chassis);
 
       // 轮子
-      const wheelGeo = new T.CylinderGeometry(0.25, 0.25, 0.2, 12);
+      const wheelGeo = new T.BoxGeometry((2*0.25), (0.2), (2*0.25));
       [[-w/2 - 0.1, 0.25, -d/2 + 1], [w/2 + 0.1, 0.25, -d/2 + 1],
        [-w/2 - 0.1, 0.25, d/2 - 1], [w/2 + 0.1, 0.25, d/2 - 1]].forEach(function (p) {
         const wheel = new T.Mesh(wheelGeo, wheelMat);

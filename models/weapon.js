@@ -27,12 +27,12 @@
       const L = look.len;
       const g = new T.Group();
 
-      const bodyMat = new T.MeshLambertMaterial({ color: 0x22252b});
-      const accentMat = new T.MeshLambertMaterial({
+      const bodyMat = new window.PIXEL.matCompat({ color: 0x22252b});
+      const accentMat = new window.PIXEL.matCompat({
         color: look.color,
         emissive: look.color, emissiveIntensity: 0.5
       });
-      const woodMat = new T.MeshLambertMaterial({ color: 0x6b4423});
+      const woodMat = new window.PIXEL.matCompat({ color: 0x6b4423});
 
       // 枪身
       const body = new T.Mesh(new T.BoxGeometry(0.07, 0.1, L), bodyMat);
@@ -60,46 +60,46 @@
         const stock = new T.Mesh(new T.BoxGeometry(0.06, 0.09, L * 0.22), woodMat);
         stock.position.set(0, 0, L * 0.38);
         g.add(stock);
-        const barrel = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, L * 0.4, 8), bodyMat);
+        const barrel = new T.Mesh(new T.BoxGeometry((2*0.022), (L * 0.4), (2*0.022)), bodyMat);
         barrel.rotation.x = Math.PI / 2;
         barrel.position.set(0, 0, -L * 0.75);
         g.add(barrel);
       } else if (type === 'sniper') {
         // 狙击：长管 + 高倍镜
-        const barrel = new T.Mesh(new T.CylinderGeometry(0.02, 0.02, L * 0.6, 8), bodyMat);
+        const barrel = new T.Mesh(new T.BoxGeometry((2*0.02), (L * 0.6), (2*0.02)), bodyMat);
         barrel.rotation.x = Math.PI / 2;
         barrel.position.set(0, 0, -L * 0.72);
         g.add(barrel);
-        const scope = new T.Mesh(new T.CylinderGeometry(0.035, 0.035, 0.16, 10), accentMat);
+        const scope = new T.Mesh(new T.BoxGeometry((2*0.035), (0.16), (2*0.035)), accentMat);
         scope.rotation.x = Math.PI / 2;
         scope.position.set(0, 0.07, -L * 0.1);
         g.add(scope);
       } else if (type === 'rocket') {
         // 火箭筒：粗管 + 喇叭口 + 弹头
-        const tube = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, L, 10), bodyMat);
+        const tube = new T.Mesh(new T.BoxGeometry((2*0.05), (L), (2*0.05)), bodyMat);
         tube.rotation.x = Math.PI / 2;
         g.add(tube);
-        const flare = new T.Mesh(new T.CylinderGeometry(0.085, 0.05, 0.1, 10), bodyMat);
+        const flare = new T.Mesh(new T.BoxGeometry((2*Math.max(0.085, 0.05)), (0.1), (2*Math.max(0.085, 0.05))), bodyMat);
         flare.rotation.x = Math.PI / 2;
         flare.position.z = -L * 0.55;
         g.add(flare);
-        const warhead = new T.Mesh(new T.CylinderGeometry(0.045, 0.028, 0.24, 10), accentMat);
+        const warhead = new T.Mesh(new T.BoxGeometry((2*Math.max(0.045, 0.028)), (0.24), (2*Math.max(0.045, 0.028))), accentMat);
         warhead.rotation.x = Math.PI / 2;
         warhead.position.z = L * 0.42;
         g.add(warhead);
       } else if (type === 'flamethrower') {
         // 喷火器：粗喷嘴 + 燃料罐
-        const nozzle = new T.Mesh(new T.CylinderGeometry(0.04, 0.03, L * 0.4, 8), bodyMat);
+        const nozzle = new T.Mesh(new T.BoxGeometry((2*Math.max(0.04, 0.03)), (L * 0.4), (2*Math.max(0.04, 0.03))), bodyMat);
         nozzle.rotation.x = Math.PI / 2;
         nozzle.position.z = -L * 0.6;
         g.add(nozzle);
-        const tank = new T.Mesh(new T.CylinderGeometry(0.11, 0.11, 0.2, 10), accentMat);
+        const tank = new T.Mesh(new T.BoxGeometry((2*0.11), (0.2), (2*0.11)), accentMat);
         tank.rotation.x = Math.PI / 2;
         tank.position.z = L * 0.3;
         g.add(tank);
       } else {
         // 通用：枪管 + 握把
-        const barrel = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, L * 0.55, 8), bodyMat);
+        const barrel = new T.Mesh(new T.BoxGeometry((2*0.022), (L * 0.55), (2*0.022)), bodyMat);
         barrel.rotation.x = Math.PI / 2;
         barrel.position.set(0, 0, -L * 0.75);
         g.add(barrel);
@@ -111,8 +111,8 @@
 
       // 发光光环（区分类型）
       const ring = new T.Mesh(
-        new T.TorusGeometry(0.32, 0.02, 8, 24),
-        new T.MeshBasicMaterial({ color: look.color, transparent: true, opacity: 0.7 })
+        new T.BoxGeometry((2*(0.32+0.02)), (2*0.02), (2*(0.32+0.02))),
+        new window.PIXEL.basicCompat({ color: look.color, transparent: true, opacity: 0.7 })
       );
       ring.rotation.x = Math.PI / 2;
       ring.position.y = -0.1;

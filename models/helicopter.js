@@ -21,13 +21,13 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const bodyMat = new T.MeshLambertMaterial({ color: 0x3a4a3a});
-      const glassMat = new T.MeshLambertMaterial({
+      const bodyMat = new window.PIXEL.matCompat({ color: 0x3a4a3a});
+      const glassMat = new window.PIXEL.matCompat({
         color: 0x1b2b3a,
         emissive: 0x081822, emissiveIntensity: 0.55
       });
-      const darkMat = new T.MeshLambertMaterial({ color: 0x14161a});
-      const redMat = new T.MeshLambertMaterial({
+      const darkMat = new window.PIXEL.matCompat({ color: 0x14161a});
+      const redMat = new window.PIXEL.matCompat({
         color: 0xc0392b, emissive: 0x6a1010, emissiveIntensity: 0.6,
       });
 
@@ -62,32 +62,32 @@
       // 主旋翼（长条叶片，高速旋转）
       const mainRotor = new T.Group();
       mainRotor.position.set(0, 0.62, 0);
-      const bladeMat = new T.MeshLambertMaterial({ color: 0x0d0d0f});
+      const bladeMat = new window.PIXEL.matCompat({ color: 0x0d0d0f});
       const b1 = new T.Mesh(new T.BoxGeometry(6.2, 0.04, 0.22), bladeMat);
       const b2 = new T.Mesh(new T.BoxGeometry(0.22, 0.04, 6.2), bladeMat);
       mainRotor.add(b1, b2);
       // 旋翼毂
-      const hub = new T.Mesh(new T.CylinderGeometry(0.12, 0.14, 0.2, 10), darkMat);
+      const hub = new T.Mesh(new T.BoxGeometry((2*Math.max(0.12, 0.14)), (0.2), (2*Math.max(0.12, 0.14))), darkMat);
       hub.position.y = -0.05;
       mainRotor.add(hub);
       g.add(mainRotor);
 
       // 机头灯
       const lamp = new T.Mesh(
-        new T.SphereGeometry(0.11, 8, 8),
-        new T.MeshBasicMaterial({ color: 0xffe9b0 })
+        new T.BoxGeometry((2*0.11), (2*0.11), (2*0.11)),
+        new window.PIXEL.basicCompat({ color: 0xffe9b0 })
       );
       lamp.position.set(0, -0.05, -1.36);
       g.add(lamp);
 
       // 机腹攻击炮
-      const gun = new T.Mesh(new T.CylinderGeometry(0.07, 0.07, 0.75, 8), darkMat);
+      const gun = new T.Mesh(new T.BoxGeometry((2*0.07), (0.75), (2*0.07)), darkMat);
       gun.rotation.x = Math.PI / 2;
       gun.position.set(0, -0.44, -0.8);
       g.add(gun);
       const gunTip = new T.Mesh(
-        new T.SphereGeometry(0.055, 6, 6),
-        new T.MeshBasicMaterial({ color: 0xff5533 })
+        new T.BoxGeometry((2*0.055), (2*0.055), (2*0.055)),
+        new window.PIXEL.basicCompat({ color: 0xff5533 })
       );
       gunTip.position.set(0, -0.44, -1.2);
       g.add(gunTip);
@@ -218,14 +218,14 @@
 
         // 火箭弹（橙色粗管 + 尾焰）
         const body = new T.Mesh(
-          new T.CylinderGeometry(0.11, 0.09, 0.55, 8),
-          new T.MeshBasicMaterial({ color: 0xff5511 })
+          new T.BoxGeometry((2*Math.max(0.11, 0.09)), (0.55), (2*Math.max(0.11, 0.09))),
+          new window.PIXEL.basicCompat({ color: 0xff5511 })
         );
         body.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
         body.position.copy(muzzle);
         const flame = new T.Mesh(
-          new T.ConeGeometry(0.1, 0.5, 8),
-          new T.MeshBasicMaterial({ color: 0xffcc22 })
+          new T.BoxGeometry((2*0.1), (0.5), (2*0.1)),
+          new window.PIXEL.basicCompat({ color: 0xffcc22 })
         );
         flame.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
         flame.position.copy(muzzle).addScaledVector(aim, -0.45);

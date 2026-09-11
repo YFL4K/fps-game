@@ -58,29 +58,29 @@
     var T = global.THREE;
     return {
       // 枪械钢 — 深灰高金属度（CS 标准机匣色）
-      gunmetal: new T.MeshLambertMaterial({ color: 0x2a2d33, emissive: 0x0a0b0d, emissiveIntensity: 0.25 }),
+      gunmetal: new window.PIXEL.matCompat({ color: 0x2a2d33, emissive: 0x0a0b0d, emissiveIntensity: 0.25 }),
       // 聚合物 — 哑光黑（握把/护木/枪托）
-      polymer: new T.MeshLambertMaterial({ color: 0x1a1c20, emissive: 0x050507, emissiveIntensity: 0.2 }),
+      polymer: new window.PIXEL.matCompat({ color: 0x1a1c20, emissive: 0x050507, emissiveIntensity: 0.2 }),
       // FDE 沙色聚合物 — 战术色（CS:GO 风格）
-      fde: new T.MeshLambertMaterial({ color: 0x8c7355, emissive: 0x1a1408, emissiveIntensity: 0.2 }),
+      fde: new window.PIXEL.matCompat({ color: 0x8c7355, emissive: 0x1a1408, emissiveIntensity: 0.2 }),
       // 铬钢 — 亮金属（枪管/导气管）
-      chrome: new T.MeshLambertMaterial({ color: 0x3d4248, emissive: 0x0c0e10, emissiveIntensity: 0.3 }),
+      chrome: new window.PIXEL.matCompat({ color: 0x3d4248, emissive: 0x0c0e10, emissiveIntensity: 0.3 }),
       // 亮银 — 高光金属（消焰器/管口装置）
-      bright: new T.MeshLambertMaterial({ color: 0x555a62, emissive: 0x10121a, emissiveIntensity: 0.3 }),
+      bright: new window.PIXEL.matCompat({ color: 0x555a62, emissive: 0x10121a, emissiveIntensity: 0.3 }),
       // 木质 — 深褐带暖色（AK/霰弹枪护木枪托）
-      wood: new T.MeshLambertMaterial({ color: 0x6b4226, emissive: 0x180c04, emissiveIntensity: 0.2 }),
+      wood: new window.PIXEL.matCompat({ color: 0x6b4226, emissive: 0x180c04, emissiveIntensity: 0.2 }),
       // 深木 — 枪托深色
-      woodDark: new T.MeshLambertMaterial({ color: 0x4a2d18, emissive: 0x100804, emissiveIntensity: 0.2 }),
+      woodDark: new window.PIXEL.matCompat({ color: 0x4a2d18, emissive: 0x100804, emissiveIntensity: 0.2 }),
       // 黄铜 — 弹匣/弹链
-      brass: new T.MeshLambertMaterial({ color: 0xb8860b, emissive: 0x2a1c00, emissiveIntensity: 0.25 }),
+      brass: new window.PIXEL.matCompat({ color: 0xb8860b, emissive: 0x2a1c00, emissiveIntensity: 0.25 }),
       // 战术橙 — 喷火器/火箭筒标识
-      tacOrange: new T.MeshLambertMaterial({ color: 0xe0530f, emissive: 0x3a1000, emissiveIntensity: 0.35 }),
+      tacOrange: new window.PIXEL.matCompat({ color: 0xe0530f, emissive: 0x3a1000, emissiveIntensity: 0.35 }),
       // 黑橡胶 — 握把纹理
-      rubber: new T.MeshLambertMaterial({ color: 0x141416, emissive: 0x040404, emissiveIntensity: 0.15 }),
+      rubber: new window.PIXEL.matCompat({ color: 0x141416, emissive: 0x040404, emissiveIntensity: 0.15 }),
       // 透镜
-      lens: new T.MeshBasicMaterial({ color: 0x88ccff }),
+      lens: new window.PIXEL.basicCompat({ color: 0x88ccff }),
       // 红点
-      redDot: new T.MeshBasicMaterial({ color: 0xff3322 })
+      redDot: new window.PIXEL.basicCompat({ color: 0xff3322 })
     };
   }
 
@@ -93,8 +93,8 @@
     var colors = [0xffe066, 0xffaa33, 0xff6633];
     for (var i = 0; i < 3; i++) {
       var cone = new T.Mesh(
-        new T.ConeGeometry(0.028 + i * 0.016, 0.22 - i * 0.05, 8),
-        new T.MeshBasicMaterial({ color: colors[i], transparent: true, opacity: 0, depthWrite: false })
+        new T.BoxGeometry((2*0.028 + i * 0.016), (0.22 - i * 0.05), (2*0.028 + i * 0.016)),
+        new window.PIXEL.basicCompat({ color: colors[i], transparent: true, opacity: 0, depthWrite: false })
       );
       cone.position.z = -0.06 - i * 0.035;
       cone.position.y = 0.01;
@@ -103,8 +103,8 @@
     }
     // 火花环
     var spark = new T.Mesh(
-      new T.RingGeometry(0.02, 0.05, 8),
-      new T.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0, depthWrite: false, side: T.DoubleSide })
+      new T.BoxGeometry((2*0.05), (2*0.05), 0.01),
+      new window.PIXEL.basicCompat({ color: 0xffdd44, transparent: true, opacity: 0, depthWrite: false, side: T.DoubleSide })
     );
     spark.position.z = -0.12;
     spark.rotation.y = 0;
@@ -158,7 +158,7 @@
     g.add(slideFront);
 
     // —— 棱纹枪管（外露，CS 标志性三角棱纹）——
-    var barrel = new T.Mesh(new T.CylinderGeometry(0.024, 0.028, 0.13, 6), M.chrome);
+    var barrel = new T.Mesh(new T.BoxGeometry((2*Math.max(0.024, 0.028)), (0.13), (2*Math.max(0.024, 0.028))), M.chrome);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.015, -L * 0.4 - 0.22);
     barrel.userData.part = 'barrel';
@@ -172,7 +172,7 @@
       g.add(fin);
     }
     // 枪口制退器（CS 风格）
-    var muzzleBrake = new T.Mesh(new T.CylinderGeometry(0.034, 0.03, 0.04, 8), M.bright);
+    var muzzleBrake = new T.Mesh(new T.BoxGeometry((2*Math.max(0.034, 0.03)), (0.04), (2*Math.max(0.034, 0.03))), M.bright);
     muzzleBrake.rotation.x = Math.PI / 2;
     muzzleBrake.position.set(0, 0.015, -L * 0.4 - 0.3);
     muzzleBrake.userData.part = 'barrel';
@@ -188,7 +188,7 @@
     addGripTexture(g, T, M, -0.036, -0.04, -0.01, 5, 3, M.rubber);
 
     // —— 扳机护圈 + 扳机 ——
-    var guard = new T.Mesh(new T.TorusGeometry(0.022, 0.006, 6, 10, Math.PI), M.gunmetal);
+    var guard = new T.Mesh(new T.BoxGeometry((2*(0.022+0.006)), (2*0.006), (2*(0.022+0.006))), M.gunmetal);
     guard.position.set(0, -0.025, -0.08);
     guard.rotation.x = Math.PI / 2;
     g.add(guard);
@@ -207,7 +207,7 @@
     var frontSight = new T.Mesh(new T.BoxGeometry(0.014, 0.025, 0.009), M.polymer);
     frontSight.position.set(0, 0.07, -L * 0.4 - 0.27);
     g.add(frontSight);
-    var frontSightDot = new T.Mesh(new T.SphereGeometry(0.004, 6, 4), M.redDot);
+    var frontSightDot = new T.Mesh(new T.BoxGeometry((2*0.004), (2*0.004), (2*0.004)), M.redDot);
     frontSightDot.position.set(0, 0.083, -L * 0.4 - 0.27);
     g.add(frontSightDot);
     // 照门
@@ -262,7 +262,7 @@
     }
 
     // —— 导气管 + 气体调节器 ——
-    var gasTube = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, 0.16, 8), M.chrome);
+    var gasTube = new T.Mesh(new T.BoxGeometry((2*0.018), (0.16), (2*0.018)), M.chrome);
     gasTube.rotation.x = Math.PI / 2;
     gasTube.position.set(0, 0.04, -L * 0.54);
     gasTube.userData.part = 'barrel';
@@ -273,14 +273,14 @@
     g.add(gasBlock);
 
     // —— 枪管 ——
-    var barrel = new T.Mesh(new T.CylinderGeometry(0.016, 0.016, st.barrelLen, 8), M.chrome);
+    var barrel = new T.Mesh(new T.BoxGeometry((2*0.016), (st.barrelLen), (2*0.016)), M.chrome);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.005, -L * 0.38 - 0.1 - st.barrelLen / 2);
     barrel.userData.part = 'barrel';
     g.add(barrel);
 
     // —— 斜切消焰器（AK-47 标志）——
-    var muzzle = new T.Mesh(new T.CylinderGeometry(0.022, 0.02, 0.045, 8), M.bright);
+    var muzzle = new T.Mesh(new T.BoxGeometry((2*Math.max(0.022, 0.02)), (0.045), (2*Math.max(0.022, 0.02))), M.bright);
     muzzle.rotation.x = Math.PI / 2;
     muzzle.position.set(0, 0.005, -L * 0.38 - 0.1 - st.barrelLen - 0.02);
     muzzle.userData.part = 'barrel';
@@ -336,17 +336,17 @@
     addGripTexture(g, T, M, -0.024, -0.045, -L * 0.38 + 0.025, 4, 2, M.rubber);
 
     // —— 扳机护圈 ——
-    var guard = new T.Mesh(new T.TorusGeometry(0.02, 0.005, 6, 10, Math.PI), M.gunmetal);
+    var guard = new T.Mesh(new T.BoxGeometry((2*(0.02+0.005)), (2*0.005), (2*(0.02+0.005))), M.gunmetal);
     guard.position.set(0, -0.025, -L * 0.38 - 0.02);
     guard.rotation.x = Math.PI / 2;
     g.add(guard);
 
     // —— 拉机柄（右后侧，CS 标志性大拨片）——
-    var bolt = new T.Mesh(new T.CylinderGeometry(0.01, 0.01, 0.06, 6), M.chrome);
+    var bolt = new T.Mesh(new T.BoxGeometry((2*0.01), (0.06), (2*0.01)), M.chrome);
     bolt.rotation.z = Math.PI / 2;
     bolt.position.set(0.05, 0.05, -L * 0.38 + 0.06);
     g.add(bolt);
-    var boltHandle = new T.Mesh(new T.SphereGeometry(0.014, 6, 5), M.bright);
+    var boltHandle = new T.Mesh(new T.BoxGeometry((2*0.014), (2*0.014), (2*0.014)), M.bright);
     boltHandle.position.set(0.06, 0.05, -L * 0.38 + 0.06);
     g.add(boltHandle);
     anim.bolt = bolt;
@@ -383,26 +383,26 @@
     addRailTeeth(g, T, M, 0, 0.045, -L * 0.34 - 0.05, 0.12, 6, 0.05);
 
     // —— 枪管（粗管）——
-    var barrel = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, st.barrelLen + 0.08, 10), M.chrome);
+    var barrel = new T.Mesh(new T.BoxGeometry((2*0.022), (st.barrelLen + 0.08), (2*0.022)), M.chrome);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.02, -L * 0.34 - 0.08 - (st.barrelLen + 0.08) / 2);
     barrel.userData.part = 'barrel';
     g.add(barrel);
     // 枪管喉部（连接机匣处略粗）
-    var barrelH = new T.Mesh(new T.CylinderGeometry(0.028, 0.022, 0.04, 10), M.gunmetal);
+    var barrelH = new T.Mesh(new T.BoxGeometry((2*Math.max(0.028, 0.022)), (0.04), (2*Math.max(0.028, 0.022))), M.gunmetal);
     barrelH.rotation.x = Math.PI / 2;
     barrelH.position.set(0, 0.02, -L * 0.34 - 0.08);
     barrelH.userData.part = 'barrel';
     g.add(barrelH);
 
     // —— 弹仓管（下方）——
-    var magTube = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, st.barrelLen - 0.04, 8), M.gunmetal);
+    var magTube = new T.Mesh(new T.BoxGeometry((2*0.018), (st.barrelLen - 0.04), (2*0.018)), M.gunmetal);
     magTube.rotation.x = Math.PI / 2;
     magTube.position.set(0, -0.025, -L * 0.33 - (st.barrelLen - 0.04) / 2);
     magTube.userData.part = 'barrel';
     g.add(magTube);
     // 弹仓管帽
-    var tubeCap = new T.Mesh(new T.CylinderGeometry(0.022, 0.018, 0.025, 8), M.bright);
+    var tubeCap = new T.Mesh(new T.BoxGeometry((2*Math.max(0.022, 0.018)), (0.025), (2*Math.max(0.022, 0.018))), M.bright);
     tubeCap.rotation.x = Math.PI / 2;
     tubeCap.position.set(0, -0.025, -L * 0.33 - (st.barrelLen - 0.04));
     tubeCap.userData.part = 'barrel';
@@ -425,13 +425,13 @@
     grip.position.set(0, -0.085, -L * 0.34 + 0.01);
     grip.rotation.x = 0.22;
     g.add(grip);
-    var guard = new T.Mesh(new T.TorusGeometry(0.022, 0.005, 6, 10, Math.PI), M.gunmetal);
+    var guard = new T.Mesh(new T.BoxGeometry((2*(0.022+0.005)), (2*0.005), (2*(0.022+0.005))), M.gunmetal);
     guard.position.set(0, -0.025, -L * 0.34 - 0.04);
     guard.rotation.x = Math.PI / 2;
     g.add(guard);
 
     // —— 前端珠形准星 ——
-    var bead = new T.Mesh(new T.SphereGeometry(0.008, 6, 5), M.bright);
+    var bead = new T.Mesh(new T.BoxGeometry((2*0.008), (2*0.008), (2*0.008)), M.bright);
     bead.position.set(0, 0.05, -L * 0.34 - 0.08 - (st.barrelLen + 0.08));
     g.add(bead);
 
@@ -444,71 +444,71 @@
     var anim = { mag: null, pump: null, bolt: null, tube: null };
 
     // —— 喷嘴（锥形管口 + 引火器）——
-    var nozzle = new T.Mesh(new T.CylinderGeometry(0.038, 0.028, 0.16, 10), M.gunmetal);
+    var nozzle = new T.Mesh(new T.BoxGeometry((2*Math.max(0.038, 0.028)), (0.16), (2*Math.max(0.038, 0.028))), M.gunmetal);
     nozzle.rotation.x = Math.PI / 2;
     nozzle.position.set(0, 0.015, -L * 0.42 - 0.08);
     nozzle.userData.part = 'barrel';
     g.add(nozzle);
     // 喷口帽（战术橙）
-    var cap = new T.Mesh(new T.CylinderGeometry(0.044, 0.038, 0.04, 10), M.tacOrange);
+    var cap = new T.Mesh(new T.BoxGeometry((2*Math.max(0.044, 0.038)), (0.04), (2*Math.max(0.044, 0.038))), M.tacOrange);
     cap.rotation.x = Math.PI / 2;
     cap.position.set(0, 0.015, -L * 0.42 - 0.18);
     cap.userData.part = 'barrel';
     g.add(cap);
     // 引火口（小管）
-    var pilot = new T.Mesh(new T.CylinderGeometry(0.006, 0.006, 0.08, 6), M.bright);
+    var pilot = new T.Mesh(new T.BoxGeometry((2*0.006), (0.08), (2*0.006)), M.bright);
     pilot.rotation.x = Math.PI / 2;
     pilot.position.set(0.02, 0.04, -L * 0.42 - 0.15);
     pilot.userData.part = 'barrel';
     g.add(pilot);
 
     // —— 连接管（喷嘴到罐体）——
-    var pipe = new T.Mesh(new T.CylinderGeometry(0.014, 0.014, 0.2, 8), M.chrome);
+    var pipe = new T.Mesh(new T.BoxGeometry((2*0.014), (0.2), (2*0.014)), M.chrome);
     pipe.rotation.x = Math.PI / 2;
     pipe.position.set(0, -0.02, -L * 0.42 - 0.02);
     g.add(pipe);
 
     // —— 双燃料罐（主罐 + 副罐，CS 风格圆筒造型）——
-    var tankMain = new T.Mesh(new T.CylinderGeometry(0.085, 0.085, 0.24, 12), M.tacOrange);
+    var tankMain = new T.Mesh(new T.BoxGeometry((2*0.085), (0.24), (2*0.085)), M.tacOrange);
     tankMain.rotation.x = Math.PI / 2;
     tankMain.position.set(-0.055, -0.06, -0.02);
     g.add(tankMain);
     // 罐体端盖
-    var capA = new T.Mesh(new T.CylinderGeometry(0.087, 0.085, 0.025, 12), M.gunmetal);
+    var capA = new T.Mesh(new T.BoxGeometry((2*Math.max(0.087, 0.085)), (0.025), (2*Math.max(0.087, 0.085))), M.gunmetal);
     capA.rotation.x = Math.PI / 2;
     capA.position.set(-0.055, -0.06, 0.1);
     g.add(capA);
-    var capB = new T.Mesh(new T.CylinderGeometry(0.087, 0.085, 0.025, 12), M.gunmetal);
+    var capB = new T.Mesh(new T.BoxGeometry((2*Math.max(0.087, 0.085)), (0.025), (2*Math.max(0.087, 0.085))), M.gunmetal);
     capB.rotation.x = Math.PI / 2;
     capB.position.set(-0.055, -0.06, -0.14);
     g.add(capB);
 
     // 副罐（钢色，稍小）
-    var tankSub = new T.Mesh(new T.CylinderGeometry(0.07, 0.07, 0.2, 12), M.gunmetal);
+    var tankSub = new T.Mesh(new T.BoxGeometry((2*0.07), (0.2), (2*0.07)), M.gunmetal);
     tankSub.rotation.x = Math.PI / 2;
     tankSub.position.set(0.06, -0.06, -0.02);
     g.add(tankSub);
-    var capC = new T.Mesh(new T.CylinderGeometry(0.072, 0.07, 0.02, 12), M.bright);
+    var capC = new T.Mesh(new T.BoxGeometry((2*Math.max(0.072, 0.07)), (0.02), (2*Math.max(0.072, 0.07))), M.bright);
     capC.rotation.x = Math.PI / 2;
     capC.position.set(0.06, -0.06, 0.1);
     g.add(capC);
 
     // 阀门（黄铜）
-    var valve = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.04, 8), M.brass);
+    var valve = new T.Mesh(new T.BoxGeometry((2*0.022), (0.04), (2*0.022)), M.brass);
     valve.rotation.z = Math.PI / 2;
     valve.position.set(-0.02, 0.02, -0.02);
     g.add(valve);
     // 阀轮
-    var wheel = new T.Mesh(new T.TorusGeometry(0.016, 0.005, 6, 8), M.brass);
+    var wheel = new T.Mesh(new T.BoxGeometry((2*(0.016+0.005)), (2*0.005), (2*(0.016+0.005))), M.brass);
     wheel.position.set(0.0, 0.02, -0.02);
     g.add(wheel);
 
     // —— 气压表 ——
-    var gauge = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, 0.01, 8), M.bright);
+    var gauge = new T.Mesh(new T.BoxGeometry((2*0.018), (0.01), (2*0.018)), M.bright);
     gauge.rotation.x = Math.PI / 2;
     gauge.position.set(0.035, 0.02, -L * 0.25);
     g.add(gauge);
-    var gaugeFace = new T.Mesh(new T.CircleGeometry(0.014, 8), new T.MeshBasicMaterial({ color: 0x111111 }));
+    var gaugeFace = new T.Mesh(new T.BoxGeometry((2*0.014), (2*0.014), 0.01), new window.PIXEL.basicCompat({ color: 0x111111 }));
     gaugeFace.position.set(0.035, 0.02, -L * 0.25 - 0.006);
     gaugeFace.rotation.y = Math.PI / 2;
     g.add(gaugeFace);
@@ -530,7 +530,7 @@
     g.add(grip);
     addGripTexture(g, T, M, 0.025, -0.05, -L * 0.18 + 0.025, 4, 2, M.rubber);
     addGripTexture(g, T, M, -0.025, -0.05, -L * 0.18 + 0.025, 4, 2, M.rubber);
-    var guard = new T.Mesh(new T.TorusGeometry(0.02, 0.005, 6, 10, Math.PI), M.gunmetal);
+    var guard = new T.Mesh(new T.BoxGeometry((2*(0.02+0.005)), (2*0.005), (2*(0.02+0.005))), M.gunmetal);
     guard.position.set(0, -0.025, -L * 0.18 - 0.04);
     guard.rotation.x = Math.PI / 2;
     g.add(guard);
@@ -544,26 +544,26 @@
     var anim = { mag: null, pump: null, bolt: null, tube: null };
 
     // —— 长枪管 ——
-    var barrel = new T.Mesh(new T.CylinderGeometry(0.015, 0.017, st.barrelLen + 0.06, 10), M.chrome);
+    var barrel = new T.Mesh(new T.BoxGeometry((2*Math.max(0.015, 0.017)), (st.barrelLen + 0.06), (2*Math.max(0.015, 0.017))), M.chrome);
     barrel.rotation.x = Math.PI / 2;
     barrel.position.set(0, 0.012, -L * 0.38 - 0.08 - (st.barrelLen + 0.06) / 2);
     barrel.userData.part = 'barrel';
     g.add(barrel);
     // 枪管喉部
-    var barrelH = new T.Mesh(new T.CylinderGeometry(0.024, 0.017, 0.04, 10), M.gunmetal);
+    var barrelH = new T.Mesh(new T.BoxGeometry((2*Math.max(0.024, 0.017)), (0.04), (2*Math.max(0.024, 0.017))), M.gunmetal);
     barrelH.rotation.x = Math.PI / 2;
     barrelH.position.set(0, 0.012, -L * 0.38 - 0.08);
     barrelH.userData.part = 'barrel';
     g.add(barrelH);
     // 消音器（CS AWP 标志）
-    var suppressor = new T.Mesh(new T.CylinderGeometry(0.026, 0.024, 0.12, 12), M.gunmetal);
+    var suppressor = new T.Mesh(new T.BoxGeometry((2*Math.max(0.026, 0.024)), (0.12), (2*Math.max(0.026, 0.024))), M.gunmetal);
     suppressor.rotation.x = Math.PI / 2;
     suppressor.position.set(0, 0.012, -L * 0.38 - 0.08 - (st.barrelLen + 0.06) - 0.06);
     suppressor.userData.part = 'barrel';
     g.add(suppressor);
     // 消音器纹理（环形槽）
     for (var si2 = 0; si2 < 6; si2++) {
-      var ring = new T.Mesh(new T.CylinderGeometry(0.027, 0.027, 0.006, 12), M.bright);
+      var ring = new T.Mesh(new T.BoxGeometry((2*0.027), (0.006), (2*0.027)), M.bright);
       ring.rotation.x = Math.PI / 2;
       ring.position.set(0, 0.012, -L * 0.38 - 0.08 - (st.barrelLen + 0.06) - 0.02 - si2 * 0.018);
       ring.userData.part = 'barrel';
@@ -599,47 +599,47 @@
     g.add(pad);
 
     // —— 大倍率瞄准镜（CS AWP 标志性长筒镜）——
-    var scope = new T.Mesh(new T.CylinderGeometry(0.028, 0.028, 0.24, 12), M.gunmetal);
+    var scope = new T.Mesh(new T.BoxGeometry((2*0.028), (0.24), (2*0.028)), M.gunmetal);
     scope.rotation.x = Math.PI / 2;
     scope.position.set(0, 0.075, -L * 0.44);
     g.add(scope);
     // 镜筒前后端
-    var scopeFront = new T.Mesh(new T.CylinderGeometry(0.035, 0.028, 0.03, 12), M.gunmetal);
+    var scopeFront = new T.Mesh(new T.BoxGeometry((2*Math.max(0.035, 0.028)), (0.03), (2*Math.max(0.035, 0.028))), M.gunmetal);
     scopeFront.rotation.x = Math.PI / 2;
     scopeFront.position.set(0, 0.075, -L * 0.44 - 0.13);
     g.add(scopeFront);
-    var scopeRear = new T.Mesh(new T.CylinderGeometry(0.032, 0.028, 0.025, 12), M.gunmetal);
+    var scopeRear = new T.Mesh(new T.BoxGeometry((2*Math.max(0.032, 0.028)), (0.025), (2*Math.max(0.032, 0.028))), M.gunmetal);
     scopeRear.rotation.x = Math.PI / 2;
     scopeRear.position.set(0, 0.075, -L * 0.44 + 0.13);
     g.add(scopeRear);
     // 遮光罩
-    var sunshade = new T.Mesh(new T.CylinderGeometry(0.03, 0.035, 0.04, 12), M.bright);
+    var sunshade = new T.Mesh(new T.BoxGeometry((2*Math.max(0.03, 0.035)), (0.04), (2*Math.max(0.03, 0.035))), M.bright);
     sunshade.rotation.x = Math.PI / 2;
     sunshade.position.set(0, 0.075, -L * 0.44 - 0.16);
     g.add(sunshade);
     // 透镜
-    var lens = new T.Mesh(new T.CircleGeometry(0.026, 12), M.lens);
+    var lens = new T.Mesh(new T.BoxGeometry((2*0.026), (2*0.026), 0.01), M.lens);
     lens.rotation.y = Math.PI / 2;
     lens.position.set(0, 0.075, -L * 0.44 - 0.14);
     g.add(lens);
     // 镜架环
     for (var rsi = 0; rsi < 2; rsi++) {
-      var sr = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.015, 8), M.bright);
+      var sr = new T.Mesh(new T.BoxGeometry((2*0.04), (0.015), (2*0.04)), M.bright);
       sr.rotation.x = Math.PI / 2;
       sr.position.set(0, 0.075, -L * 0.44 - 0.06 + rsi * 0.12);
       g.add(sr);
     }
     // 镜上调节旋钮
-    var knob = new T.Mesh(new T.CylinderGeometry(0.01, 0.01, 0.018, 8), M.bright);
+    var knob = new T.Mesh(new T.BoxGeometry((2*0.01), (0.018), (2*0.01)), M.bright);
     knob.position.set(0, 0.108, -L * 0.44);
     g.add(knob);
 
     // —— 拉机柄（右侧，球状把手）——
-    var bolt = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 0.05, 6), M.chrome);
+    var bolt = new T.Mesh(new T.BoxGeometry((2*0.008), (0.05), (2*0.008)), M.chrome);
     bolt.rotation.z = Math.PI / 2;
     bolt.position.set(0.04, 0.035, -L * 0.4 + 0.05);
     g.add(bolt);
-    var boltKnob = new T.Mesh(new T.SphereGeometry(0.013, 6, 5), M.bright);
+    var boltKnob = new T.Mesh(new T.BoxGeometry((2*0.013), (2*0.013), (2*0.013)), M.bright);
     boltKnob.position.set(0.052, 0.035, -L * 0.4 + 0.05);
     g.add(boltKnob);
     anim.bolt = bolt;
@@ -659,7 +659,7 @@
 
     // —— 两脚架（折叠状态，贴枪管）——
     for (var bi2 = 0; bi2 < 2; bi2++) {
-      var leg = new T.Mesh(new T.CylinderGeometry(0.005, 0.004, 0.08, 5), M.gunmetal);
+      var leg = new T.Mesh(new T.BoxGeometry((2*Math.max(0.005, 0.004)), (0.08), (2*Math.max(0.005, 0.004))), M.gunmetal);
       leg.position.set((bi2 === 0 ? -0.03 : 0.03), -0.02, -L * 0.38 - 0.18);
       leg.rotation.x = -0.3;
       leg.rotation.z = (bi2 === 0 ? 0.2 : -0.2);
@@ -668,7 +668,7 @@
     }
 
     // —— 扳机护圈 ——
-    var guard = new T.Mesh(new T.TorusGeometry(0.018, 0.005, 6, 10, Math.PI), M.gunmetal);
+    var guard = new T.Mesh(new T.BoxGeometry((2*(0.018+0.005)), (2*0.005), (2*(0.018+0.005))), M.gunmetal);
     guard.position.set(0, -0.022, -L * 0.4 - 0.02);
     guard.rotation.x = Math.PI / 2;
     g.add(guard);
@@ -682,14 +682,14 @@
     var anim = { mag: null, pump: null, bolt: null, tube: null };
 
     // —— 主发射管 ——
-    var tube = new T.Mesh(new T.CylinderGeometry(0.05, 0.048, L * 0.92, 12), M.gunmetal);
+    var tube = new T.Mesh(new T.BoxGeometry((2*Math.max(0.05, 0.048)), (L * 0.92), (2*Math.max(0.05, 0.048))), M.gunmetal);
     tube.rotation.x = Math.PI / 2;
     tube.position.set(0, 0.0, -L * 0.55);
     tube.userData.part = 'barrel';
     g.add(tube);
     // 管体纹理环（CS 风格段纹）
     for (var ti2 = 0; ti2 < 4; ti2++) {
-      var tring = new T.Mesh(new T.CylinderGeometry(0.052, 0.052, 0.008, 12), M.bright);
+      var tring = new T.Mesh(new T.BoxGeometry((2*0.052), (0.008), (2*0.052)), M.bright);
       tring.rotation.x = Math.PI / 2;
       tring.position.set(0, 0, -L * 0.2 - ti2 * L * 0.18);
       tring.userData.part = 'barrel';
@@ -697,25 +697,25 @@
     }
 
     // —— 喇叭口 ——
-    var flare = new T.Mesh(new T.CylinderGeometry(0.08, 0.05, 0.1, 12), M.gunmetal);
+    var flare = new T.Mesh(new T.BoxGeometry((2*Math.max(0.08, 0.05)), (0.1), (2*Math.max(0.08, 0.05))), M.gunmetal);
     flare.rotation.x = Math.PI / 2;
     flare.position.set(0, 0.0, -L * 0.55 - 0.1);
     flare.userData.part = 'barrel';
     g.add(flare);
     // 喇叭口内圈
-    var flareInner = new T.Mesh(new T.CylinderGeometry(0.07, 0.04, 0.08, 12), M.polymer);
+    var flareInner = new T.Mesh(new T.BoxGeometry((2*Math.max(0.07, 0.04)), (0.08), (2*Math.max(0.07, 0.04))), M.polymer);
     flareInner.rotation.x = Math.PI / 2;
     flareInner.position.set(0, 0.0, -L * 0.55 - 0.09);
     flareInner.userData.part = 'barrel';
     g.add(flareInner);
 
     // —— 弹头/火箭弹（换弹动画）——
-    var warhead = new T.Mesh(new T.CylinderGeometry(0.038, 0.024, 0.22, 10), M.tacOrange);
+    var warhead = new T.Mesh(new T.BoxGeometry((2*Math.max(0.038, 0.024)), (0.22), (2*Math.max(0.038, 0.024))), M.tacOrange);
     warhead.rotation.x = Math.PI / 2;
     warhead.position.set(0, 0.0, -0.02);
     g.add(warhead);
     // 弹头尖端
-    var warTip = new T.Mesh(new T.ConeGeometry(0.024, 0.06, 10), M.bright);
+    var warTip = new T.Mesh(new T.BoxGeometry((2*0.024), (0.06), (2*0.024)), M.bright);
     warTip.rotation.x = -Math.PI / 2;
     warTip.position.set(0, 0.0, -0.15);
     g.add(warTip);
@@ -732,7 +732,7 @@
     var trigger = new T.Mesh(new T.BoxGeometry(0.012, 0.028, 0.008), M.polymer);
     trigger.position.set(0, -0.05, -L * 0.42 - 0.02);
     g.add(trigger);
-    var guard = new T.Mesh(new T.TorusGeometry(0.02, 0.005, 6, 10, Math.PI), M.gunmetal);
+    var guard = new T.Mesh(new T.BoxGeometry((2*(0.02+0.005)), (2*0.005), (2*(0.02+0.005))), M.gunmetal);
     guard.position.set(0, -0.03, -L * 0.42 - 0.04);
     guard.rotation.x = Math.PI / 2;
     g.add(guard);
@@ -741,17 +741,17 @@
     var scopeBase = new T.Mesh(new T.BoxGeometry(0.05, 0.02, 0.08), M.gunmetal);
     scopeBase.position.set(0, 0.055, -L * 0.36);
     g.add(scopeBase);
-    var scope = new T.Mesh(new T.CylinderGeometry(0.032, 0.032, 0.1, 10), M.gunmetal);
+    var scope = new T.Mesh(new T.BoxGeometry((2*0.032), (0.1), (2*0.032)), M.gunmetal);
     scope.rotation.x = Math.PI / 2;
     scope.position.set(0, 0.08, -L * 0.36);
     g.add(scope);
     // 瞄具透镜
-    var scopeLens = new T.Mesh(new T.CircleGeometry(0.024, 10), M.lens);
+    var scopeLens = new T.Mesh(new T.BoxGeometry((2*0.024), (2*0.024), 0.01), M.lens);
     scopeLens.rotation.y = Math.PI / 2;
     scopeLens.position.set(0, 0.08, -L * 0.36 - 0.052);
     g.add(scopeLens);
     // 瞄具遮光罩
-    var scopeHood = new T.Mesh(new T.CylinderGeometry(0.036, 0.032, 0.03, 10), M.bright);
+    var scopeHood = new T.Mesh(new T.BoxGeometry((2*Math.max(0.036, 0.032)), (0.03), (2*Math.max(0.036, 0.032))), M.bright);
     scopeHood.rotation.x = Math.PI / 2;
     scopeHood.position.set(0, 0.08, -L * 0.36 - 0.06);
     g.add(scopeHood);
@@ -767,7 +767,7 @@
     g.add(pad2);
 
     // —— 前握把（战术风格）——
-    var foregrip = new T.Mesh(new T.CylinderGeometry(0.02, 0.018, 0.08, 8), M.polymer);
+    var foregrip = new T.Mesh(new T.BoxGeometry((2*Math.max(0.02, 0.018)), (0.08), (2*Math.max(0.02, 0.018))), M.polymer);
     foregrip.position.set(0, -0.06, -L * 0.6);
     foregrip.rotation.x = 0.15;
     foregrip.userData.part = 'barrel';
@@ -778,10 +778,10 @@
 
   // v9.1 CS 风格双手持枪：右手握把 + 左手护木/弹匣
   function buildHands(g, T, type, anim) {
-    var skin = new T.MeshLambertMaterial({ color: 0xd9a37f});
-    var skin2 = new T.MeshLambertMaterial({ color: 0xc98d5f});
-    var sleeve = new T.MeshLambertMaterial({ color: 0x2b303a});
-    var glove = new T.MeshLambertMaterial({ color: 0x1a1c20});
+    var skin = new window.PIXEL.matCompat({ color: 0xd9a37f});
+    var skin2 = new window.PIXEL.matCompat({ color: 0xc98d5f});
+    var sleeve = new window.PIXEL.matCompat({ color: 0x2b303a});
+    var glove = new window.PIXEL.matCompat({ color: 0x1a1c20});
 
     function makeHand(mat, sleeveOn, gloveOn) {
       var h = new T.Group();
@@ -792,20 +792,20 @@
       h.add(palm);
       // 4 根手指
       for (var fi = 0; fi < 4; fi++) {
-        var finger = new T.Mesh(new T.CylinderGeometry(0.0105, 0.0115, 0.075, 6), gloveOn ? glove : mat);
+        var finger = new T.Mesh(new T.BoxGeometry((2*Math.max(0.0105, 0.0115)), (0.075), (2*Math.max(0.0105, 0.0115))), gloveOn ? glove : mat);
         finger.position.set(-0.027 + fi * 0.018, -0.042, 0.006);
         finger.rotation.x = 0.55 + fi * 0.05;
         finger.userData.isHand = true;
         h.add(finger);
       }
       // 拇指
-      var thumb = new T.Mesh(new T.CylinderGeometry(0.012, 0.013, 0.05, 6), gloveOn ? glove : mat);
+      var thumb = new T.Mesh(new T.BoxGeometry((2*Math.max(0.012, 0.013)), (0.05), (2*Math.max(0.012, 0.013))), gloveOn ? glove : mat);
       thumb.position.set(0.044, -0.02, 0.0);
       thumb.rotation.z = -0.7;
       thumb.userData.isHand = true;
       h.add(thumb);
       // 前臂
-      var forearm = new T.Mesh(new T.CylinderGeometry(0.036, 0.052, 0.34, 8), sleeveOn ? sleeve : mat);
+      var forearm = new T.Mesh(new T.BoxGeometry((2*Math.max(0.036, 0.052)), (0.34), (2*Math.max(0.036, 0.052))), sleeveOn ? sleeve : mat);
       forearm.position.set(0, -0.19, 0.05);
       forearm.rotation.x = 0.62;
       forearm.userData.isHand = true;

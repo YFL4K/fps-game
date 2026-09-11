@@ -53,13 +53,13 @@
       const skin = MECH_SKINS[skinIdx];
       const g = new T.Group();
 
-      const matBody = new T.MeshLambertMaterial({ color: isMech ? skin.main : look.body});
-      const matDark = new T.MeshLambertMaterial({ color: isMech ? skin.dark : look.dark});
-      const matEye = new T.MeshLambertMaterial({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.6 });
-      const matGun = new T.MeshLambertMaterial({ color: 0x1b1e23});
-      const matHand = new T.MeshLambertMaterial({ color: 0x2e3d52});
-      const matAccent = new T.MeshLambertMaterial({ color: (skin && skin.accent) || 0xffd166});
-      const matVisor = new T.MeshLambertMaterial({ color: (skin && skin.visor) || 0xff5533, emissive: (skin && skin.visor) || 0xff5533, emissiveIntensity: 2.2 });
+      const matBody = new window.PIXEL.matCompat({ color: isMech ? skin.main : look.body});
+      const matDark = new window.PIXEL.matCompat({ color: isMech ? skin.dark : look.dark});
+      const matEye = new window.PIXEL.matCompat({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.6 });
+      const matGun = new window.PIXEL.matCompat({ color: 0x1b1e23});
+      const matHand = new window.PIXEL.matCompat({ color: 0x2e3d52});
+      const matAccent = new window.PIXEL.matCompat({ color: (skin && skin.accent) || 0xffd166});
+      const matVisor = new window.PIXEL.matCompat({ color: (skin && skin.visor) || 0xff5533, emissive: (skin && skin.visor) || 0xff5533, emissiveIntensity: 2.2 });
 
       // ---- 共享枢轴（机甲 / 人形共用） ----
       var gunPivot, armPivotL, armPivotR, legPivotL, legPivotR, muzzleLocal = null, gunZ = 0.6;
@@ -92,7 +92,7 @@
         torso.position.y = 1.85; torso.castShadow = true; g.add(torso);
         const chestPlate = new T.Mesh(new T.BoxGeometry(0.85, 0.6, 0.12), matAccent);
         chestPlate.position.set(0, 2.0, 0.42); chestPlate.castShadow = true; g.add(chestPlate);
-        const core = new T.Mesh(new T.SphereGeometry(0.14, 10, 10), matVisor);
+        const core = new T.Mesh(new T.BoxGeometry((2*0.14), (2*0.14), (2*0.14)), matVisor);
         core.position.set(0, 2.0, 0.52); g.add(core);
 
         // 肩甲 + 肩部火箭发射器
@@ -100,10 +100,10 @@
         shoulderL.position.set(-0.88, 2.35, 0); shoulderL.castShadow = true; g.add(shoulderL);
         const shoulderR = new T.Mesh(new T.BoxGeometry(0.5, 0.42, 0.6), matDark);
         shoulderR.position.set(0.88, 2.35, 0); shoulderR.castShadow = true; g.add(shoulderR);
-        const podMat = new T.MeshLambertMaterial({ color: 0x3a3f45});
-        const podL = new T.Mesh(new T.CylinderGeometry(0.14, 0.14, 0.7, 10), podMat);
+        const podMat = new window.PIXEL.matCompat({ color: 0x3a3f45});
+        const podL = new T.Mesh(new T.BoxGeometry((2*0.14), (0.7), (2*0.14)), podMat);
         podL.position.set(-1.18, 2.55, 0); podL.rotation.z = 0.35; podL.castShadow = true; g.add(podL);
-        const podR = new T.Mesh(new T.CylinderGeometry(0.14, 0.14, 0.7, 10), podMat);
+        const podR = new T.Mesh(new T.BoxGeometry((2*0.14), (0.7), (2*0.14)), podMat);
         podR.position.set(1.18, 2.55, 0); podR.rotation.z = -0.35; podR.castShadow = true; g.add(podR);
 
         // 头 + 发光面甲 + 天线
@@ -111,7 +111,7 @@
         head.position.y = 2.6; head.castShadow = true; g.add(head);
         const visor = new T.Mesh(new T.BoxGeometry(0.5, 0.16, 0.08), matVisor);
         visor.position.set(0, 2.62, 0.3); g.add(visor);
-        const antenna = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 0.4, 6), matAccent);
+        const antenna = new T.Mesh(new T.BoxGeometry((2*0.03), (0.4), (2*0.03)), matAccent);
         antenna.position.y = 2.98; g.add(antenna);
 
         // 双臂（持火箭炮姿势）
@@ -138,9 +138,9 @@
         gunPivot.position.set(0, 1.75, 0.55);
         const launcher = new T.Mesh(new T.BoxGeometry(0.34, 0.34, 1.35), matDark);
         launcher.position.z = 0.35; launcher.castShadow = true; gunPivot.add(launcher);
-        const barrel = new T.Mesh(new T.CylinderGeometry(0.11, 0.11, 0.75, 10), matGun);
+        const barrel = new T.Mesh(new T.BoxGeometry((2*0.11), (0.75), (2*0.11)), matGun);
         barrel.rotation.x = Math.PI / 2; barrel.position.z = 1.0; barrel.castShadow = true; gunPivot.add(barrel);
-        const muzzle = new T.Mesh(new T.SphereGeometry(0.12, 8, 8), matVisor);
+        const muzzle = new T.Mesh(new T.BoxGeometry((2*0.12), (2*0.12), (2*0.12)), matVisor);
         muzzle.position.z = 1.4; gunPivot.add(muzzle);
         const grip = new T.Mesh(new T.BoxGeometry(0.12, 0.3, 0.12), matGun);
         grip.position.set(0, -0.28, 0.3); gunPivot.add(grip);
@@ -178,8 +178,8 @@
 
       // ---- BOSS 专属：犄角 + 肩甲 ----
       if (isBoss) {
-        const hornMat = new T.MeshLambertMaterial({ color: 0xd8d8e0});
-        const h1 = new T.Mesh(new T.ConeGeometry(0.12, 0.55, 8), hornMat);
+        const hornMat = new window.PIXEL.matCompat({ color: 0xd8d8e0});
+        const h1 = new T.Mesh(new T.BoxGeometry((2*0.12), (0.55), (2*0.12)), hornMat);
         h1.position.set(-0.2, 2.32, 0.02);
         h1.rotation.z = 0.5;
         const h2 = h1.clone();
@@ -236,7 +236,7 @@
         const gun = new T.Mesh(new T.BoxGeometry(0.1, 0.14, 0.7), matGun);
         gun.castShadow = true;
         gunPivot.add(gun);
-        const tip = new T.Mesh(new T.SphereGeometry(0.05, 6, 6), new T.MeshBasicMaterial({ color: 0xff8844 }));
+        const tip = new T.Mesh(new T.BoxGeometry((2*0.05), (2*0.05), (2*0.05)), new window.PIXEL.basicCompat({ color: 0xff8844 }));
         tip.position.z = 0.36;
         gunPivot.add(tip);
         const handL = new T.Mesh(new T.BoxGeometry(0.14, 0.14, 0.16), matHand);
@@ -535,8 +535,8 @@
     if (ctx.spawnTracer) ctx.spawnTracer(muzzle, muzzle.clone().addScaledVector(aim, 9), 0xff8844);
 
     const bmesh = new T.Mesh(
-      new T.CylinderGeometry(0.09, 0.09, 0.8, 8),
-      new T.MeshLambertMaterial({ color: 0x3a3f45, emissive: 0xff6622, emissiveIntensity: 0.7 })
+      new T.BoxGeometry((2*0.09), (0.8), (2*0.09)),
+      new window.PIXEL.matCompat({ color: 0x3a3f45, emissive: 0xff6622, emissiveIntensity: 0.7 })
     );
     bmesh.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
     bmesh.position.copy(muzzle);
@@ -566,8 +566,8 @@
     if (ctx.spawnTracer) ctx.spawnTracer(muzzle, muzzle.clone().addScaledVector(aim, dist), 0xff6633);
 
     const bmesh = new T.Mesh(
-      new T.CylinderGeometry(0.03, 0.03, 0.5, 6),
-      new T.MeshBasicMaterial({ color: 0xffaa55 })
+      new T.BoxGeometry((2*0.03), (0.5), (2*0.03)),
+      new window.PIXEL.basicCompat({ color: 0xffaa55 })
     );
     bmesh.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
     bmesh.position.copy(muzzle);
@@ -596,12 +596,12 @@
 
     const R = 0.34 * s;
     const bmesh = new T.Mesh(
-      new T.SphereGeometry(R, 10, 10),
-      new T.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.95 })
+      new T.BoxGeometry((2*R), (2*R), (2*R)),
+      new window.PIXEL.basicCompat({ color: 0xff6a1a, transparent: true, opacity: 0.95 })
     );
     const glow = new T.Mesh(
-      new T.SphereGeometry(R * 1.55, 10, 10),
-      new T.MeshBasicMaterial({ color: 0xff9944, transparent: true, opacity: 0.3 })
+      new T.BoxGeometry((2*R * 1.55), (2*R * 1.55), (2*R * 1.55)),
+      new window.PIXEL.basicCompat({ color: 0xff9944, transparent: true, opacity: 0.3 })
     );
     bmesh.add(glow);
     bmesh.position.copy(muzzle);

@@ -17,14 +17,14 @@
 
       const g = new T.Group();
 
-      const cabMat = new T.MeshLambertMaterial({ color: cabColor});
-      const trailerMat = new T.MeshLambertMaterial({ color: trailerColor});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x111111});
-      const glassMat = new T.MeshLambertMaterial({ color: 0x1b2b3a, transparent: true, opacity: 0.6 });
-      const wheelMat = new T.MeshLambertMaterial({ color: 0x1a1a1a});
-      const hubMat = new T.MeshLambertMaterial({ color: 0x555555});
-      const lightMat = new T.MeshBasicMaterial({ color: 0xffffcc });
-      const tailMat = new T.MeshBasicMaterial({ color: 0xff2222 });
+      const cabMat = new window.PIXEL.matCompat({ color: cabColor});
+      const trailerMat = new window.PIXEL.matCompat({ color: trailerColor});
+      const darkMat = new window.PIXEL.matCompat({ color: 0x111111});
+      const glassMat = new window.PIXEL.matCompat({ color: 0x1b2b3a, transparent: true, opacity: 0.6 });
+      const wheelMat = new window.PIXEL.matCompat({ color: 0x1a1a1a});
+      const hubMat = new window.PIXEL.matCompat({ color: 0x555555});
+      const lightMat = new window.PIXEL.basicCompat({ color: 0xffffcc });
+      const tailMat = new window.PIXEL.basicCompat({ color: 0xff2222 });
 
       if (isSemi) {
         // 驾驶室
@@ -46,8 +46,8 @@
         trailer.castShadow = true;
         g.add(trailer);
         // 车轮
-        const wheelGeo = new T.CylinderGeometry(0.55, 0.55, 0.4, 16);
-        const hubs = new T.CylinderGeometry(0.25, 0.25, 0.42, 8);
+        const wheelGeo = new T.BoxGeometry((2*0.55), (0.4), (2*0.55));
+        const hubs = new T.BoxGeometry((2*0.25), (0.42), (2*0.25));
         const wheelPos = [
           [-1.3, 0.55, 2.0], [1.3, 0.55, 2.0],
           [-1.3, 0.55, -1.5], [1.3, 0.55, -1.5],
@@ -84,7 +84,7 @@
         bed.position.set(0, 0.8, -1.5);
         bed.castShadow = true;
         g.add(bed);
-        const wheelGeo = new T.CylinderGeometry(0.45, 0.45, 0.35, 14);
+        const wheelGeo = new T.BoxGeometry((2*0.45), (0.35), (2*0.45));
         [[-1.25, 0.45, 2.0], [1.25, 0.45, 2.0], [-1.25, 0.45, -3.5], [1.25, 0.45, -3.5]].forEach(function (p) {
           const w = new T.Mesh(wheelGeo, wheelMat);
           w.rotation.z = Math.PI / 2;

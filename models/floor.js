@@ -34,12 +34,15 @@
       const tex = new T.CanvasTexture(c);
       tex.wrapS = tex.wrapT = T.RepeatWrapping;
       tex.repeat.set(10, 10);
+      tex.magFilter = T.NearestFilter;
+      tex.minFilter = T.NearestFilter;
 
+      // v10.5 MC 像素化：地面由 PlaneGeometry 改为薄方块（AABB 高度从 0 变为 0.01，可忽略）
       const plane = new T.Mesh(
-        new T.PlaneGeometry(40, 40),
-        new T.MeshLambertMaterial({ map: tex})
+        new T.BoxGeometry(40, 0.01, 40),
+        new window.PIXEL.matCompat({ map: tex})
       );
-      plane.rotation.x = -Math.PI / 2;
+      plane.position.y = -0.005;
       plane.receiveShadow = true;
       g.add(plane);
       return g;

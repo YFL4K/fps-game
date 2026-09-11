@@ -15,26 +15,26 @@
       const stripeColor = cfg.color ? new T.Color(cfg.color).lerp(new T.Color(0x2244aa), 0.5).getHex() : 0x2244aa;
 
       const g = new T.Group();
-      const bodyMat = new T.MeshLambertMaterial({ color: color});
-      const darkMat = new T.MeshLambertMaterial({ color: 0x222222});
-      const glassMat = new T.MeshLambertMaterial({ color: 0x3366aa, transparent: true, opacity: 0.65 });
-      const wheelMat = new T.MeshLambertMaterial({ color: 0x1a1a1a});
+      const bodyMat = new window.PIXEL.matCompat({ color: color});
+      const darkMat = new window.PIXEL.matCompat({ color: 0x222222});
+      const glassMat = new window.PIXEL.matCompat({ color: 0x3366aa, transparent: true, opacity: 0.65 });
+      const wheelMat = new window.PIXEL.matCompat({ color: 0x1a1a1a});
 
       // 机身（圆柱体横放）
-      const fuselage = new T.Mesh(new T.CylinderGeometry(0.75, 0.65, 8.0, 12), bodyMat);
+      const fuselage = new T.Mesh(new T.BoxGeometry((2*Math.max(0.75, 0.65)), (8.0), (2*Math.max(0.75, 0.65))), bodyMat);
       fuselage.rotation.z = Math.PI / 2;
       fuselage.position.set(0, 1.5, 0);
       fuselage.castShadow = true;
       g.add(fuselage);
 
       // 机头锥
-      const nose = new T.Mesh(new T.ConeGeometry(0.65, 2.0, 12), bodyMat);
+      const nose = new T.Mesh(new T.BoxGeometry((2*0.65), (2.0), (2*0.65)), bodyMat);
       nose.rotation.z = -Math.PI / 2;
       nose.position.set(5.0, 1.5, 0);
       g.add(nose);
 
       // 驾驶舱玻璃
-      const cockpit = new T.Mesh(new T.SphereGeometry(0.6, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), glassMat);
+      const cockpit = new T.Mesh(new T.BoxGeometry((2*0.6), (2*0.6), (2*0.6)), glassMat);
       cockpit.position.set(3.5, 1.8, 0);
       g.add(cockpit);
 
@@ -62,14 +62,14 @@
 
       // 引擎（左右各一）
       [-1.8, 1.8].forEach(function (z) {
-        const engine = new T.Mesh(new T.CylinderGeometry(0.28, 0.25, 1.0, 10), darkMat);
+        const engine = new T.Mesh(new T.BoxGeometry((2*Math.max(0.28, 0.25)), (1.0), (2*Math.max(0.28, 0.25))), darkMat);
         engine.rotation.z = Math.PI / 2;
         engine.position.set(-0.3, 1.0, z);
         g.add(engine);
       });
 
       // 起落架轮子
-      const wheelGeo = new T.CylinderGeometry(0.28, 0.28, 0.2, 12);
+      const wheelGeo = new T.BoxGeometry((2*0.28), (0.2), (2*0.28));
       [[2.5, 0.28, 0], [-1.5, 0.28, 1.0], [-1.5, 0.28, -1.0], [3.0, 0.28, 0]].forEach(function (p) {
         const w = new T.Mesh(wheelGeo, wheelMat);
         w.rotation.x = Math.PI / 2;
@@ -77,16 +77,16 @@
         g.add(w);
       });
       // 起落架支柱
-      const strutMat = new T.MeshLambertMaterial({ color: 0x444444});
+      const strutMat = new window.PIXEL.matCompat({ color: 0x444444});
       [[2.5, 0.6, 0], [-1.5, 0.6, 1.0], [-1.5, 0.6, -1.0]].forEach(function (p) {
-        const s = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.5, 6), strutMat);
+        const s = new T.Mesh(new T.BoxGeometry((2*0.04), (0.5), (2*0.04)), strutMat);
         s.position.set(p[0], p[1], p[2]);
         g.add(s);
       });
 
       // 条纹装饰
-      const stripe = new T.Mesh(new T.CylinderGeometry(0.77, 0.67, 7.8, 12, 1, true), 
-        new T.MeshLambertMaterial({ color: stripeColor, side: T.DoubleSide }));
+      const stripe = new T.Mesh(new T.BoxGeometry((2*Math.max(0.77, 0.67)), (7.8), (2*Math.max(0.77, 0.67))), 
+        new window.PIXEL.matCompat({ color: stripeColor, side: T.DoubleSide }));
       stripe.rotation.z = Math.PI / 2;
       stripe.position.set(0, 1.6, 0);
       g.add(stripe);

@@ -20,38 +20,38 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const bodyMat = new T.MeshLambertMaterial({ color: cfg.color || 0xc0392b});
-      const ringMat = new T.MeshLambertMaterial({ color: 0x2c3e50});
-      const stripeMat = new T.MeshLambertMaterial({
+      const bodyMat = new window.PIXEL.matCompat({ color: cfg.color || 0xc0392b});
+      const ringMat = new window.PIXEL.matCompat({ color: 0x2c3e50});
+      const stripeMat = new window.PIXEL.matCompat({
         color: 0xf1c40f,
         emissive: 0x8a6d00, emissiveIntensity: 0.45
       });
 
       // 桶身
-      const body = new T.Mesh(new T.CylinderGeometry(0.5, 0.5, 1.25, 20), bodyMat);
+      const body = new T.Mesh(new T.BoxGeometry((2*0.5), (1.25), (2*0.5)), bodyMat);
       body.position.y = 0.625;
       body.castShadow = true;
       body.receiveShadow = true;
       g.add(body);
 
       // 顶盖 + 上下环箍
-      const top = new T.Mesh(new T.CylinderGeometry(0.36, 0.36, 0.12, 20), ringMat);
+      const top = new T.Mesh(new T.BoxGeometry((2*0.36), (0.12), (2*0.36)), ringMat);
       top.position.y = 1.25;
-      const rim = new T.Mesh(new T.CylinderGeometry(0.53, 0.53, 0.07, 20), ringMat);
+      const rim = new T.Mesh(new T.BoxGeometry((2*0.53), (0.07), (2*0.53)), ringMat);
       rim.position.y = 0.07;
-      const rim2 = new T.Mesh(new T.CylinderGeometry(0.53, 0.53, 0.07, 20), ringMat);
+      const rim2 = new T.Mesh(new T.BoxGeometry((2*0.53), (0.07), (2*0.53)), ringMat);
       rim2.position.y = 1.18;
       g.add(top, rim, rim2);
 
       // 黄色危险条纹（环绕桶身）
-      const stripe = new T.Mesh(new T.CylinderGeometry(0.515, 0.515, 0.36, 20), stripeMat);
+      const stripe = new T.Mesh(new T.BoxGeometry((2*0.515), (0.36), (2*0.515)), stripeMat);
       stripe.position.y = 0.68;
       g.add(stripe);
 
       // 黑色危险标签
-      const warn = new T.Mesh(new T.BoxGeometry(0.46, 0.2, 0.02), new T.MeshBasicMaterial({ color: 0x141414 }));
+      const warn = new T.Mesh(new T.BoxGeometry(0.46, 0.2, 0.02), new window.PIXEL.basicCompat({ color: 0x141414 }));
       warn.position.set(0, 0.68, 0.522);
-      const warn2 = new T.Mesh(new T.BoxGeometry(0.02, 0.2, 0.46), new T.MeshBasicMaterial({ color: 0x141414 }));
+      const warn2 = new T.Mesh(new T.BoxGeometry(0.02, 0.2, 0.46), new window.PIXEL.basicCompat({ color: 0x141414 }));
       warn2.position.set(0.522, 0.68, 0);
       g.add(warn, warn2);
 

@@ -14,16 +14,16 @@
 
       // 支柱
       const pole = new T.Mesh(
-        new T.CylinderGeometry(0.05, 0.08, 1.4, 10),
-        new T.MeshLambertMaterial({ color: 0x555a66})
+        new T.BoxGeometry((2*Math.max(0.05, 0.08)), (1.4), (2*Math.max(0.05, 0.08))),
+        new window.PIXEL.matCompat({ color: 0x555a66})
       );
       pole.position.y = 0.7;
       g.add(pole);
 
       // 底座
       const base = new T.Mesh(
-        new T.CylinderGeometry(0.28, 0.34, 0.08, 12),
-        new T.MeshLambertMaterial({ color: 0x33373f})
+        new T.BoxGeometry((2*Math.max(0.28, 0.34)), (0.08), (2*Math.max(0.28, 0.34))),
+        new window.PIXEL.matCompat({ color: 0x33373f})
       );
       base.position.y = 0.04;
       g.add(base);
@@ -39,8 +39,8 @@
       const face = new T.Group();
       rings.forEach(ring => {
         const m = new T.Mesh(
-          new T.CircleGeometry(ring.r, 24),
-          new T.MeshLambertMaterial({ color: ring.c, side: T.DoubleSide })
+          new T.BoxGeometry((2*ring.r), (2*ring.r), 0.01),
+          new window.PIXEL.matCompat({ color: ring.c, side: T.DoubleSide })
         );
         m.position.z = 0.02;
         face.add(m);

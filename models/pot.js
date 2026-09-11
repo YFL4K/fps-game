@@ -16,13 +16,13 @@
       const potColor = cfg.color || 0x8b4513;
 
       const g = new T.Group();
-      const potMat = new T.MeshLambertMaterial({ color: potColor});
-      const soilMat = new T.MeshLambertMaterial({ color: 0x3d2817});
-      const plantMat = new T.MeshLambertMaterial({ color: 0x228b22});
+      const potMat = new window.PIXEL.matCompat({ color: potColor});
+      const soilMat = new window.PIXEL.matCompat({ color: 0x3d2817});
+      const plantMat = new window.PIXEL.matCompat({ color: 0x228b22});
 
       // 花盆主体（截锥体）
       const potBody = new T.Mesh(
-        new T.CylinderGeometry(0.35 * scale, 0.25 * scale, 0.5 * scale, 12),
+        new T.BoxGeometry((2*Math.max(0.35 * scale, 0.25 * scale)), (0.5 * scale), (2*Math.max(0.35 * scale, 0.25 * scale))),
         potMat
       );
       potBody.position.y = 0.25 * scale;
@@ -31,7 +31,7 @@
 
       // 盆口边缘
       const rim = new T.Mesh(
-        new T.TorusGeometry(0.35 * scale, 0.04 * scale, 8, 16),
+        new T.BoxGeometry((2*(0.35 * scale+0.04 * scale)), (2*0.04 * scale), (2*(0.35 * scale+0.04 * scale))),
         potMat
       );
       rim.rotation.x = Math.PI / 2;
@@ -40,7 +40,7 @@
 
       // 土壤
       const soil = new T.Mesh(
-        new T.CylinderGeometry(0.32 * scale, 0.32 * scale, 0.05 * scale, 12),
+        new T.BoxGeometry((2*0.32 * scale), (0.05 * scale), (2*0.32 * scale)),
         soilMat
       );
       soil.position.y = 0.47 * scale;
@@ -51,7 +51,7 @@
         // 大型：多片叶子
         for (let i = 0; i < 5; i++) {
           const leaf = new T.Mesh(
-            new T.SphereGeometry(0.18 * scale, 8, 6),
+            new T.BoxGeometry((2*0.18 * scale), (2*0.18 * scale), (2*0.18 * scale)),
             plantMat
           );
           leaf.scale.set(1, 0.5, 1.4);
@@ -68,21 +68,21 @@
         }
         // 中心花
         const flower = new T.Mesh(
-          new T.SphereGeometry(0.12 * scale, 8, 8),
-          new T.MeshLambertMaterial({ color: 0xff6b9d})
+          new T.BoxGeometry((2*0.12 * scale), (2*0.12 * scale), (2*0.12 * scale)),
+          new window.PIXEL.matCompat({ color: 0xff6b9d})
         );
         flower.position.y = 0.85 * scale;
         g.add(flower);
       } else {
         // 小型：单株小植物
         const stem = new T.Mesh(
-          new T.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.35 * scale, 6),
+          new T.BoxGeometry((2*0.02 * scale), (0.35 * scale), (2*0.02 * scale)),
           plantMat
         );
         stem.position.y = 0.65 * scale;
         g.add(stem);
         const leaf = new T.Mesh(
-          new T.SphereGeometry(0.1 * scale, 6, 6),
+          new T.BoxGeometry((2*0.1 * scale), (2*0.1 * scale), (2*0.1 * scale)),
           plantMat
         );
         leaf.scale.set(1, 0.6, 1);

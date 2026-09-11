@@ -17,15 +17,15 @@
       // 蓝色主体背包
       const body = new T.Mesh(
         new T.BoxGeometry(0.26, 0.36, 0.16),
-        new T.MeshLambertMaterial({ color: 0x2a7fff, emissive: 0x001a44, emissiveIntensity: 0.45 })
+        new window.PIXEL.matCompat({ color: 0x2a7fff, emissive: 0x001a44, emissiveIntensity: 0.45 })
       );
       g.add(body);
 
       // 两侧喷口
       for (let i = 0; i < 2; i++) {
         const nozzle = new T.Mesh(
-          new T.CylinderGeometry(0.06, 0.06, 0.14, 8),
-          new T.MeshLambertMaterial({ color: 0x1a4fbb})
+          new T.BoxGeometry((2*0.06), (0.14), (2*0.06)),
+          new window.PIXEL.matCompat({ color: 0x1a4fbb})
         );
         nozzle.rotation.x = Math.PI / 2;
         nozzle.position.set((i === 0 ? -1 : 1) * 0.13, -0.22, 0);
@@ -36,14 +36,14 @@
       for (let i = 0; i < 2; i++) {
         const wing = new T.Mesh(
           new T.BoxGeometry(0.34, 0.03, 0.13),
-          new T.MeshLambertMaterial({ color: 0x66aaff, emissive: 0x003366, emissiveIntensity: 0.55 })
+          new window.PIXEL.matCompat({ color: 0x66aaff, emissive: 0x003366, emissiveIntensity: 0.55 })
         );
         wing.position.set((i === 0 ? -1 : 1) * 0.18, 0.04, 0);
         g.add(wing);
       }
 
       // 顶部蓝色发光信标
-      const beacon = new T.Mesh(new T.SphereGeometry(0.05, 8, 6), new T.MeshBasicMaterial({ color: 0x55ccff }));
+      const beacon = new T.Mesh(new T.BoxGeometry((2*0.05), (2*0.05), (2*0.05)), new window.PIXEL.basicCompat({ color: 0x55ccff }));
       beacon.position.set(0, 0.22, 0);
       g.add(beacon);
 

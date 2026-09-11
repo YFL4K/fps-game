@@ -20,9 +20,9 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const boxMat = new T.MeshLambertMaterial({ color: 0xc0392b});
-      const bandMat = new T.MeshLambertMaterial({ color: 0x16181c});
-      const glowMat = new T.MeshLambertMaterial({
+      const boxMat = new window.PIXEL.matCompat({ color: 0xc0392b});
+      const bandMat = new window.PIXEL.matCompat({ color: 0x16181c});
+      const glowMat = new window.PIXEL.matCompat({
         color: 0xffcc44, emissive: 0xff8800, emissiveIntensity: 1.4,
       });
 
@@ -48,13 +48,13 @@
       g.add(label1, label2);
 
       // 引线 + 火花
-      const fuse = new T.Mesh(new T.CylinderGeometry(0.035, 0.025, 0.34, 6), bandMat);
+      const fuse = new T.Mesh(new T.BoxGeometry((2*Math.max(0.035, 0.025)), (0.34), (2*Math.max(0.035, 0.025))), bandMat);
       fuse.position.set(0.34, 0.98, 0.34);
       fuse.rotation.z = 0.5;
       g.add(fuse);
       const spark = new T.Mesh(
-        new T.SphereGeometry(0.07, 6, 6),
-        new T.MeshBasicMaterial({ color: 0xffee66 })
+        new T.BoxGeometry((2*0.07), (2*0.07), (2*0.07)),
+        new window.PIXEL.basicCompat({ color: 0xffee66 })
       );
       spark.position.set(0.47, 1.12, 0.24);
       g.add(spark);
