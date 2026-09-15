@@ -294,11 +294,11 @@
         ok = true; break;
       }
       if (!ok) return;
-      var PH = 6.72;   // 平台顶面高度（v11.2 增高 2 倍），需与 watchtower.js 一致
+      var PH = 13.44;   // 平台顶面高度（v11.5 再高 1 倍），需与 watchtower.js 一致
       entities.push({ id: nextId('tower'), model: 'watchtower',
         position: [tx, 0, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, destructible: false });
-      // 螺旋楼梯：24 级绕中心盘旋上升，每级升 0.28；climbOnly=仅可踩踏不被水平推挤
-      var N = 24, SR = 2.0, SD = 24 * Math.PI / 180;
+      // 螺旋楼梯：48 级绕中心盘旋 2 整圈，结束角 = 2*360° ≡ 0°（+z），与模型 +z 入口缺口对齐
+      var N = 48, SR = 2.0, SD = 4 * Math.PI / (N - 1);
       for (var s = 0; s < N; s++) {
         var th = s * SD;
         entities.push({ id: nextId('towerstep'), model: 'step',
@@ -306,8 +306,9 @@
           rotation: [0, th, 0], scale: [1.2, 1, 1.0],
           collision: true, destructible: false, climbOnly: true, color: 0x7a5230 });
       }
+      // 平台碰撞体：居中，覆盖顶台阶(+z)与四周围栏内区域，玩家登顶后自由站立移动
       entities.push({ id: nextId('towerplat'), model: 'step',
-        position: [tx, PH - 0.14, tz - 0.2], rotation: [0, 0, 0], scale: [2.6, 1, 1.625],
+        position: [tx, PH - 0.14, tz], rotation: [0, 0, 0], scale: [3.2, 1, 2.0],
         collision: true, destructible: false, climbOnly: true, color: 0x6b4a2f });
     })();
 

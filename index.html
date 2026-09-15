@@ -57,6 +57,11 @@
 
   /* 提示条（宝箱/直升机/BOSS） */
   #toast { position: fixed; left: 50%; top: 26%; transform: translateX(-50%); background: rgba(10,15,25,0.85); border: 1px solid rgba(255,215,100,0.6); color: #ffdd88; font-size: 16px; font-weight: bold; padding: 8px 22px; border-radius: 6px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 14; user-select: none; text-align: center; max-width: 80vw; }
+  #nukeWarn { position: fixed; left: 50%; top: 42%; transform: translate(-50%,-50%); display: none; flex-direction: column; align-items: center; gap: 6px; z-index: 20; pointer-events: none; text-align: center; }
+  #nukeWarn .rad { font-size: 92px; color: #ffd400; text-shadow: 0 0 24px #ff5a00, 0 0 60px #ff2a00; animation: nukePulse 0.6s infinite alternate; }
+  #nukeWarn .cd { font-size: 72px; font-weight: 900; color: #ff3b30; text-shadow: 0 0 20px rgba(255,60,0,0.9); font-family: monospace; }
+  #nukeWarn .txt { font-size: 20px; font-weight: bold; letter-spacing: 3px; color: #ffd400; text-shadow: 0 0 10px rgba(255,90,0,0.9); }
+  @keyframes nukePulse { from { transform: scale(1); opacity: 0.85; } to { transform: scale(1.18); opacity: 1; } }
 
   /* 错误面板 */
   #errPanel { position: fixed; left: 12px; bottom: 12px; max-width: 70vw; z-index: 40; pointer-events: none; }
@@ -120,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.4</div>
+<div id="versionTag">v11.5</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -128,6 +133,7 @@
 <div id="headshotTag">爆头!</div>
 <div id="critTag">暴击!</div>
 <div id="toast"></div>
+<div id="nukeWarn"><div class="rad">☢</div><div class="cd" id="nukeWarnCd">3</div><div class="txt">核辐射警告 · 即将引爆</div></div>
 <div id="errPanel"></div>
 <!-- 测试工具栏（仅 location.hash === '#test' 时显示，正常游玩不可见） -->
 <div id="fpsTestBar" style="position:fixed;top:0;left:0;z-index:99999;display:none;background:rgba(0,0,0,0.7);color:#0f0;font:12px monospace;padding:4px">
@@ -203,9 +209,8 @@
 <script src="models/shield.js" onerror="window.__modErr('models/shield.js')"></script>
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
 <script src="models/pig.js?v=3" onerror="window.__modErr('models/pig.js')"></script>
-<script src="models/trex.js?v=2" onerror="window.__modErr('models/trex.js')"></script>
-<script src="models/watchtower.js?v=2" onerror="window.__modErr('models/watchtower.js')"></script>
-<script src="scene-layout.js?v=94" onerror="window.__modErr('scene-layout.js')"></script>
+<script src="models/watchtower.js?v=3" onerror="window.__modErr('models/watchtower.js')"></script>
+<script src="scene-layout.js?v=95" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
 <script>
@@ -252,6 +257,9 @@
   var flashEl = document.getElementById('flashOverlay');
   var nukeFlashTimer = null;   // v6.9 核弹先闪光定时器
   var toastEl = document.getElementById('toast');
+  var nukeWarnEl = document.getElementById('nukeWarn');
+  var nukeWarnCd = document.getElementById('nukeWarnCd');
+  var nukeCountdownActive = false;
   var appEl = document.getElementById('app');
   var crosshairEl = document.getElementById('crosshair');
   var scopeEl = document.getElementById('scopeOverlay');
@@ -356,9 +364,6 @@
   var pigAlive = false;
   // v7.1 机甲 BOSS：每击杀 25 名普通敌人随机出现（所有关卡+无尽），同屏最多 1 只
   var bossKills = 0;
-  // v8.4 霸王龙：玩家积分每达到 20000 分随机出现（所有关卡+无尽），同屏最多 1 只（v8.6 1000→20000）
-  var trexAlive = false;
-  var nextTrexScore = 20000;
   var currentLayout = null;  // 记录当前加载的布局版本
 
   /* ================= 2. 渲染器 / 场景 / 相机 ================= */
@@ -437,6 +442,7 @@
   var _ringMats = {};           // v10 ring 材料按颜色缓存
   var _flameGeoA = null;        // v10 火焰几何 A
   var _flameGeoB = null;        // v10 火焰几何 B
+  var _flameGeoC = null;        // v11.5 火焰几何 C（大）
   var _flameMats = {};          // v10 火焰材料按颜色缓存
   var _tracerMats = {};         // v10 tracer 材料按颜色缓存
   var _tracerGeoPool = [];      // v10 tracer BufferGeometry 对象池
@@ -589,7 +595,7 @@
   var score = 0;
   var nextAwardScore = 5000;   // v7.3 每获得 5000 分 → 奖励空中支援 ×1 + 满血
   // v8.5 战斗统计（结算画面用）
-  var killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, trex: 0, helicopter: 0 };
+  var killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, helicopter: 0 };
   var headshotCount = 0;
   var shotsFired = 0;
   var shotsHit = 0;
@@ -623,7 +629,7 @@
   // v8.5 游戏结算画面：各类敌人击杀数 + 爆头率 + 命中率 + 历史最高分排名
   function showStatsScreen(title) {
     var totalKills = killCounts.human + killCounts.monster + killCounts.spider +
-                     killCounts.pig + killCounts.boss + killCounts.trex + killCounts.helicopter;
+                     killCounts.pig + killCounts.boss + killCounts.helicopter;
     var headshotRate = totalKills > 0 ? Math.round(headshotCount / totalKills * 100) : 0;
     var accuracy = shotsFired > 0 ? Math.round(shotsHit / shotsFired * 100) : 0;
     // 记录并更新历史最高分（前 5）
@@ -638,7 +644,7 @@
     overlaySub.textContent =
       '得分 ' + score + '    总击杀 ' + totalKills + '\n' +
       '人类 ' + killCounts.human + '   怪物 ' + killCounts.monster + '   蜘蛛 ' + killCounts.spider + '   直升机 ' + killCounts.helicopter + '\n' +
-      '猪头佳 ' + killCounts.pig + '   机甲BOSS ' + killCounts.boss + '   霸王龙 ' + killCounts.trex + '\n' +
+      '猪头佳 ' + killCounts.pig + '   机甲BOSS ' + killCounts.boss + '\n' +
       '爆头率 ' + headshotRate + '%    命中率 ' + accuracy + '%\n' +
       '🏆 历史最高分排名：' + rankText + '\n' +
       '按 Enter 返回菜单';
@@ -1375,10 +1381,13 @@
         // v11.4 狙击枪：命中敌人附加小范围爆炸伤害（不伤玩家）
         if (gt.explosive) {
           var mk = hit.rec.cfg.model;
-          if (mk === 'enemy' || mk === 'pig' || mk === 'spider' || mk === 'helicopter' || mk === 'trex') {
+          if (mk === 'enemy' || mk === 'pig' || mk === 'spider' || mk === 'helicopter') {
             explode(hit.point, 3.5, 150, { noPlayer: true });
           }
         }
+        // v11.5 血浆飞溅：命中敌人喷血，爆头更猛
+        var _bmk = hit.rec.cfg.model;
+        if (_bmk === 'enemy' || _bmk === 'pig' || _bmk === 'spider' || _bmk === 'helicopter') spawnBlood(hit.point, !!hs);
       } else {
         spawnSparks(hit.point, 0xcccccc);
       }
@@ -1629,28 +1638,57 @@
   }
   ctx.spawnSparks = spawnSparks;
 
-  // 喷火器火焰效果
+  // v11.5 血浆飞溅：命中敌人喷血，爆头震撼（共享材质 + 仅缩放动画，避免每帧创建材质导致掉帧）
+  var _bloodGeo = null, _bloodMat = null, _bloodMatDark = null, _bloodMistMat = null;
+  function spawnBlood(point, head) {
+    if (!_bloodGeo) _bloodGeo = new THREE.SphereGeometry(0.06, 5, 4);
+    if (!_bloodMat) _bloodMat = new window.MARIO.basic({ color: 0x9a0f12, transparent: true, opacity: 1, depthWrite: false });
+    if (!_bloodMatDark) _bloodMatDark = new window.MARIO.basic({ color: 0x5a080a, transparent: true, opacity: 1, depthWrite: false });
+    var n = head ? 30 : 11;
+    var spd = head ? 15 : 8;
+    for (var i = 0; i < n; i++) {
+      var m = new THREE.Mesh(_bloodGeo, (i % 2) ? _bloodMat : _bloodMatDark);
+      m.position.copy(point);
+      var sc = head ? (0.9 + Math.random() * 1.6) : (0.5 + Math.random() * 0.9);
+      m.scale.setScalar(sc);
+      var v = new THREE.Vector3((Math.random() - 0.5) * spd, Math.random() * spd * 0.7 + 2.5, (Math.random() - 0.5) * spd);
+      scene.add(m);
+      fx.push({ type: 'blood', obj: m, vel: v, life: 0.6 + Math.random() * 0.5, maxLife: 1.1 });
+    }
+    if (head) {
+      if (!_bloodMistMat) _bloodMistMat = new window.MARIO.basic({ color: 0xbb1218, transparent: true, opacity: 0.55, depthWrite: false });
+      if (!_flameGeoB) _flameGeoB = new THREE.SphereGeometry(0.5, 6, 6);
+      var mist = new THREE.Mesh(_flameGeoB, _bloodMistMat);
+      mist.position.copy(point); mist.scale.setScalar(1.4);
+      scene.add(mist);
+      fx.push({ type: 'bloodmist', obj: mist, life: 0.4, maxLife: 0.4, growTo: 5 });
+    }
+  }
+  ctx.spawnBlood = spawnBlood;
+
+  // 喷火器火焰效果（v11.5：更大更长的火焰喷射）
   function spawnFlameBurst(origin) {
     var dir = new THREE.Vector3();
     camera.getWorldDirection(dir);
-    var spread = 0.12;
-    for (var i = 0; i < 8; i++) {
+    var spread = 0.17;
+    if (!_flameGeoA) _flameGeoA = new THREE.SphereGeometry(0.30, 6, 6);
+    if (!_flameGeoB) _flameGeoB = new THREE.SphereGeometry(0.50, 6, 6);
+    if (!_flameGeoC) _flameGeoC = new THREE.SphereGeometry(0.74, 6, 6);
+    var n = 18;
+    for (var i = 0; i < n; i++) {
+      var t = i / n;
       var v = new THREE.Vector3(
         dir.x + (Math.random() - 0.5) * spread,
-        dir.y + (Math.random() - 0.5) * spread,
+        dir.y + (Math.random() - 0.5) * spread + 0.02,
         dir.z + (Math.random() - 0.5) * spread
       ).normalize();
-      var flameColor = Math.random() > 0.5 ? 0xff6600 : 0xff3300;
-      if (!_flameMats[flameColor]) _flameMats[flameColor] = new window.MARIO.basic({ color: flameColor, transparent: true, opacity: 0.85 });
-      if (!_flameGeoA) _flameGeoA = new THREE.SphereGeometry(0.09, 5, 5);
-      if (!_flameGeoB) _flameGeoB = new THREE.SphereGeometry(0.13, 5, 5);
-      var flame = new THREE.Mesh(
-        Math.random() > 0.5 ? _flameGeoB : _flameGeoA,
-        _flameMats[flameColor]
-      );
-      flame.position.copy(origin).addScaledVector(v, 0.3);
+      var flameColor = t < 0.34 ? 0xffe066 : (t < 0.67 ? 0xff7722 : 0xff3300);
+      if (!_flameMats[flameColor]) _flameMats[flameColor] = new window.MARIO.basic({ color: flameColor, transparent: true, opacity: 0.9, depthWrite: false });
+      var geo = t < 0.34 ? _flameGeoA : (t < 0.67 ? _flameGeoB : _flameGeoC);
+      var flame = new THREE.Mesh(geo, _flameMats[flameColor]);
+      flame.position.copy(origin).addScaledVector(v, 0.6 + t * 2.2);
       scene.add(flame);
-      fx.push({ type: 'flame', obj: flame, vel: v.multiplyScalar(90 + Math.random() * 25), life: 0.3 + Math.random() * 0.2, maxLife: 0.5 });
+      fx.push({ type: 'flame', obj: flame, vel: v.multiplyScalar(58 + Math.random() * 26), life: 0.55 + Math.random() * 0.4, maxLife: 0.95, growTo: 2.4 });
     }
   }
 
@@ -1827,6 +1865,9 @@
         hitPlayer(damage * 0.55 * Math.max(0.25, 1 - pd / (radius * 2)));
       }
     }
+
+    // v11.5 空袭/核弹：onlyEnemies → 只伤敌人，不摧毁建筑/物品、不连环引爆
+    if (opts.onlyEnemies) return;
 
     // 摧毁可破坏模型 + 收集连环引爆（宽限期内的新掉落物不受爆炸波及）
     for (var k = entities.length - 1; k >= 0; k--) {
@@ -2246,7 +2287,7 @@
         a.mesh.position.copy(a.target);
         a.mesh.position.y = Math.max(0.2, a.target.y);
         // 命中 → 范围爆炸（不伤玩家）
-        explode(a.mesh.position.clone(), 6.5, 450, { noPlayer: true, bossDmgMul: 3 });   // v11.4 空袭导弹对 BOSS/猪头佳 ×3
+        explode(a.mesh.position.clone(), 6.5, 450, { noPlayer: true, bossDmgMul: 3, onlyEnemies: true });   // v11.4 空袭导弹对 BOSS/猪头佳 ×3；v11.5 只伤敌人不毁建筑
         spawnSparks(a.mesh.position.clone(), 0xffaa44);
         scene.remove(a.mesh);
         airstrikes.splice(i, 1);
@@ -2613,54 +2654,6 @@
     return true;
   }
 
-  // v8.4 霸王龙：黑灰皮肤红眼，体型与机甲 BOSS 相当，每 1000 分随机出现，60 秒自爆
-  function spawnTrex() {
-    if (trexAlive || player.dead || state !== 'playing') return false;
-    trexAlive = true;
-    var side = Math.random() < 0.5 ? -1 : 1;
-    var pos = new THREE.Vector3(side * (20 + Math.random() * 14), 0, -28 - Math.random() * 10);
-    var cfg = {
-      id: 'dyn-trex-' + (++dynCounter),
-      model: 'trex',
-      position: [pos.x, 0, pos.z],
-      rotation: [0, 0, 0],
-      scale: [1.6, 1.6, 1.6],   // v8.6 体型缩小 50%：3.2 → 1.6
-      collision: false,
-      dynamic: true,
-      respawn: 0,
-      health: 24000,   // v8.4 与猪头佳一致
-      speed: 8,        // v8.6 移动速度 +60%：5 → 8
-      life: 60         // 出现 60 秒自爆
-    };
-    buildEntity(cfg);
-    // 自爆回调（超时）——爆炸 + 对玩家范围伤害 + 状态复位
-    ctx.onTrexSelfDestruct = function (tpos) {
-      trexAlive = false;
-      var p = tpos.clone ? tpos.clone() : new THREE.Vector3(tpos.x, 1, tpos.z);
-      p.y = 1;
-      explode(p, 20, 260, { chain: true });
-      var d = player.pos.distanceTo(p);
-      if (d < 28) hitPlayer(Math.round(10 + 30 * (1 - d / 28)));
-      showToast('💥 霸王龙自爆了！', 0xff6a3a);
-      if (sfx && sfx.playRocket) sfx.playRocket();
-    };
-    showToast('🦖 霸王龙出现！60 秒内击败它！', 0xff4422);
-    levelBannerTitle.textContent = '🦖 霸王龙现身';
-    levelBannerSub.textContent = '黑灰巨兽喷火踩踏，吃蘑菇毁坏物品 — 60 秒内击败它，否则自爆！';
-    levelBannerEl.style.opacity = '1';
-    setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 3000);
-    if (sfx && sfx.playBoss) sfx.playBoss();
-    return true;
-  }
-
-  // v8.4 每 20000 分随机出现霸王龙（同屏最多 1 只；v8.6 1000→20000）
-  function checkTrexSpawn() {
-    while (score >= nextTrexScore) {
-      nextTrexScore += 20000;
-      if (!trexAlive && Math.random() < 0.5) spawnTrex();
-    }
-  }
-
   function spawnBoss() {
     bossAppeared = true;
     bossAlive = true;
@@ -2879,7 +2872,7 @@
     player.jetpack = { count: 0, active: false, time: 0 };   // v8.4 喷气飞行器重开归零
     player.ammoPool = { pistol: 96, rifle: 360, sniper: 120, rocket: 0 };   // v8.5 分枪备弹重开归零
     // v8.5 战斗统计重开归零
-    killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, trex: 0, helicopter: 0 };
+    killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, helicopter: 0 };
     headshotCount = 0; shotsFired = 0; shotsHit = 0;
     gatlingRec = null;
     player.gun = 'pistol';
@@ -2929,24 +2922,12 @@
       if (sfx) sfx.playLevelUp();
       return;
     }
-    // v8.4 霸王龙：击杀奖励 + 状态复位（不计普通击杀数）
-    if (type === 'trex') {
-      trexAlive = false;
-      score += 2000;
-      showToast('🦖 击败霸王龙！+2000', 0xff8866);
-      checkScoreMilestone();
-      checkTrexSpawn();
-      if (Math.random() < 0.30) spawnHealthDrop(pos);
-      if (Math.random() < 0.20) spawnWeaponDrop(pos, 'rocket');
-      if (sfx) sfx.playLevelUp();
-      return;
-    }
     // v7.1 每击杀 10 名普通敌人 → 猪头佳随机出现（同屏最多 1 只）
     if ((type === 'human' || type === 'monster' || type === 'spider') && !pigAlive) {
       pigKills++;
       if (pigKills >= 10) {
         pigKills = 0;
-        spawnPig();
+        if (Math.random() < 0.7) spawnPig();   // v11.5 出现几率 -30%
       }
     }
     levelKills++;
@@ -2954,8 +2935,6 @@
     score += (type === 'boss' ? 2000 : (type === 'monster' || type === 'spider' ? 150 : 100));
     // v7.3 5000 分里程碑奖励检查
     checkScoreMilestone();
-    // v8.4 每 1000 分随机出现霸王龙
-    checkTrexSpawn();
     // v6.8 狂暴模式击杀回血：狂暴期间每击杀 1 敌人恢复 10 HP（直到狂暴结束）
     if (player.berserk) {
       player.health = Math.min(player.maxHealth, player.health + 10);
@@ -2994,7 +2973,7 @@
       bossKills++;
       if (bossKills >= 25) {
         bossKills = 0;
-        spawnBoss();
+        if (Math.random() < 0.7) spawnBoss();   // v11.5 出现几率 -30%
       }
     }
     checkMissionComplete();
@@ -3051,15 +3030,34 @@
   };
 
   function detonateNuke() {
-    if (player.nukes <= 0 || player.dead || state !== 'playing') return;
-    player.nukes--;
+    if (player.nukes <= 0 || player.dead || state !== 'playing' || nukeCountdownActive) return;
+    player.nukes--;   // 立即消耗，避免倒计时期间重复引爆
+    nukeCountdownActive = true;
+    var n = 3;
+    nukeWarnCd.textContent = n;
+    nukeWarnEl.style.display = 'flex';
+    showToast('☢ 核弹已启动！3 秒后引爆，注意规避', 0xffcc22);
+    if (sfx && sfx.playPickup) sfx.playPickup();
+    var iv = setInterval(function () {
+      n--;
+      if (n > 0) { nukeWarnCd.textContent = n; if (sfx && sfx.playPickup) sfx.playPickup(); }
+      else {
+        clearInterval(iv);
+        nukeWarnEl.style.display = 'none';
+        nukeCountdownActive = false;
+        doNukeBlast();
+      }
+    }, 1000);
+  }
+
+  function doNukeBlast() {
     if (sfx) sfx.playNuke();
     var p = new THREE.Vector3(player.pos.x, player.pos.y + 0.8, player.pos.z);
     // v6.9 核弹：先强闪光（250ms 全屏白），再巨大蘑菇云
     flashEl.style.opacity = '1';
     clearTimeout(nukeFlashTimer);
     nukeFlashTimer = setTimeout(function () { flashEl.style.opacity = '0'; }, 250);
-    explode(p, 95, 3000, { nuke: true, noPlayer: true, bossDmgMul: 6 });   // v11.4 核弹对 BOSS/猪头佳 ×6（÷defense2 后仍 ~9000）
+    explode(p, 95, 3000, { nuke: true, noPlayer: true, bossDmgMul: 6, onlyEnemies: true });   // v11.5 只伤敌人不毁建筑/物品
     spawnMushroomCloud(p);
     // 核弹伤害 = 最大生命 × 30%（不按当前血量，是固定的）；自伤不钳制
     var nukeDmg = Math.round(player.maxHealth * 0.30);
@@ -3576,13 +3574,23 @@
         f.obj.material.opacity = Math.max(0, f.life / f.maxLife) * 0.5;
       } else if (f.type === 'flame') {
         f.obj.position.addScaledVector(f.vel, dt);
-        f.vel.multiplyScalar(0.94);
+        f.vel.multiplyScalar(0.955);
         var k4 = f.life / f.maxLife;
-        f.obj.scale.setScalar(0.5 + (1 - k4) * 1.0);
-        f.obj.material.opacity = k4 * 0.8;
+        f.obj.scale.setScalar(0.6 + (1 - k4) * (f.growTo || 1.6));   // v11.5 火焰随时间膨胀，更大
+        f.obj.material.opacity = k4 * 0.9;
         // 火焰变色：黄→橙→红（v8.1 复用全局 Color）
         _tmpColor.setHSL(0.06 * k4, 1, 0.5);
         f.obj.material.color.copy(_tmpColor);
+      } else if (f.type === 'blood') {
+        f.obj.position.addScaledVector(f.vel, dt);
+        f.vel.y += -20 * dt;
+        if (f.obj.userData._bs === undefined) f.obj.userData._bs = f.obj.scale.x;
+        f.obj.scale.setScalar(Math.max(0.05, (f.life / f.maxLife) * f.obj.userData._bs));   // 渐缩淡出（共享材质不动 opacity）
+        if (f.obj.position.y < 0.04) { f.vel.set(0, 0, 0); f.obj.position.y = 0.04; }
+      } else if (f.type === 'bloodmist') {
+        var kbm = 1 - f.life / f.maxLife;
+        var rbm = 1.2 + kbm * (f.growTo || 4);
+        f.obj.scale.set(rbm, rbm, rbm);
       } else if (f.type === 'flashlight') {
         f.obj.intensity = 8 * Math.max(0, f.life / f.maxLife);
       } else if (f.type === 'debris') {
@@ -4757,25 +4765,6 @@
       nextAwardScore = 5000; score = 0;
       return out;
     };
-    // v8.4 霸王龙：spawnTrex 生成模型 + 血量 24000 + 出现 60 秒
-    window.__fpsTest.trexTest = function () {
-      var out = {};
-      trexAlive = false;
-      var ok = spawnTrex();
-      out.spawned = ok;
-      var rec = null;
-      for (var i = 0; i < entities.length; i++) if (entities[i].cfg && entities[i].cfg.model === 'trex') { rec = entities[i]; break; }
-      if (rec) {
-        out.health = rec.inst.userData.health;
-        out.life = rec.inst.userData.life;
-        out.speed = rec.inst.userData.speed;
-        out.scale = rec.cfg.scale[0];
-        removeEntity(rec);
-      }
-      trexAlive = false;
-      out.ok = ok === true && out.health === 24000 && out.life === 60 && out.speed === 8 && out.scale === 1.6;
-      return out;
-    };
     // v10.2 椰子树已删除（樱花树已于 v10.0 删除，两者均不存在）
     window.__fpsTest.coconutTest = function () {
       var coconuts = entities.filter(function (e) { return e.cfg && e.cfg.model === 'coconut'; });
@@ -4801,7 +4790,7 @@
     // v8.5 战斗统计 + 结算画面
     window.__fpsTest.statsTest = function () {
       var out = {};
-      killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, trex: 0, helicopter: 0 };
+      killCounts = { human: 0, monster: 0, spider: 0, pig: 0, boss: 0, helicopter: 0 };
       shotsFired = 0; shotsHit = 0; headshotCount = 0;
       // 直接验证统计字段存在 + showStatsScreen 可运行
       var totalBefore = killCounts.human + killCounts.boss + killCounts.helicopter;
