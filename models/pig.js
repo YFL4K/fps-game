@@ -1,39 +1,28 @@
 /**
- * pig.js — v7.0 猪头佳小BOSS：巨型野猪冲撞
+ * pig.js — 猪头佳小BOSS：巨型野猪冲撞（v11 圆润重做：去除方块化）
  * 注册: window.MODELS.pig
  *
- * 造型：棕色身体 + 白色上弯獠牙 + 绿色发光眼睛 + 立耳 + 尾巴 + 深棕四腿
- * 行为（update 每帧由主程序调用）：
- *   1. 30 秒出场时间，超时自爆（调用 ctx.onPigSelfDestruct）
- *   2. 无差别冲撞：不断冲向最近目标（玩家/地面敌人/爆炸物）
- *   3. 撞玩家 → ctx.hitPlayer(5~20)（主程序钳制 5~20）
- *   4. 撞敌人 → takeDamage(30~50) + 击退
- *   5. 撞爆炸物（油桶/TNT）→ 触发 def.onHit 引爆（explode chain）
- *   6. 撞场景 → 由主程序 collideEnemies 推挤（不穿模）
+ * v11 造型改动（行为/契约完全不变）：
+ *   - 头/吻/肩/胸甲/护甲等方块改为圆角长方体（ROUND.roundedBox，12 棱倒角）。
+ *   - 四肢由方柱改为胶囊体(圆润圆柱)，蹄为球形。
+ *   - 耳朵/鬃刺由 4 边方锥改为 8 边圆锥，眼神/瞳仁用球体。
+ *   - 整体为「凶狠但圆润」的有机野猪，而非积木块。
  *
- * 主程序契约：
- *   1. create(config, ctx) 创建实例（scale 由 cfg.scale 控制，主程序传 [3,3,3]）
- *   2. update(inst, dt, ctx) 每帧冲撞 AI / 奔跑动画 / 倒计时
- *   3. onHit(inst, point, ctx) 玩家子弹命中
- *   4. inst.userData.takeDamage(dmg) 外部范围伤害（爆炸等）
- *   5. 死亡/自爆 → ctx.onEnemyKilled(pos, 'pig') 或 ctx.onPigSelfDestruct(pos)，并置 respawnReady
+ * 主程序契约不变（见 v7.0 注释）：create / update / onHit / userData.takeDamage。
  */
 (function (global) {
   global.MODELS = global.MODELS || {};
   var T = global.THREE;
+  var R = global.ROUND;
 
   function sqDist(ax, az, bx, bz) { var dx = ax - bx, dz = az - bz; return dx * dx + dz * dz; }
 
-  // v7.3 激光常量：5 秒发射 / 3 秒间隙 / 射程 200 / 玩家 20 每秒 / 其它敌人 50 每秒
-  // v7.5 俯角 30°~50° 向下扫射地面（能扫到低矮的地面小目标）
-  // v7.7 对玩家攻击伤害 +50%：激光玩家 20→30 / 每秒
-  // v8.2 俯角动态范围扩大：35°~75°
-  // v8.5 激光改为与地面呈固定 20 度角（不再动态扫射）
+  // v7.3 激光常量
   var LASER_ON = 5, LASER_OFF = 3, LASER_RANGE = 200, LASER_HALF_W = 1.5;
   var LASER_PITCH_MIN = 20, LASER_PITCH_MAX = 20;
   var LASER_DPS_PLAYER = 30, LASER_DPS_ENEMY = 50;
 
-  /** 3D 射线命中判定：目标点到射线（起点 eye，方向 dir 单位向量，射程 range）的垂直距离 <= r */
+  /** 3D 射线命中判定 */
   function laserRayHit(eye, dxv, dyv, dzv, tx, ty, tz, range, r) {
     var ax = tx - eye.x, ay = ty - eye.y, az = tz - eye.z;
     var t = ax * dxv + ay * dyv + az * dzv;
@@ -42,11 +31,11 @@
     return (ox * ox + oy * oy + oz * oz) <= r * r;
   }
 
-  /** 创建两条激光光束（挂在 scene 层级，不受猪 3 倍 scale 影响） */
+  /** 两条激光光束（挂在 scene 层级） */
   function ensureBeams(u, ctx) {
     if (u.laserBeams) return;
-    var outer = new window.MARIO.basic({ color: 0x00ff66, transparent: true, opacity: 0.8 });
-    var core = new window.MARIO.basic({ color: 0xd2ffd2, transparent: true, opacity: 0.95 });
+    var outer = new global.window.MARIO.basic({ color: 0x00ff66, transparent: true, opacity: 0.8 });
+    var core = new global.window.MARIO.basic({ color: 0xd2ffd2, transparent: true, opacity: 0.95 });
     u.laserBeams = [];
     for (var i = 0; i < 2; i++) {
       var beam = new T.Mesh(new T.BoxGeometry(1, 1, 1), outer);
@@ -70,6 +59,22 @@
     }
   }
 
+  // 圆角方块快捷
+  function rb(g, mat, w, h, d, r, x, y, z, rx, ry, rz) {
+    var m = new T.Mesh(R.roundedBox(w, h, d, r), mat);
+    m.position.set(x, y, z);
+    if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0);
+    g.add(m);
+    return m;
+  }
+  // 胶囊(沿Y)快捷
+  function cap(g, mat, radius, len, x, y, z) {
+    var m = new T.Mesh(R.roundedCyl(radius, radius, len, 12), mat);
+    m.position.set(x, y, z);
+    g.add(m);
+    return m;
+  }
+
   global.MODELS.pig = {
     name: 'pig',
 
@@ -77,109 +82,125 @@
       var cfg = config || {};
       var g = new T.Group();
 
-      // —— 超级马里奥3D世界风格：圆润饱满猪头佳（凶悍硬汉）——
-      var fur = new window.MARIO.mat({ color: 0xb5704a });          // 明亮棕（身体）
-      var furDark = new window.MARIO.mat({ color: 0x8a5a30 });      // 深棕（腿/耳/鬃）
-      var belly = new window.MARIO.mat({ color: 0xf0cfa0 });        // 浅米肚皮
-      var tuskMat = new window.MARIO.mat({ color: 0xfff8e8 });      // 象牙白
-      var eyeMat = new window.MARIO.mat({ color: 0xffcc00, emissive: 0xffaa00, emissiveIntensity: 1.6 }); // 凶黄瞳孔
-      var pupilMat = new window.MARIO.mat({ color: 0x2a0a0a });     // 深色瞳仁
-      var browMat = new window.MARIO.mat({ color: 0x5a2f10 });      // 眉骨深棕
-      var vestMat = new window.MARIO.mat({ color: 0x6b3f1f });      // 皮质背心
-      var buckleMat = new window.MARIO.mat({ color: 0xffd700, metalness: 0.7, roughness: 0.2 }); // 金属扣件
-      var noseMat = new window.MARIO.mat({ color: 0xd98a55 });      // 猪鼻粉棕
-      var holeMat = new window.MARIO.mat({ color: 0x3a1e0c });
+      // —— v11 凶狠圆润野猪：圆角块体 + 胶囊四肢 + 球体眼神 + 深棕黑配色 ——
+      var fur = new global.window.MARIO.mat({ color: 0x5a3320 });        // 深棕（主毛色，凶悍但不过黑）
+      var furDark = new global.window.MARIO.mat({ color: 0x2e1a0e });    // 近黑（腿/耳/鬃/骨点）
+      var belly = new global.window.MARIO.mat({ color: 0x7a573a });      // 暗棕肚皮
+      var tuskMat = new global.window.MARIO.mat({ color: 0xe6d8b4 });    // 战损象牙（微黄）
+      var eyeMat = new global.window.MARIO.mat({ color: 0xff1500, emissive: 0xff0d00, emissiveIntensity: 2.8 });
+      var pupilMat = new global.window.MARIO.mat({ color: 0x000000 });
+      var browMat = new global.window.MARIO.mat({ color: 0x180c06 });
+      var scarMat = new global.window.MARIO.mat({ color: 0x9a3a22 });
+      var hoofMat = new global.window.MARIO.mat({ color: 0x18120c });
+      var armorMat = new global.window.MARIO.mat({ color: 0x3a3f45, metalness: 0.6, roughness: 0.5 });
+      var spikeMat = new global.window.MARIO.mat({ color: 0x5a5f65, metalness: 0.7, roughness: 0.4 });
+      var noseMat = new global.window.MARIO.mat({ color: 0x43241a });
+      var holeMat = new global.window.MARIO.mat({ color: 0x0a0503 });
 
-      // 身体（饱满圆润椭圆，高分段球）
-      var body = new T.Mesh(new T.SphereGeometry(1.0, 32, 24), fur);
-      body.scale.set(1.1, 0.95, 1.35);
+      // 身体（高分段椭圆球体 = 圆润肌肉感，前倾冲锋姿态）
+      var body = new T.Mesh(new T.SphereGeometry(1.0, 18, 14), fur);
+      body.scale.set(1.18, 0.95, 1.4);
       body.position.y = 1.05;
-      body.castShadow = body.receiveShadow = true;
+      body.rotation.x = -0.08;
       g.add(body);
 
-      // 肚皮（浅色，前下方圆润）
-      var bellyMesh = new T.Mesh(new T.SphereGeometry(0.78, 24, 18), belly);
-      bellyMesh.scale.set(0.8, 0.7, 0.85);
-      bellyMesh.position.set(0, 0.7, 0.6);
+      // 肩胛（圆角块 + 球体肩肌，棱角化消除）
+      rb(g, furDark, 0.5, 0.56, 0.6, 0.18, -0.72, 1.42, 0.5, -0.15, 0.3, 0.4);
+      rb(g, furDark, 0.5, 0.56, 0.6, 0.18, 0.72, 1.42, 0.5, -0.15, -0.3, -0.4);
+      cap(g, fur, 0.26, 0.5, -0.78, 1.5, 0.45);
+      cap(g, fur, 0.26, 0.5, 0.78, 1.5, 0.45);
+
+      // 肋骨暗示（侧面圆润弧形，不再用尖棱）
+      for (var rbi = 0; rbi < 3; rbi++) {
+        var ribL = new T.Mesh(new T.TorusGeometry(0.18, 0.05, 8, 14, Math.PI * 0.6), furDark);
+        ribL.position.set(-1.04, 0.95 - rbi * 0.02, 0.35 - rbi * 0.42);
+        ribL.rotation.set(0.2, 0, 0.5);
+        g.add(ribL);
+        var ribR = ribL.clone(); ribR.position.x = 1.04; ribR.rotation.z = -0.5; g.add(ribR);
+      }
+
+      // 肚皮（暗色圆润）
+      var bellyMesh = new T.Mesh(new T.SphereGeometry(0.8, 14, 12), belly);
+      bellyMesh.scale.set(0.85, 0.6, 0.9);
+      bellyMesh.position.set(0, 0.6, 0.55);
       g.add(bellyMesh);
 
-      // 头（大圆润）
-      var head = new T.Mesh(new T.SphereGeometry(0.66, 28, 22), fur);
-      head.scale.set(0.95, 0.9, 0.9);
-      head.position.set(0, 1.24, 1.16);
-      head.castShadow = true;
-      g.add(head);
+      // 头（圆角长方体，前倾下压，不再 45° 方块）
+      var head = rb(g, fur, 0.98, 0.86, 1.0, 0.26, 0, 1.30, 1.15, 0.16, 0, 0);
+      // 头顶圆润骨冠（矮圆台，非尖方）
+      var crown = new T.Mesh(new T.CylinderGeometry(0.16, 0.26, 0.22, 10), furDark);
+      crown.position.set(0, 1.74, 1.02);
+      g.add(crown);
 
-      // 圆润猪鼻（突出球体 + 双鼻孔）
-      var snout = new T.Mesh(new T.SphereGeometry(0.22, 20, 16), noseMat);
-      snout.scale.set(1.1, 0.8, 0.7);
-      snout.position.set(0, 1.1, 1.72);
-      g.add(snout);
-      var n1 = new T.Mesh(new T.SphereGeometry(0.07, 12, 10), holeMat);
-      n1.position.set(-0.09, 1.13, 1.86);
-      g.add(n1);
-      var n2 = n1.clone();
-      n2.position.x = 0.09;
-      g.add(n2);
+      // 圆润猪吻（圆角块 + 球形鼻镜 + 球状鼻孔）
+      rb(g, noseMat, 0.46, 0.36, 0.4, 0.14, 0, 1.06, 1.66, 0.22, 0, 0);
+      var noseBall = new T.Mesh(new T.SphereGeometry(0.2, 12, 10), noseMat);
+      noseBall.position.set(0, 1.08, 1.84);
+      g.add(noseBall);
+      var n1 = new T.Mesh(new T.SphereGeometry(0.05, 8, 6), holeMat);
+      n1.position.set(-0.09, 1.1, 1.96); g.add(n1);
+      var n2 = n1.clone(); n2.position.x = 0.09; g.add(n2);
 
-      // 獠牙（白色外露上弯）
+      // 超长獠牙（两段式，6 边圆锥，尖过鼻尖）
       function makeTusk(side) {
-        var tusk = new T.Mesh(new T.ConeGeometry(0.09, 0.62, 12), tuskMat);
-        tusk.position.set(side * 0.24, 0.82, 1.62);
-        tusk.rotation.z = side * -0.35;
-        tusk.rotation.x = 0.55;
-        tusk.castShadow = true;
-        return tusk;
+        var grp = new T.Group();
+        var lower = new T.Mesh(new T.ConeGeometry(0.09, 0.55, 8), tuskMat);
+        lower.position.set(0, 0.28, 0); lower.rotation.z = side * -0.3; grp.add(lower);
+        var upper = new T.Mesh(new T.ConeGeometry(0.06, 0.6, 8), tuskMat);
+        upper.position.set(side * -0.1, 0.72, 0.08); upper.rotation.set(-0.3, 0, side * -0.75); grp.add(upper);
+        grp.position.set(side * 0.3, 0.72, 1.5);
+        return grp;
       }
       g.add(makeTusk(-1), makeTusk(1));
 
-      // 凶狠眼神：黄色发光瞳孔 + 深色瞳仁 + 锐利眉骨
+      // 血红怒眼：球体眼球 + 球状瞳仁 + 深压怒眉 + 眼下疤
       function makeEye(side) {
         var grp = new T.Group();
-        var e = new T.Mesh(new T.SphereGeometry(0.115, 16, 14), eyeMat);
-        e.position.set(side * 0.42, 1.44, 1.26);
-        grp.add(e);
-        var pupil = new T.Mesh(new T.SphereGeometry(0.05, 10, 8), pupilMat);
-        pupil.position.set(side * 0.44, 1.44, 1.36);
-        grp.add(pupil);
-        var brow = new T.Mesh(new T.BoxGeometry(0.24, 0.08, 0.1), browMat);
-        brow.position.set(side * 0.42, 1.58, 1.26);
-        brow.rotation.z = side * -0.4;
-        grp.add(brow);
+        var e = new T.Mesh(new T.SphereGeometry(0.12, 12, 10), eyeMat);
+        e.position.set(side * 0.36, 1.4, 1.32); grp.add(e);
+        var pupil = new T.Mesh(new T.SphereGeometry(0.06, 8, 6), pupilMat);
+        pupil.position.set(side * 0.4, 1.38, 1.42); grp.add(pupil);
+        var brow = rb(g, null, 0.3, 0.1, 0.14, 0.05, side * 0.36, 1.54, 1.34, 0.25, 0, side * -0.55);
+        brow.material = browMat;
+        var scar = rb(g, scarMat, 0.05, 0.18, 0.04, 0.02, side * 0.52, 1.22, 1.3, 0, 0, side * 0.5);
+        grp.add(brow, scar);
         return grp;
       }
-      var eyeL = makeEye(-1), eyeR = makeEye(1);
-      g.add(eyeL, eyeR);
+      g.add(makeEye(-1), makeEye(1));
 
-      // 圆润立耳
+      // 尖耳（8 边圆锥前倾，非方块）
       function makeEar(side) {
-        var ear = new T.Mesh(new T.ConeGeometry(0.16, 0.36, 12), furDark);
-        ear.position.set(side * 0.42, 1.74, 1.0);
-        ear.rotation.x = 0.4;
-        ear.rotation.z = side * 0.35;
-        ear.castShadow = true;
+        var ear = new T.Mesh(new T.ConeGeometry(0.14, 0.44, 8), furDark);
+        ear.position.set(side * 0.42, 1.8, 0.98);
+        ear.rotation.set(0.7, 0, side * 0.3);
         return ear;
       }
       g.add(makeEar(-1), makeEar(1));
 
-      // 皮质战术背心（圆角环带 + 金属扣件）
-      var vest = new T.Mesh(new T.CylinderGeometry(1.14, 1.2, 0.55, 24), vestMat);
-      vest.scale.set(1.05, 0.95, 1.12);
-      vest.position.y = 1.12;
-      g.add(vest);
-      var buckle1 = new T.Mesh(new T.BoxGeometry(0.14, 0.1, 0.06), buckleMat);
-      buckle1.position.set(0, 1.2, 1.62);
-      g.add(buckle1);
-      var buckle2 = new T.Mesh(new T.BoxGeometry(0.14, 0.1, 0.06), buckleMat);
-      buckle2.position.set(0, 1.02, 1.62);
-      g.add(buckle2);
+      // 破烂金属护甲（圆角胸甲 + 肩甲球 + 圆润尖刺）
+      rb(g, armorMat, 1.5, 0.52, 0.32, 0.14, 0, 1.35, 0.95, -0.15, 0, 0);
+      var armorStud = new T.Mesh(new T.ConeGeometry(0.08, 0.2, 8), spikeMat);
+      armorStud.position.set(0, 1.52, 1.06); armorStud.rotation.x = -1.2; g.add(armorStud);
+      function pauldron(side) {
+        var grp = new T.Group();
+        var plate = new T.Mesh(new T.SphereGeometry(0.34, 12, 10), armorMat);
+        plate.scale.set(1, 0.8, 0.7); grp.add(plate);
+        for (var s = 0; s < 3; s++) {
+          var sp = new T.Mesh(new T.ConeGeometry(0.05, 0.22, 6), spikeMat);
+          sp.position.set(side * 0.05, 0.18, -0.08 + s * 0.08); sp.rotation.x = -0.4; grp.add(sp);
+        }
+        grp.position.set(side * 0.9, 1.55, 0.5);
+        return grp;
+      }
+      g.add(pauldron(-1), pauldron(1));
 
-      // 四腿（圆润圆柱 + 蹄，奔跑动画 pivot）
+      // 四腿（胶囊圆润 + 球蹄，奔跑动画 pivot）
       var legs = [];
       function makeLeg(sx, sz) {
-        var leg = new T.Mesh(new T.CylinderGeometry(0.15, 0.13, 0.8, 16), furDark);
-        leg.position.set(0, -0.4, 0);
-        leg.castShadow = true;
+        var leg = new T.Mesh(R.roundedCyl(0.14, 0.14, 0.7, 12), furDark);
+        leg.position.set(0, -0.35, 0);
+        var hoof = new T.Mesh(new T.SphereGeometry(0.15, 10, 8), hoofMat);
+        hoof.position.set(0, -0.72, 0.02); hoof.scale.set(1, 0.8, 1.1); leg.add(hoof);
         var pivot = new T.Group();
         pivot.position.set(sx, 0.8, sz);
         pivot.add(leg);
@@ -188,21 +209,21 @@
       }
       legs.push(makeLeg(-0.62, 0.8), makeLeg(0.62, 0.8), makeLeg(-0.62, -0.8), makeLeg(0.62, -0.8));
 
-      // 尾巴（圆润卷尾）
-      var tail = new T.Mesh(new T.CylinderGeometry(0.05, 0.09, 0.5, 12), furDark);
-      tail.position.set(0, 1.2, -1.45);
-      tail.rotation.x = 1.1;
-      tail.castShadow = true;
-      g.add(tail);
+      // 尾巴（圆润上翘）
+      cap(g, furDark, 0.05, 0.4, 0, 1.35, -1.45);
+      g.children[g.children.length - 1].rotation.x = -0.6;
 
-      // 背脊鬃毛（圆润）
-      function makeMane(z, s) {
-        var m = new T.Mesh(new T.ConeGeometry(0.1, 0.32, 10), furDark);
-        m.position.set(0, 1.88, z);
-        m.scale.set(1, s, 1);
+      // 背脊鬃毛（8 边圆润尖刺，颈到尾错落）
+      function makeMane(z, h) {
+        var m = new T.Mesh(new T.ConeGeometry(0.1, h, 8), furDark);
+        m.position.set(0, 1.85 + h * 0.2, z);
+        m.rotation.x = -0.25;
         return m;
       }
-      g.add(makeMane(0.35, 1), makeMane(-0.2, 0.85), makeMane(-0.75, 0.7), makeMane(-1.2, 0.6));
+      g.add(
+        makeMane(0.75, 0.34), makeMane(0.3, 0.42), makeMane(-0.15, 0.48),
+        makeMane(-0.6, 0.44), makeMane(-1.0, 0.36), makeMane(-1.35, 0.26), makeMane(-1.6, 0.18)
+      );
 
       // 状态
       var u = {
@@ -216,20 +237,18 @@
         hitEnemyCd: 0,
         runPhase: 0,
         hitFlash: 0,
-        defense: 2,     // v8.3 对玩家子弹伤害防护 ×2（1 → 2，即减伤 50%）
+        defense: 2,
         _ctx: null,
         _rec: null,
         legs: legs,
         head: head,
         respawnReady: false,
-        // v7.3 激光状态机（先发射 5 秒 → 停 3 秒 → 循环）
         laserPhase: 'on',
         laserTimer: 0,
         laserDmgTick: 0,
         laserBeams: null,
-        laserEyeL: new T.Vector3(-0.42, 1.44, 1.26),
-        laserEyeR: new T.Vector3(0.42, 1.44, 1.26),
-        // v7.5 俯角扫射状态
+        laserEyeL: new T.Vector3(-0.38, 1.42, 1.30),
+        laserEyeR: new T.Vector3(0.38, 1.42, 1.30),
         laserSweep: 0,
         laserPitch: 40
       };
@@ -270,7 +289,6 @@
       u.hitEnemyCd = Math.max(0, u.hitEnemyCd - dt);
       if (u.hitFlash > 0) u.hitFlash -= dt;
 
-      // 30 秒超时 → 自爆
       if (u.life <= 0) {
         u.life = 0;
         u.dead = true;
@@ -280,17 +298,15 @@
         return;
       }
 
-      // v10.2 优先攻击玩家（取消 v8.3 优先攻击 BOSS 的设定）
+      // 优先攻击玩家（v10.2）
       var px = inst.position.x, pz = inst.position.z;
       var list = ctx.entities || [];
       var best = null, bestD = Infinity;
       if (!ctx.player.dead) {
-        // 玩家存活：始终锁定玩家
         var dxp = ctx.player.pos.x - px, dzp = ctx.player.pos.z - pz;
         bestD = dxp * dxp + dzp * dzp;
         best = { x: ctx.player.pos.x, z: ctx.player.pos.z };
       } else {
-        // 玩家死亡：才寻找最近的其他目标（敌人/爆炸物）
         for (var i = 0; i < list.length; i++) {
           var rec = list[i];
           if (!rec.alive || rec === u._rec) continue;
@@ -307,7 +323,6 @@
         }
       }
 
-      // 冲刺移动
       var dirX = 0, dirZ = -1;
       if (best) {
         var dx = best.x - px, dz = best.z - pz;
@@ -318,7 +333,6 @@
       inst.position.x += dirX * u.speed * dt;
       inst.position.z += dirZ * u.speed * dt;
 
-      // v10.3 撞开前方障碍物（大型敌人前进时自动破坏挡路的墙/房/箱）
       if (best && ctx.breakObstacleAhead) {
         u._ramT = (u._ramT || 0) + dt;
         if (u._ramT > 0.25) {
@@ -327,7 +341,6 @@
         }
       }
 
-      // 奔跑动画：四腿摆动 + 头部轻晃
       u.runPhase += dt * (11 + u.speed * 0.5);
       for (var li = 0; li < 4; li++) {
         var phase = (li % 2 === 0 ? 0 : Math.PI) + (li < 2 ? 0 : Math.PI);
@@ -335,11 +348,9 @@
       }
       u.head.rotation.z = Math.sin(u.runPhase * 0.5) * 0.06;
 
-      // 冲撞伤害
       var s = inst.scale.x || 1;
       var contactR = 1.7 * s;
 
-      // 撞玩家：v7.7 基础 5~20 ×1.5 → 8~30（主程序钳制 5~20）
       if (ctx.hitPlayer && !ctx.player.dead && u.hitPlayerCd <= 0) {
         var pr = contactR + (ctx.playerRadius || 0.4);
         if (sqDist(px, pz, ctx.player.pos.x, ctx.player.pos.z) < pr * pr) {
@@ -348,7 +359,6 @@
         }
       }
 
-      // 撞敌人（30~50）/ 撞爆炸物（引爆）
       if (u.hitEnemyCd <= 0) {
         var hit = null, hitD = contactR * contactR * 0.9;
         for (var j = 0; j < list.length; j++) {
@@ -372,29 +382,21 @@
             }
           } else {
             var tgt = hit.inst.userData;
-            tgt.takeDamage(30 + Math.floor(Math.random() * 21));   // 30~50
+            tgt.takeDamage(30 + Math.floor(Math.random() * 21));
             var kn = new T.Vector3().subVectors(hit.inst.position, inst.position);
             kn.y = 0;
-            if (kn.lengthSq() > 1e-6) {
-              kn.normalize().multiplyScalar(3.0);
-              hit.inst.position.add(kn);
-            }
+            if (kn.lengthSq() > 1e-6) { kn.normalize().multiplyScalar(3.0); hit.inst.position.add(kn); }
           }
         }
       }
 
-      /* ============ v7.5 激光武器：双眼以 30°~50° 俯角向正前方地面扫射（能扫到低矮地面目标） ============ */
+      /* ============ 激光武器：双眼以固定 20° 俯角向正前方地面扫射 ============ */
       u.laserTimer += dt;
-      if (u.laserPhase === 'on' && u.laserTimer >= LASER_ON) {
-        u.laserPhase = 'off'; u.laserTimer = 0;
-      } else if (u.laserPhase === 'off' && u.laserTimer >= LASER_OFF) {
-        u.laserPhase = 'on'; u.laserTimer = 0;
-      }
-      // 俯角在 30°~50° 之间往复摆动（扫射动画）
-      u.laserSweep += dt * 1.2;   // rad/s
+      if (u.laserPhase === 'on' && u.laserTimer >= LASER_ON) { u.laserPhase = 'off'; u.laserTimer = 0; }
+      else if (u.laserPhase === 'off' && u.laserTimer >= LASER_OFF) { u.laserPhase = 'on'; u.laserTimer = 0; }
+      u.laserSweep += dt * 1.2;
       var pitchRad = (LASER_PITCH_MIN + (LASER_PITCH_MAX - LASER_PITCH_MIN) * (0.5 + 0.5 * Math.sin(u.laserSweep))) * Math.PI / 180;
-      u.laserPitch = Math.round((pitchRad * 180 / Math.PI) * 10) / 10;   // 供测试/调试读取
-      // 光束世界方向（水平朝猪面向 + 向下俯角）
+      u.laserPitch = Math.round((pitchRad * 180 / Math.PI) * 10) / 10;
       var hx = Math.sin(inst.rotation.y), hz = Math.cos(inst.rotation.y);
       var dxv = hx * Math.cos(pitchRad);
       var dyv = -Math.sin(pitchRad);
@@ -402,14 +404,12 @@
 
       ensureBeams(u, ctx);
       inst.updateMatrixWorld(true);
-      // 双眼间中轴线（世界）作为伤害判定射线起点
       var eyeMid = new T.Vector3(0, 1.44, 1.26).applyMatrix4(inst.matrixWorld);
       for (var bi = 0; bi < u.laserBeams.length; bi++) {
         var bm = u.laserBeams[bi];
         var eye = bi === 0 ? u.laserEyeL : u.laserEyeR;
         var ew = new T.Vector3().copy(eye).applyMatrix4(inst.matrixWorld);
         var st = new T.Vector3(ew.x, Math.max(0.25, ew.y), ew.z);
-        // 落点：光束沿俯角方向打到地面（y=0.15），随俯角摆动在地面来回扫动
         var tGround = ew.y > 0.15 ? (ew.y - 0.15) / Math.sin(pitchRad) : LASER_RANGE;
         var en = new T.Vector3(ew.x + dxv * tGround, 0.15, ew.z + dzv * tGround);
         bm.position.addVectors(st, en).multiplyScalar(0.5);
@@ -417,7 +417,6 @@
         bm.scale.set(0.4, 0.06, Math.max(0.5, st.distanceTo(en)));
         bm.visible = (u.laserPhase === 'on');
       }
-      // 伤害：每秒结算一次（玩家 20/s，其它敌人 50/s；3D 射线判定，命中光束附近的低矮地面目标）
       if (u.laserPhase === 'on') {
         u.laserDmgTick += dt;
         while (u.laserDmgTick >= 1) {
@@ -427,14 +426,14 @@
                 ctx.player.pos.x, ctx.player.pos.y + 0.5, ctx.player.pos.z, LASER_RANGE, LASER_HALF_W)) {
             ctx.hitPlayer(LASER_DPS_PLAYER);
           }
-          for (var li = 0; li < list.length; li++) {
-            var recL = list[li];
+          for (var li2 = 0; li2 < list.length; li2++) {
+            var recL = list[li2];
             if (!recL.alive || recL === u._rec) continue;
             var cuL = recL.inst.userData;
             if (!cuL) continue;
             if (cuL.kind === 'pig') continue;
             var mL = recL.cfg.model;
-            if (mL === 'helicopter') continue;                    // 直升机在空中，俯角激光只扫地面
+            if (mL === 'helicopter') continue;
             if (!(recL.cfg.dynamic && typeof cuL.takeDamage === 'function' && !cuL.dead)) continue;
             var tyL = recL.inst.position.y + (mL === 'spider' ? 0.15 : 0.5);
             if (laserRayHit(eyeMid, dxv, dyv, dzv,

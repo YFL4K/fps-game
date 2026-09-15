@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v10.7</div>
+<div id="versionTag">v11.0</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -165,6 +165,7 @@
 
 <script src="three.min.js" onerror="window.__modErr('three.min.js')"></script>
 <script src="models/_mario.js?v=106" onerror="window.__modErr('models/_mario.js')"></script>
+<script src="models/round.js?v=1" onerror="window.__modErr('models/round.js')"></script>
 <script src="models/floor.js" onerror="window.__modErr('models/floor.js')"></script>
 <script src="models/wall.js" onerror="window.__modErr('models/wall.js')"></script>
 <script src="models/crate.js" onerror="window.__modErr('models/crate.js')"></script>
@@ -184,7 +185,7 @@
 <script src="models/chest.js" onerror="window.__modErr('models/chest.js')"></script>
 <script src="models/helicopter.js" onerror="window.__modErr('models/helicopter.js')"></script>
 <script src="models/enemy.js" onerror="window.__modErr('models/enemy.js')"></script>
-<script src="models/gun.js?v=92" onerror="window.__modErr('models/gun.js')"></script>
+<script src="models/gun.js?v=93" onerror="window.__modErr('models/gun.js')"></script>
 <script src="models/mountain-scenery.js" onerror="window.__modErr('models/mountain-scenery.js')"></script>
 <script src="models/truck.js" onerror="window.__modErr('models/truck.js')"></script>
 <script src="models/plane.js" onerror="window.__modErr('models/plane.js')"></script>
@@ -201,7 +202,7 @@
 <script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
 <script src="models/shield.js" onerror="window.__modErr('models/shield.js')"></script>
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
-<script src="models/pig.js" onerror="window.__modErr('models/pig.js')"></script>
+<script src="models/pig.js?v=2" onerror="window.__modErr('models/pig.js')"></script>
 <script src="models/trex.js" onerror="window.__modErr('models/trex.js')"></script>
 <script src="scene-layout.js?v=92" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
@@ -750,31 +751,130 @@
     o.connect(g); g.connect(AC.destination);
     o.start(t); o.stop(t + dur + 0.02);
   }
-  function shotSound(type) {
-    var gt = GUN_TYPES[type] || GUN_TYPES.pistol;
-    if (type === 'flamethrower') {
-      noiseBurst(0.15, 0.9, 200);
-      tone(80, 0.12, 0.2, 'sawtooth', 25);
-    } else if (type === 'sniper') {
-      noiseBurst(0.3, 0.8, 700);
-      tone(55, 0.3, 0.4, 'square', 30);
-    } else if (type === 'rocket') {
-      noiseBurst(0.35, 0.65, 800);
-      tone(110, 0.3, 0.35, 'sawtooth', 50);
-    } else if (type === 'rifle') {
-      noiseBurst(0.1, 0.5, 1600);
-      tone(150, 0.08, 0.22, 'square', 70);
-    } else {
-      noiseBurst(0.12, 0.5, 1200);
-      tone(140, 0.1, 0.25, 'square', 60);
+  /* ============ v10.8 真实枪声合成引擎（WebAudio 三层结构） ============
+   * 真实枪声 = ① Crack 枪口激波（高通噪声极短爆发）
+   *           + ② Thump 低频冲击（火药爆燃压力波）
+   *           + ③ Tail 空间尾音（低通扫频衰减 + 可选回声）
+   * 每次开火 playbackRate 随机化 ±8%，避免机械重复感。
+   */
+  var _whiteBuf = null;
+  function getWhiteBuf() {
+    if (_whiteBuf) return _whiteBuf;
+    _whiteBuf = AC.createBuffer(1, Math.floor(AC.sampleRate * 1.2), AC.sampleRate);
+    var d = _whiteBuf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return _whiteBuf;
+  }
+  function gunShot(cfg) {
+    if (!AC) return;
+    var t = AC.currentTime;
+    var out = AC.createGain(); out.gain.value = 0.85; out.connect(AC.destination);
+    var rnd = 0.92 + Math.random() * 0.16;
+    // ① Crack：枪口激波（1ms attack，尖锐）
+    var c = AC.createBufferSource(); c.buffer = getWhiteBuf(); c.playbackRate.value = rnd;
+    var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = cfg.crackHz;
+    var cg = AC.createGain();
+    cg.gain.setValueAtTime(0.0001, t);
+    cg.gain.linearRampToValueAtTime(cfg.crackVol, t + 0.001);
+    cg.gain.exponentialRampToValueAtTime(0.0001, t + cfg.crackDur);
+    c.connect(hp); hp.connect(cg); cg.connect(out);
+    c.start(t); c.stop(t + cfg.crackDur + 0.05);
+    // ② Thump：低频压力波（正弦快速下滑）
+    var o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(cfg.thumpHz, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, cfg.thumpHz * 0.25), t + cfg.thumpDur);
+    var og = AC.createGain();
+    og.gain.setValueAtTime(cfg.thumpVol, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + cfg.thumpDur);
+    o.connect(og); og.connect(out);
+    o.start(t); o.stop(t + cfg.thumpDur + 0.05);
+    // ③ Tail：低通扫频衰减（空间反射尾音）
+    var tl = AC.createBufferSource(); tl.buffer = getWhiteBuf(); tl.playbackRate.value = rnd * 0.9;
+    var lp = AC.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(cfg.tailHz0, t);
+    lp.frequency.exponentialRampToValueAtTime(cfg.tailHz1, t + cfg.tailDur);
+    var tg = AC.createGain();
+    tg.gain.setValueAtTime(0.0001, t);
+    tg.gain.linearRampToValueAtTime(cfg.tailVol, t + 0.01);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + cfg.tailDur);
+    tl.connect(lp); lp.connect(tg); tg.connect(out);
+    tl.start(t); tl.stop(t + cfg.tailDur + 0.1);
+    // ④ 回声（狙击/步枪的远处反射）
+    if (cfg.echo) {
+      for (var e = 0; e < cfg.echo.length; e++) {
+        var ec = AC.createBufferSource(); ec.buffer = getWhiteBuf(); ec.playbackRate.value = rnd;
+        var ebp = AC.createBiquadFilter(); ebp.type = 'bandpass'; ebp.frequency.value = 850 + e * 350; ebp.Q.value = 1.5;
+        var eg = AC.createGain();
+        var dt = cfg.echo[e][0], ev = cfg.echo[e][1];
+        eg.gain.setValueAtTime(0.0001, t + dt);
+        eg.gain.linearRampToValueAtTime(ev, t + dt + 0.01);
+        eg.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.2);
+        ec.connect(ebp); ebp.connect(eg); eg.connect(out);
+        ec.start(t + dt); ec.stop(t + dt + 0.28);
+      }
     }
+  }
+  var SHOT_CFG = {
+    pistol:  { crackHz: 3800, crackDur: 0.03, crackVol: 0.85, thumpHz: 190, thumpDur: 0.09, thumpVol: 0.55, tailHz0: 3200, tailHz1: 400, tailDur: 0.3, tailVol: 0.15 },
+    rifle:   { crackHz: 3200, crackDur: 0.032, crackVol: 0.9, thumpHz: 160, thumpDur: 0.1, thumpVol: 0.6, tailHz0: 3000, tailHz1: 350, tailDur: 0.38, tailVol: 0.18, echo: [[0.13, 0.05]] },
+    shotgun: { crackHz: 1500, crackDur: 0.05, crackVol: 0.85, thumpHz: 95, thumpDur: 0.16, thumpVol: 0.75, tailHz0: 2200, tailHz1: 250, tailDur: 0.42, tailVol: 0.22 },
+    sniper:  { crackHz: 4600, crackDur: 0.045, crackVol: 1.0, thumpHz: 80, thumpDur: 0.22, thumpVol: 0.85, tailHz0: 4200, tailHz1: 300, tailDur: 0.9, tailVol: 0.28, echo: [[0.16, 0.11], [0.36, 0.06]] }
+  };
+  // AT4 发射声：带通扫频 whoosh + 低频 boom
+  function rocketShot() {
+    if (!AC) return;
+    var t = AC.currentTime;
+    var s = AC.createBufferSource(); s.buffer = getWhiteBuf();
+    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(280, t);
+    bp.frequency.exponentialRampToValueAtTime(1400, t + 0.35);
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.65, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    s.connect(bp); bp.connect(g); g.connect(AC.destination);
+    s.start(t); s.stop(t + 0.6);
+    var o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(120, t);
+    o.frequency.exponentialRampToValueAtTime(35, t + 0.3);
+    var og = AC.createGain();
+    og.gain.setValueAtTime(0.65, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    o.connect(og); og.connect(AC.destination);
+    o.start(t); o.stop(t + 0.4);
+  }
+  // 喷火器：持续宽带呼呼火焰声 + 低频燃气轰鸣
+  function flameShot() {
+    if (!AC) return;
+    var t = AC.currentTime;
+    var s = AC.createBufferSource(); s.buffer = getWhiteBuf();
+    var lp = AC.createBiquadFilter(); lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(750, t);
+    lp.frequency.linearRampToValueAtTime(520, t + 0.25);
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    s.connect(lp); lp.connect(g); g.connect(AC.destination);
+    s.start(t); s.stop(t + 0.32);
+    var o = AC.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(58, t);
+    var og = AC.createGain();
+    og.gain.setValueAtTime(0.18, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.connect(og); og.connect(AC.destination);
+    o.start(t); o.stop(t + 0.3);
+  }
+  function shotSound(type) {
+    if (type === 'flamethrower') { flameShot(); return; }
+    if (type === 'rocket') { rocketShot(); return; }
+    gunShot(SHOT_CFG[type] || SHOT_CFG.pistol);
   }
   var sfx = {
     playShot: function (type) { shotSound(type); },
     playHit: function () { tone(880, 0.07, 0.2, 'square', 440); },
     playHeadshot: function () { tone(1200, 0.08, 0.25, 'square', 600); },
     playDeath: function () { tone(300, 0.5, 0.3, 'sawtooth', 60); },
-    playEnemyShot: function () { noiseBurst(0.08, 0.2, 900); },
+    playEnemyShot: function () { gunShot({ crackHz: 2600, crackDur: 0.03, crackVol: 0.26, thumpHz: 150, thumpDur: 0.09, thumpVol: 0.18, tailHz0: 2200, tailHz1: 300, tailDur: 0.3, tailVol: 0.05 }); },
     playRocket: function () { noiseBurst(0.35, 0.6, 700); tone(120, 0.3, 0.3, 'sawtooth', 55); },
     playPickup: function () { tone(660, 0.08, 0.2, 'sine'); setTimeout(function () { tone(990, 0.12, 0.2, 'sine'); }, 80); },
     playReload: function () { tone(200, 0.06, 0.15, 'square'); setTimeout(function () { tone(260, 0.06, 0.15, 'square'); }, 120); },
