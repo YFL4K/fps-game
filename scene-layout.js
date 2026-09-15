@@ -279,6 +279,35 @@
       kind: 'gatling'
     });
 
+    // ---- v11.1 瞭望塔：每关 / 无尽随机 1 座，可攀爬（台阶碰撞体）+ 不可破坏 ----
+    (function placeTower() {
+      var tx = 0, tz = 0, ok = false;
+      for (var t = 0; t < 40; t++) {
+        tx = rand(-34, 34); tz = rand(-34, 34);
+        if (Math.sqrt(tx * tx + (tz - 14) * (tz - 14)) < 12) continue;   // 远离出生点
+        var clash = false;
+        for (var bi = 0; bi < buildings.length; bi++) {
+          var b = buildings[bi];
+          if (Math.abs(tx - b.x) < b.w / 2 + 4 && Math.abs(tz - b.z) < b.d / 2 + 4) { clash = true; break; }
+        }
+        if (clash) continue;
+        ok = true; break;
+      }
+      if (!ok) return;
+      var PH = 3.36;   // 平台顶面高度，需与 watchtower.js 一致
+      entities.push({ id: nextId('tower'), model: 'watchtower',
+        position: [tx, 0, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, destructible: false });
+      var N = 12;      // 12 级台阶，每级升高 0.28（≤0.38 可逐级踩踏）
+      for (var s = 0; s < N; s++) {
+        entities.push({ id: nextId('towerstep'), model: 'step',
+          position: [tx, 0.14 + s * 0.28, tz + 1.0 + (N - 1 - s) * 0.55], rotation: [0, 0, 0], scale: [2, 1, 1],
+          collision: true, destructible: false, color: 0x7a5230 });
+      }
+      entities.push({ id: nextId('towerplat'), model: 'step',
+        position: [tx, PH - 0.14, tz - 0.2], rotation: [0, 0, 0], scale: [2.6, 1, 2.6],
+        collision: true, destructible: false, color: 0x6b4a2f });
+    })();
+
     // ---- 车辆 ----
     for (var vi = 0; vi < randInt(3, 6); vi++) {
       entities.push({

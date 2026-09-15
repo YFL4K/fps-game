@@ -8,11 +8,12 @@
   global.MODELS = global.MODELS || {};
   global.MODELS.step = {
     name: 'step',
-    create: function () {
+    create: function (config) {
       const T = global.THREE;
       const g = new T.Group();
 
-      const mat = new window.MARIO.mat({ color: 0x8d949e});
+      const col = (config && config.color) || 0x8d949e;
+      const mat = new window.MARIO.mat({ color: col });
       const box = new T.Mesh(new T.BoxGeometry(1, 0.28, 1.6), mat);
       box.castShadow = true;
       box.receiveShadow = true;
