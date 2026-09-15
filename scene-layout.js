@@ -294,18 +294,21 @@
         ok = true; break;
       }
       if (!ok) return;
-      var PH = 3.36;   // 平台顶面高度，需与 watchtower.js 一致
+      var PH = 6.72;   // 平台顶面高度（v11.2 增高 2 倍），需与 watchtower.js 一致
       entities.push({ id: nextId('tower'), model: 'watchtower',
         position: [tx, 0, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, destructible: false });
-      var N = 12;      // 12 级台阶，每级升高 0.28（≤0.38 可逐级踩踏）
+      // 螺旋楼梯：24 级绕中心盘旋上升，每级升 0.28；climbOnly=仅可踩踏不被水平推挤
+      var N = 24, SR = 2.0, SD = 24 * Math.PI / 180;
       for (var s = 0; s < N; s++) {
+        var th = s * SD;
         entities.push({ id: nextId('towerstep'), model: 'step',
-          position: [tx, 0.14 + s * 0.28, tz + 1.0 + (N - 1 - s) * 0.55], rotation: [0, 0, 0], scale: [2, 1, 1],
-          collision: true, destructible: false, color: 0x7a5230 });
+          position: [tx + SR * Math.sin(th), 0.14 + s * 0.28, tz + SR * Math.cos(th)],
+          rotation: [0, th, 0], scale: [1.2, 1, 1.0],
+          collision: true, destructible: false, climbOnly: true, color: 0x7a5230 });
       }
       entities.push({ id: nextId('towerplat'), model: 'step',
-        position: [tx, PH - 0.14, tz - 0.2], rotation: [0, 0, 0], scale: [2.6, 1, 2.6],
-        collision: true, destructible: false, color: 0x6b4a2f });
+        position: [tx, PH - 0.14, tz - 0.2], rotation: [0, 0, 0], scale: [2.6, 1, 1.625],
+        collision: true, destructible: false, climbOnly: true, color: 0x6b4a2f });
     })();
 
     // ---- 车辆 ----

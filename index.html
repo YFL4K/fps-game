@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.2</div>
+<div id="versionTag">v11.3</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -204,8 +204,8 @@
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
 <script src="models/pig.js?v=3" onerror="window.__modErr('models/pig.js')"></script>
 <script src="models/trex.js?v=2" onerror="window.__modErr('models/trex.js')"></script>
-<script src="models/watchtower.js?v=1" onerror="window.__modErr('models/watchtower.js')"></script>
-<script src="scene-layout.js?v=93" onerror="window.__modErr('scene-layout.js')"></script>
+<script src="models/watchtower.js?v=2" onerror="window.__modErr('models/watchtower.js')"></script>
+<script src="scene-layout.js?v=94" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
 <script>
@@ -3258,6 +3258,7 @@
     for (var i = 0; i < colliders.length; i++) {
       var rec = colliders[i];
       if (!rec.alive) continue;
+      if (rec.cfg.climbOnly) continue; // v11.2 螺旋楼梯：只做踩踏(pass2)，不做水平推挤，避免上层台阶把玩家弹出
       box.setFromObject(rec.inst);
       var topY = box.max.y;
       if (topY - player.pos.y <= 0.38) continue; // 低台阶：只踩踏不阻挡
