@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.5</div>
+<div id="versionTag">v11.6</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -373,6 +373,11 @@
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = false;   // v10 完全关闭阴影，消除阴影 pass 渲染开销
   if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
+  // v11.6 画面：ACES 电影级色调映射，高光更柔和、色彩更有层次（几乎零开销）
+  if (THREE.ACESFilmicToneMapping !== undefined) {
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+  }
   appEl.appendChild(renderer.domElement);
 
   var scene = new THREE.Scene();
@@ -417,6 +422,10 @@
     }
     if (light) scene.add(light);
   });
+  // v11.6 半球光：天空/地面柔和补光，让圆润模型更有体积感（廉价、无阴影开销）
+  var hemi = new THREE.HemisphereLight(0xbfe3ff, 0x5a4a38, 0.5);
+  hemi.position.set(0, 60, 0);
+  scene.add(hemi);
 
   /* ================= 4. 通用实体系统 ================= */
   var entities = [];
@@ -540,6 +549,16 @@
       rec.inst.userData.laserBeams = null;
     }
     scene.remove(rec.inst);
+    // v11.6 性能：释放该实体独占的几何体/材质，防止反复刷怪/换关导致 GPU 缓冲累积 → 越玩越卡/掉帧
+    rec.inst.traverse(function (o) {
+      if (!o.isMesh) return;
+      if (o.geometry && o.geometry.dispose) o.geometry.dispose();
+      var mm = o.material;
+      if (mm) {
+        if (Array.isArray(mm)) { for (var mi = 0; mi < mm.length; mi++) if (mm[mi] && mm[mi].dispose) mm[mi].dispose(); }
+        else if (mm.dispose) mm.dispose();
+      }
+    });
     rec.alive = false;
   }
 
@@ -689,7 +708,13 @@
   function buildGun(type) {
     if (gunInst) {
       camera.remove(gunInst);
-      if (gunInst.geometry) gunInst.geometry.dispose();
+      // v11.6 切枪时释放旧枪的几何体/材质（Group 无 geometry，之前只 dispose 了 undefined）
+      gunInst.traverse(function (o) {
+        if (!o.isMesh) return;
+        if (o.geometry && o.geometry.dispose) o.geometry.dispose();
+        var mm = o.material;
+        if (mm) { if (Array.isArray(mm)) { for (var i = 0; i < mm.length; i++) if (mm[i] && mm[i].dispose) mm[i].dispose(); } else if (mm.dispose) mm.dispose(); }
+      });
     }
     var gunDef = window.MODELS && window.MODELS.gun;
     if (!gunDef || !gunDef.create) {
@@ -2525,6 +2550,10 @@
       }
       if (light) scene.add(light);
     });
+    // v11.6 半球光（rebuildLights 会先清空所有灯，这里随关卡重建一并补上）
+    var hemi2 = new THREE.HemisphereLight(0xbfe3ff, 0x5a4a38, 0.5);
+    hemi2.position.set(0, 60, 0);
+    scene.add(hemi2);
     
     // 更新雾
     if (layout.world && layout.world.fogColor) {
