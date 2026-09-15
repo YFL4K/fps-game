@@ -27,64 +27,77 @@
       const matEye = new window.MARIO.mat({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.2 });
       const matLeg = new window.MARIO.mat({ color: look.leg});
 
-      // 身体（椭圆形）
-      const body = new T.Mesh(new T.SphereGeometry(0.35, 10, 8), matBody);
-      body.scale.set(1, 0.6, 1.3);
-      body.position.y = 0.25;
-      body.castShadow = true;
+      // ===== v11.1 圆润 + 细节化蜘蛛 =====
+      // 头胸部
+      const body = new T.Mesh(new T.SphereGeometry(0.34, 16, 12), matBody);
+      body.scale.set(1.0, 0.7, 1.15);
+      body.position.set(0, 0.28, 0.05);
       g.add(body);
-
-      // 头部
-      const head = new T.Mesh(new T.SphereGeometry(0.25, 8, 8), matBody);
-      head.position.set(0, 0.3, 0.35);
-      head.castShadow = true;
+      // 头（前部）
+      const head = new T.Mesh(new T.SphereGeometry(0.22, 14, 12), matBody);
+      head.position.set(0, 0.3, 0.42);
       g.add(head);
-
-      // 眼睛（复眼效果）
-      const eyeL = new T.Mesh(new T.SphereGeometry(0.06, 6, 6), matEye);
-      eyeL.position.set(-0.12, 0.38, 0.52);
-      const eyeR = eyeL.clone();
-      eyeR.position.x = 0.12;
-      g.add(eyeL, eyeR);
-
-      // 大颚
-      const jawL = new T.Mesh(new T.ConeGeometry(0.06, 0.18, 6), matDark);
-      jawL.position.set(-0.1, 0.15, 0.45);
-      jawL.rotation.x = 0.3;
-      const jawR = jawL.clone();
-      jawR.position.x = 0.1;
-      g.add(jawL, jawR);
-
-      // 八条腿
+      // 8 眼簇（4 大 4 小，发光红）
+      const eyePos = [
+        [-0.09, 0.36, 0.6, 0.05], [0.09, 0.36, 0.6, 0.05],
+        [-0.15, 0.34, 0.55, 0.035], [0.15, 0.34, 0.55, 0.035],
+        [-0.04, 0.41, 0.6, 0.03], [0.04, 0.41, 0.6, 0.03],
+        [-0.11, 0.4, 0.55, 0.028], [0.11, 0.4, 0.55, 0.028]
+      ];
+      for (var ei = 0; ei < eyePos.length; ei++) {
+        var ep = eyePos[ei];
+        var em = new T.Mesh(new T.SphereGeometry(ep[3], 8, 6), matEye);
+        em.position.set(ep[0], ep[1], ep[2]);
+        g.add(em);
+      }
+      // 大颚（螯肢，向下前弯）
+      function fang(side) {
+        var grp = new T.Group();
+        var f1 = new T.Mesh(new T.CylinderGeometry(0.03, 0.04, 0.14, 8), matDark);
+        f1.position.y = -0.05; grp.add(f1);
+        var f2 = new T.Mesh(new T.ConeGeometry(0.035, 0.16, 8), matDark);
+        f2.position.set(side * 0.01, -0.16, 0.03); f2.rotation.x = 0.6; grp.add(f2);
+        grp.position.set(side * 0.09, 0.2, 0.56); grp.rotation.z = side * 0.2;
+        return grp;
+      }
+      g.add(fang(-1), fang(1));
+      // 八条腿（两段带膝 + 爪），粗壮、关节分明
       var legPivots = [];
       for (var side = -1; side <= 1; side += 2) {
         for (var i = 0; i < 4; i++) {
           var pivot = new T.Group();
-          pivot.position.set(side * 0.3, 0.15, -0.15 + i * 0.15);
-          var legSeg1 = new T.Mesh(new T.CylinderGeometry(0.025, 0.02, 0.25, 6), matLeg);
-          legSeg1.position.y = -0.12;
-          legSeg1.rotation.z = side * 0.4;
-          pivot.add(legSeg1);
-          var legSeg2 = new T.Mesh(new T.CylinderGeometry(0.02, 0.015, 0.22, 6), matLeg);
-          legSeg2.position.set(side * 0.12, -0.3, 0);
-          legSeg2.rotation.z = side * 0.3;
-          pivot.add(legSeg2);
-          var claw = new T.Mesh(new T.SphereGeometry(0.035, 6, 6), matDark);
-          claw.position.set(side * 0.22, -0.38, 0);
-          pivot.add(claw);
+          pivot.position.set(side * 0.28, 0.26, -0.18 + i * 0.16);
+          var femur = new T.Mesh(new T.CylinderGeometry(0.035, 0.03, 0.3, 8), matLeg);
+          femur.position.set(side * 0.12, 0.06, 0); femur.rotation.z = side * 0.9; pivot.add(femur);
+          var tibia = new T.Mesh(new T.CylinderGeometry(0.028, 0.018, 0.34, 8), matLeg);
+          tibia.position.set(side * 0.3, -0.12, 0); tibia.rotation.z = side * 0.5; pivot.add(tibia);
+          var claw = new T.Mesh(new T.SphereGeometry(0.03, 6, 5), matDark);
+          claw.position.set(side * 0.4, -0.28, 0); pivot.add(claw);
           g.add(pivot);
           legPivots.push(pivot);
         }
       }
-
-      // 毒囊（腹部末端）
-      const poisonSac = new T.Mesh(
-        new T.SphereGeometry(0.18, 8, 8),
-        new window.MARIO.mat({ color: 0x8800ff, emissive: 0x440088, emissiveIntensity: 0.5 })
+      // 膨大腹部 + 发光毒囊 + 斑纹
+      const abdomen = new T.Mesh(new T.SphereGeometry(0.4, 18, 14), matBody);
+      abdomen.scale.set(1.0, 0.85, 1.15);
+      abdomen.position.set(0, 0.32, -0.42);
+      g.add(abdomen);
+      const sac = new T.Mesh(
+        new T.SphereGeometry(0.2, 12, 10),
+        new window.MARIO.mat({ color: 0x8800ff, emissive: 0x6600cc, emissiveIntensity: 0.8 })
       );
-      poisonSac.scale.set(1, 0.7, 1.1);
-      poisonSac.position.set(0, 0.2, -0.4);
-      g.add(poisonSac);
+      sac.scale.set(1, 0.8, 1.1);
+      sac.position.set(0, 0.36, -0.62);
+      g.add(sac);
+      for (var st = 0; st < 2; st++) {
+        var stripe = new T.Mesh(
+          new T.SphereGeometry(0.06, 8, 6),
+          new window.MARIO.mat({ color: 0xbb44ff, emissive: 0x8822cc, emissiveIntensity: 0.6 })
+        );
+        stripe.scale.set(0.6, 0.4, 1.4);
+        stripe.position.set((st ? 0.12 : -0.12), 0.5, -0.42);
+        g.add(stripe);
+      }
 
       const u = {
         kind: 'enemy',

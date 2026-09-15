@@ -52,6 +52,11 @@
       const skinIdx = Math.max(0, Math.min(MECH_SKINS.length - 1, (cfg.bossSkin || 1) - 1));
       const skin = MECH_SKINS[skinIdx];
       const g = new T.Group();
+      var R = global.ROUND;
+      function rb(p, mat, w, h, d, r, x, y, z, rx, ry, rz) { var m = new T.Mesh(R.roundedBox(w, h, d, r), mat); m.position.set(x, y, z); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); p.add(m); return m; }
+      function cap(p, mat, radius, len, x, y, z, rx, ry, rz) { var m = new T.Mesh(R.roundedCyl(radius, radius, len, 12), mat); m.position.set(x, y, z); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); p.add(m); return m; }
+      function sph(p, mat, r, x, y, z, sx, sy, sz) { var m = new T.Mesh(new T.SphereGeometry(r, 16, 12), mat); m.position.set(x, y, z); if (sx !== undefined) m.scale.set(sx, sy, sz); p.add(m); return m; }
+      function cone(p, mat, r, h, seg, x, y, z, rx, ry, rz) { var m = new T.Mesh(new T.ConeGeometry(r, h, seg), mat); m.position.set(x, y, z); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); p.add(m); return m; }
 
       const matBody = new window.MARIO.mat({ color: isMech ? skin.main : look.body});
       const matDark = new window.MARIO.mat({ color: isMech ? skin.dark : look.dark});
@@ -159,121 +164,88 @@
         g.add(gunPivot);
         muzzleLocal = new T.Vector3(0, 1.75, 1.55);
       } else {
-      // ---- 躯干（怪物更宽更高） ----
-      const torso = new T.Mesh(
-        new T.BoxGeometry(isMonster ? 0.95 : 0.7, isMonster ? 1.05 : 0.9, isMonster ? 0.6 : 0.45),
-        matBody
-      );
-      torso.position.y = isMonster ? 1.32 : 1.25;
-      torso.castShadow = true;
-      g.add(torso);
+      // ===== v11.1 圆润 + 差异化人形（人类士兵 / 怪物 / 旧版BOSS）=====
+      var helmetMat = new window.MARIO.mat({ color: 0x2b3550 });
+      var armorMat = new window.MARIO.mat({ color: 0x33405e });
+      var skinMat = new window.MARIO.mat({ color: isMonster ? 0x8a4a6a : 0xc9a07a });
+      var bootMat = new window.MARIO.mat({ color: 0x14161a });
+      var hornMat = new window.MARIO.mat({ color: 0xd8d8e0 });
 
-      // ---- 头（怪物更大） ----
-      const head = new T.Mesh(
-        new T.BoxGeometry(isMonster ? 0.56 : 0.4, isMonster ? 0.5 : 0.4, isMonster ? 0.52 : 0.4),
-        matDark
-      );
-      head.position.y = isMonster ? 2.08 : 1.9;
-      head.castShadow = true;
-      g.add(head);
-
-      // ---- 眼睛 ----
-      const eyeSize = isMonster ? 0.13 : 0.09;
-      const eyeL = new T.Mesh(new T.BoxGeometry(eyeSize, eyeSize * 0.75, 0.035), matEye);
-      eyeL.position.set(-0.12, (isMonster ? 2.1 : 1.93), (isMonster ? 0.27 : 0.21));
-      const eyeR = eyeL.clone();
-      eyeR.position.x = 0.12;
-      g.add(eyeL, eyeR);
-
-      // ---- BOSS 专属：犄角 + 肩甲 ----
-      if (isBoss) {
-        const hornMat = new window.MARIO.mat({ color: 0xd8d8e0});
-        const h1 = new T.Mesh(new T.ConeGeometry(0.12, 0.55, 8), hornMat);
-        h1.position.set(-0.2, 2.32, 0.02);
-        h1.rotation.z = 0.5;
-        const h2 = h1.clone();
-        h2.position.x = 0.2;
-        h2.rotation.z = -0.5;
-        g.add(h1, h2);
-
-        const shoulder = new T.Mesh(new T.BoxGeometry(1.55, 0.36, 0.72), matDark);
-        shoulder.position.y = 1.88;
-        shoulder.castShadow = true;
-        g.add(shoulder);
-      }
-
-      // ---- 双臂（怪物前伸，人类/BOSS 持枪姿势） ----
-      const armLen = isMonster ? 0.72 : 0.62;
-      const armW = isMonster ? 0.17 : 0.12;
-      const armBase = isMonster ? -0.55 : -0.42;
-      const armRotX = isMonster ? -0.5 : -1.15;
-
-      armPivotL = new T.Group();
-      armPivotL.position.set(-armBase, 1.6, 0.05);
-      armPivotL.rotation.x = armRotX;
-      armPivotL.rotation.y = 0.18;
-      const armL = new T.Mesh(new T.BoxGeometry(armW, armLen, armW), matDark);
-      armL.position.y = -armLen / 2;
-      armL.castShadow = true;
-      armPivotL.add(armL);
-      g.add(armPivotL);
-
-      armPivotR = new T.Group();
-      armPivotR.position.set(armBase, 1.6, 0.05);
-      armPivotR.rotation.x = armRotX;
-      armPivotR.rotation.y = -0.18;
-      const armR = new T.Mesh(new T.BoxGeometry(armW, armLen, armW), matDark);
-      armR.position.y = -armLen / 2;
-      armR.castShadow = true;
-      armPivotR.add(armR);
-      g.add(armPivotR);
-
-      // 怪物巨掌
       if (isMonster) {
-        const palmL = new T.Mesh(new T.BoxGeometry(0.32, 0.24, 0.32), matBody);
-        palmL.position.y = -armLen - 0.07;
-        armPivotL.add(palmL);
-        const palmR = new T.Mesh(new T.BoxGeometry(0.32, 0.24, 0.32), matBody);
-        palmR.position.y = -armLen - 0.07;
-        armPivotR.add(palmR);
+        // 怪物：弓背巨躯 + 小头 + 巨臂巨拳 + 肩背尖刺（与士兵轮廓明显不同）
+        rb(g, matBody, 0.95, 0.9, 0.66, 0.3, 0, 1.32, 0, -0.12, 0, 0);
+        sph(g, matBody, 0.5, 0, 1.32, 0.16, 1.1, 0.9, 1.0);
+        sph(g, matDark, 0.42, 0, 0.98, 0.0, 1.15, 0.7, 1.0);
+        for (var ms = -1; ms <= 1; ms += 2) {
+          sph(g, matDark, 0.3, ms * 0.62, 1.62, 0);
+          for (var k = 0; k < 3; k++) cone(g, matDark, 0.07, 0.32, 6, ms * 0.62 + (k - 1) * 0.16, 1.86, 0, -0.2, 0, ms * 0.2);
+        }
+        for (var bs = 0; bs < 4; bs++) cone(g, matDark, 0.08, 0.34, 6, 0, 1.55, -0.28 - bs * 0.18, -0.6, 0, 0);
+        sph(g, matBody, 0.26, 0, 1.95, 0.16);
+        rb(g, matDark, 0.3, 0.16, 0.24, 0.06, 0, 1.82, 0.34);
+        cone(g, matDark, 0.06, 0.34, 6, -0.16, 2.12, 0.12, -0.4, 0, -0.4);
+        cone(g, matDark, 0.06, 0.34, 6, 0.16, 2.12, 0.12, -0.4, 0, 0.4);
+        sph(g, matEye, 0.06, -0.1, 1.98, 0.36);
+        sph(g, matEye, 0.06, 0.1, 1.98, 0.36);
+        armPivotL = new T.Group(); armPivotL.position.set(-0.55, 1.55, 0.1); armPivotL.rotation.x = -0.6;
+        cap(armPivotL, matBody, 0.17, 0.6, 0, -0.3, 0);
+        sph(armPivotL, matDark, 0.26, 0, -0.66, 0);
+        g.add(armPivotL);
+        armPivotR = new T.Group(); armPivotR.position.set(0.55, 1.55, 0.1); armPivotR.rotation.x = -0.6;
+        cap(armPivotR, matBody, 0.17, 0.6, 0, -0.3, 0);
+        sph(armPivotR, matDark, 0.26, 0, -0.66, 0);
+        g.add(armPivotR);
+        legPivotL = new T.Group(); legPivotL.position.set(-0.26, 0.85, 0);
+        cap(legPivotL, matDark, 0.16, 0.6, 0, -0.32, 0);
+        rb(legPivotL, bootMat, 0.26, 0.16, 0.4, 0.06, 0, -0.66, 0.08);
+        g.add(legPivotL);
+        legPivotR = new T.Group(); legPivotR.position.set(0.26, 0.85, 0);
+        cap(legPivotR, matDark, 0.16, 0.6, 0, -0.32, 0);
+        rb(legPivotR, bootMat, 0.26, 0.16, 0.4, 0.06, 0, -0.66, 0.08);
+        g.add(legPivotR);
+        gunPivot = new T.Group(); gunPivot.position.set(0, 1.42, 0.6); g.add(gunPivot);
+      } else {
+        // 人类士兵 / 旧版BOSS：圆润军姿 + 头盔 + 战术背心 + 背包 + 步枪
+        var sc = isBoss ? 1.15 : 1.0;
+        rb(g, matBody, 0.6 * sc, 0.72 * sc, 0.42 * sc, 0.14, 0, 1.25, 0);
+        rb(g, armorMat, 0.5 * sc, 0.42 * sc, 0.12, 0.06, 0, 1.32, 0.24);
+        rb(g, armorMat, 0.44 * sc, 0.36 * sc, 0.1, 0.05, 0, 1.2, -0.26);
+        sph(g, matDark, 0.15 * sc, -0.34 * sc, 1.52, 0);
+        sph(g, matDark, 0.15 * sc, 0.34 * sc, 1.52, 0);
+        sph(g, skinMat, 0.17, 0, 1.9, 0.02);
+        sph(g, helmetMat, 0.21, 0, 1.99, 0.0, 1.0, 0.82, 1.05);
+        rb(g, helmetMat, 0.42, 0.05, 0.44, 0.02, 0, 1.94, 0.0);
+        rb(g, matDark, 0.3, 0.06, 0.06, 0.02, 0, 1.99, -0.19);
+        sph(g, matEye, 0.045, -0.07, 1.9, 0.16);
+        sph(g, matEye, 0.045, 0.07, 1.9, 0.16);
+        if (isBoss) {
+          cone(g, hornMat, 0.08, 0.4, 8, -0.16, 2.16, 0.0, -0.3, 0, -0.5);
+          cone(g, hornMat, 0.08, 0.4, 8, 0.16, 2.16, 0.0, -0.3, 0, 0.5);
+          rb(g, matDark, 1.5, 0.3, 0.7, 0.12, 0, 1.6, 0);
+        }
+        armPivotL = new T.Group(); armPivotL.position.set(-0.32, 1.5, 0.05); armPivotL.rotation.x = -1.15; armPivotL.rotation.y = 0.18;
+        cap(armPivotL, matDark, 0.09, 0.5, 0, -0.25, 0);
+        sph(armPivotL, matHand, 0.1, 0, -0.52, 0);
+        g.add(armPivotL);
+        armPivotR = new T.Group(); armPivotR.position.set(0.32, 1.5, 0.05); armPivotR.rotation.x = -1.15; armPivotR.rotation.y = -0.18;
+        cap(armPivotR, matDark, 0.09, 0.5, 0, -0.25, 0);
+        sph(armPivotR, matHand, 0.1, 0, -0.52, 0);
+        g.add(armPivotR);
+        gunPivot = new T.Group(); gunPivot.position.set(0, 1.42, 0.6);
+        rb(gunPivot, matGun, 0.09, 0.13, 0.5, 0.03, 0, 0, -0.05);
+        var gbar = new T.Mesh(R.cylZ(0.025, 0.025, 0.35, 10), matGun); gbar.position.set(0, 0.02, -0.42); gunPivot.add(gbar);
+        rb(gunPivot, matGun, 0.06, 0.16, 0.08, 0.02, 0, -0.12, 0.02);
+        var gtip = new T.Mesh(new T.SphereGeometry(0.04, 8, 6), new window.MARIO.basic({ color: 0xff8844 })); gtip.position.set(0, 0.02, -0.6); gunPivot.add(gtip);
+        g.add(gunPivot);
+        legPivotL = new T.Group(); legPivotL.position.set(-0.16, 0.85, 0);
+        cap(legPivotL, matDark, 0.11, 0.62, 0, -0.32, 0);
+        rb(legPivotL, bootMat, 0.18, 0.14, 0.32, 0.05, 0, -0.66, 0.06);
+        g.add(legPivotL);
+        legPivotR = new T.Group(); legPivotR.position.set(0.16, 0.85, 0);
+        cap(legPivotR, matDark, 0.11, 0.62, 0, -0.32, 0);
+        rb(legPivotR, bootMat, 0.18, 0.14, 0.32, 0.05, 0, -0.66, 0.06);
+        g.add(legPivotR);
       }
-
-      // ---- 枪（人类 / BOSS 才有） ----
-      gunPivot = new T.Group();
-      gunPivot.position.set(0, 1.42, 0.6);
-      if (!isMonster) {
-        const gun = new T.Mesh(new T.BoxGeometry(0.1, 0.14, 0.7), matGun);
-        gun.castShadow = true;
-        gunPivot.add(gun);
-        const tip = new T.Mesh(new T.SphereGeometry(0.05, 6, 6), new window.MARIO.basic({ color: 0xff8844 }));
-        tip.position.z = 0.36;
-        gunPivot.add(tip);
-        const handL = new T.Mesh(new T.BoxGeometry(0.14, 0.14, 0.16), matHand);
-        handL.position.set(-0.12, -0.04, 0.06);
-        gunPivot.add(handL);
-        const handR = new T.Mesh(new T.BoxGeometry(0.14, 0.14, 0.16), matHand);
-        handR.position.set(0.12, -0.04, -0.16);
-        gunPivot.add(handR);
-      }
-      g.add(gunPivot);
-
-      // ---- 腿 ----
-      const legH = 0.85;
-      legPivotL = new T.Group();
-      legPivotL.position.set(-0.2, 0.85, 0);
-      const legL = new T.Mesh(new T.BoxGeometry(0.16, legH, 0.18), matDark);
-      legL.position.y = -legH / 2;
-      legL.castShadow = true;
-      legPivotL.add(legL);
-      g.add(legPivotL);
-
-      legPivotR = new T.Group();
-      legPivotR.position.set(0.2, 0.85, 0);
-      const legR = new T.Mesh(new T.BoxGeometry(0.16, legH, 0.18), matDark);
-      legR.position.y = -legH / 2;
-      legR.castShadow = true;
-      legPivotR.add(legR);
-      g.add(legPivotR);
       }  // end humanoid (非机甲) body
 
       // ---- 运行时状态 ----

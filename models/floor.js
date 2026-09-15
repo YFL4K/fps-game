@@ -37,7 +37,8 @@
 
       const plane = new T.Mesh(
         new T.PlaneGeometry(40, 40),
-        new window.MARIO.mat({ map: tex})
+        // v11.1 地面改哑光 Lambert：无高光反射，消除灯光在地面的反光（减少 ~90%+）
+        new T.MeshLambertMaterial({ map: tex })
       );
       plane.rotation.x = -Math.PI / 2;
       plane.receiveShadow = true;

@@ -120,7 +120,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.0</div>
+<div id="versionTag">v11.1</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -166,7 +166,7 @@
 <script src="three.min.js" onerror="window.__modErr('three.min.js')"></script>
 <script src="models/_mario.js?v=106" onerror="window.__modErr('models/_mario.js')"></script>
 <script src="models/round.js?v=1" onerror="window.__modErr('models/round.js')"></script>
-<script src="models/floor.js" onerror="window.__modErr('models/floor.js')"></script>
+<script src="models/floor.js?v=2" onerror="window.__modErr('models/floor.js')"></script>
 <script src="models/wall.js" onerror="window.__modErr('models/wall.js')"></script>
 <script src="models/crate.js" onerror="window.__modErr('models/crate.js')"></script>
 <script src="models/obstacle.js" onerror="window.__modErr('models/obstacle.js')"></script>
@@ -183,15 +183,15 @@
 <script src="models/barrel.js" onerror="window.__modErr('models/barrel.js')"></script>
 <script src="models/tnt.js" onerror="window.__modErr('models/tnt.js')"></script>
 <script src="models/chest.js" onerror="window.__modErr('models/chest.js')"></script>
-<script src="models/helicopter.js" onerror="window.__modErr('models/helicopter.js')"></script>
-<script src="models/enemy.js" onerror="window.__modErr('models/enemy.js')"></script>
+<script src="models/helicopter.js?v=2" onerror="window.__modErr('models/helicopter.js')"></script>
+<script src="models/enemy.js?v=2" onerror="window.__modErr('models/enemy.js')"></script>
 <script src="models/gun.js?v=93" onerror="window.__modErr('models/gun.js')"></script>
 <script src="models/mountain-scenery.js" onerror="window.__modErr('models/mountain-scenery.js')"></script>
 <script src="models/truck.js" onerror="window.__modErr('models/truck.js')"></script>
 <script src="models/plane.js" onerror="window.__modErr('models/plane.js')"></script>
 <script src="models/container.js" onerror="window.__modErr('models/container.js')"></script>
 <script src="models/pot.js" onerror="window.__modErr('models/pot.js')"></script>
-<script src="models/spider.js" onerror="window.__modErr('models/spider.js')"></script>
+<script src="models/spider.js?v=2" onerror="window.__modErr('models/spider.js')"></script>
 <script src="models/bigtree.js" onerror="window.__modErr('models/bigtree.js')"></script>
 <script src="models/highwall.js" onerror="window.__modErr('models/highwall.js')"></script>
 <script src="models/ferriswheel.js" onerror="window.__modErr('models/ferriswheel.js')"></script>
@@ -202,7 +202,7 @@
 <script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
 <script src="models/shield.js" onerror="window.__modErr('models/shield.js')"></script>
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
-<script src="models/pig.js?v=2" onerror="window.__modErr('models/pig.js')"></script>
+<script src="models/pig.js?v=3" onerror="window.__modErr('models/pig.js')"></script>
 <script src="models/trex.js" onerror="window.__modErr('models/trex.js')"></script>
 <script src="scene-layout.js?v=92" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
@@ -373,9 +373,18 @@
   scene.fog = new THREE.Fog(WORLD.fogColor || 0x8fa3bf, WORLD.fogNear || 30, WORLD.fogFar || 140);
   scene.background = new THREE.Color(0x8fa3bf);
 
+  // v11.1 枪械独立渲染场景：主场景渲染后 clearDepth 再渲染 gunScene，
+  // 使枪械永远浮于场景之上（不被墙/箱遮挡残缺），同时枪械各部件之间用
+  // 正常深度测试正确互相遮挡（修复枪管与枪身之间的透视穿模）。
+  var gunScene = new THREE.Scene();
+  gunScene.add(new THREE.AmbientLight(0x8899bb, 0.85));
+  var gunDir = new THREE.DirectionalLight(0xfff0dd, 1.35);
+  gunDir.position.set(12, 25, 8);
+  gunScene.add(gunDir);
+
   var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
   camera.rotation.order = 'YXZ';
-  scene.add(camera);
+  gunScene.add(camera);
 
   /* ================= 3. 灯光（光影效果） ================= */
   (LAYOUT.lights || []).forEach(function (lc) {
@@ -682,15 +691,12 @@
       return;
     }
     gunInst = gunDef.create({ type: type || player.gun });
-    // v8.0 修复枪械残缺（常规/瞄准都正常）：枪挂在相机下，必须
-    //  ① frustumCulled=false —— 避免相机移动时枪模被误视锥剔除
-    //  ② material.depthTest=false —— 避免被近处场景物体(墙/箱子/地面)深度遮挡导致残缺
-    //  ③ renderOrder=999 —— 最后渲染，永远显示在最前
+    // v11.1 枪械渲染：枪挂在相机下并放入独立 gunScene，主场景之后 clearDepth 再渲染，
+    // 因此枪械浮于场景之上（不残缺），且各部件 depthTest=true 正确互相遮挡（修复穿模）。
     gunInst.traverse(function (o) {
       o.userData.noHit = true;
       o.frustumCulled = false;
-      o.renderOrder = 999;
-      if (o.isMesh && o.material) o.material.depthTest = false;
+      if (o.isMesh && o.material) o.material.depthTest = true;
     });
     camera.add(gunInst);
     gunInst.position.copy(gunInst.userData.basePos);
@@ -3758,7 +3764,14 @@
       }
       updateCamera(dt);
       updateHud(dt);
+      camera.updateMatrixWorld();   // v11.1 相机已移入 gunScene，主场景渲染前手动刷新其世界矩阵
       renderer.render(scene, camera);
+      // v11.1 枪械第二遍渲染：清深度后单独绘制 gunScene（枪），
+      // 保证枪永远在最前且自身部件正确遮挡。
+      renderer.autoClear = false;
+      renderer.clearDepth();
+      renderer.render(gunScene, camera);
+      renderer.autoClear = true;
     } catch (e) {
       showError('主循环错误: ' + e.message);
     }
@@ -4594,9 +4607,9 @@
       out.ok = out.inVisible === false && out.mainExpr === false && out.outVisible === true;
       return out;
     };
-    // v8.0 枪模残缺修复验证：残缺的真正根因是「未关 depthTest/frustumCulled + 未设 renderOrder」，
-    //  导致枪被近处场景物体遮挡或被视锥剔除误裁。故验证三件事：
-    //  ① 三件套齐备（depthTest=false / frustumCulled=false / renderOrder=999）
+    // v11.1 枪模渲染验证：枪移入独立 gunScene，主场景后 clearDepth 二次渲染，
+    //  故枪械各部件 depthTest=true（正确自遮挡、修复枪管/枪身穿模）且不被场景遮挡。验证：
+    //  ① depthTest=true + frustumCulled=false（各部件）
     //  ② 所有部件在相机前方（z<0，枪托不翻转残缺）
     //  ③ 常规 hip（FOV75）下 NDC 完整（枪整体落在视锥内）
     //  注：瞄准 aim（小 FOV）时枪模下移/放大、部分出屏是正常 ADS 表现（狙击开镜更是直接隐藏枪模），
@@ -4633,15 +4646,14 @@
         gi.traverse(function (o) {
           if (!o.isMesh) return;
           kit.mesh++;
-          if (o.material && o.material.depthTest === false) kit.depthTest++;
+          if (o.material && o.material.depthTest === true) kit.depthTest++;
           if (o.frustumCulled === false) kit.frustum++;
-          if (o.renderOrder >= 999) kit.renderOrder++;
         });
         camera.fov = 75; camera.updateProjectionMatrix();
         var hip = __gunNDC(gi);
         camera.fov = aimFovs[types[t]] || 50; camera.updateProjectionMatrix();
         var aim = __gunNDC(gi);
-        var kitOk = kit.depthTest === kit.mesh && kit.frustum === kit.mesh && kit.renderOrder === kit.mesh;
+        var kitOk = kit.depthTest === kit.mesh && kit.frustum === kit.mesh;
         var hipOk = hip.bad === 0;
         var aimOk = aim.behind === 0;
         out.types[types[t]] = { hip: { bad: hip.bad, firstBad: hip.firstBad }, aim: { behind: aim.behind, bad: aim.bad }, kit: kit };

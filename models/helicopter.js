@@ -1,17 +1,28 @@
 /**
- * helicopter.js — 空中直升机（程序化，随机出现攻击玩家）
+ * helicopter.js — 空中直升机（v11.1 按真实武装直升机外观重做）
  * 注册: window.MODELS.helicopter
  *
- * 行为：
- *   - 高空悬停，围绕玩家做缓慢轨道飞行
- *   - 周期性从机腹炮向玩家发射导弹（伤害高、速度慢、轨迹明显）
- *   - 被玩家击中 → 坠毁爆炸 → ctx.onHelicopterKilled(pos)（主程序负责掉落火箭筒）
- *
- * config: health / damage / shootCooldown / speed / hoverY
- * 死亡通过 inst.userData.respawnReady 通知主程序移除（cfg.respawn = 0 → 不重生）
+ * 造型：圆润机身(大倒角) + 气泡式座舱罩 + 机鼻光电转塔 + 顶部发动机舱 +
+ *   锥形尾梁 + 垂直尾翼 + 侧置尾桨 + 四叶主旋翼(绕竖直轴自旋) + 双滑橇起落架 +
+ *   短翼火箭发射巢 + 机腹机炮。行为/契约不变（悬停轨道/导弹/坠毁/掉落）。
  */
 (function (global) {
   global.MODELS = global.MODELS || {};
+  var R = global.ROUND;
+
+  function rb(g, mat, w, h, d, r, x, y, z, rx, ry, rz) {
+    var m = new global.THREE.Mesh(R.roundedBox(w, h, d, r), mat);
+    m.position.set(x, y, z);
+    if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0);
+    g.add(m);
+    return m;
+  }
+  function tubeZ(g, mat, rt, rbm, len, x, y, z, seg) {
+    var m = new global.THREE.Mesh(R.cylZ(rt, rbm, len, seg || 14), mat);
+    m.position.set(x, y, z);
+    g.add(m);
+    return m;
+  }
 
   global.MODELS.helicopter = {
     name: 'helicopter',
@@ -21,76 +32,112 @@
       const cfg = config || {};
       const g = new T.Group();
 
-      const bodyMat = new window.MARIO.mat({ color: 0x3a4a3a});
-      const glassMat = new window.MARIO.mat({
-        color: 0x1b2b3a,
-        emissive: 0x081822, emissiveIntensity: 0.55
-      });
-      const darkMat = new window.MARIO.mat({ color: 0x14161a});
-      const redMat = new window.MARIO.mat({
-        color: 0xc0392b, emissive: 0x6a1010, emissiveIntensity: 0.6,
-      });
+      const bodyMat = new T.MeshStandardMaterial({ color: 0x39422f, roughness: 0.6, metalness: 0.25 }); // 军绿机身
+      const panelMat = new T.MeshStandardMaterial({ color: 0x2a3122, roughness: 0.7, metalness: 0.2 });
+      const glassMat = new T.MeshStandardMaterial({ color: 0x1b2b3a, transparent: true, opacity: 0.55, roughness: 0.15, metalness: 0.1, emissive: 0x081822, emissiveIntensity: 0.5 });
+      const darkMat = new T.MeshStandardMaterial({ color: 0x14161a, roughness: 0.6, metalness: 0.3 });
+      const redMat = new T.MeshStandardMaterial({ color: 0xc0392b, emissive: 0x6a1010, emissiveIntensity: 0.6, roughness: 0.5 });
+      const steelMat = new T.MeshStandardMaterial({ color: 0x6e7883, roughness: 0.4, metalness: 0.6 });
 
-      // 机身
-      const fuselage = new T.Mesh(new T.BoxGeometry(1.0, 0.8, 2.6), bodyMat);
-      fuselage.castShadow = true;
-      g.add(fuselage);
+      // 机身（大倒角圆角块 = 圆润水滴形）
+      rb(g, bodyMat, 1.15, 0.95, 2.4, 0.42, 0, 0, 0.1);
+      // 机鼻（前部收圆）
+      const nose = new T.Mesh(new T.SphereGeometry(0.5, 18, 14), bodyMat);
+      nose.scale.set(1.05, 0.82, 1.1); nose.position.set(0, -0.02, -1.15); g.add(nose);
+      // 机鼻光电转塔（球形传感器）
+      const turret = new T.Mesh(new T.SphereGeometry(0.2, 14, 12), darkMat);
+      turret.position.set(0, -0.42, -1.15); g.add(turret);
+      const turretGlass = new T.Mesh(new T.SphereGeometry(0.1, 12, 10),
+        new T.MeshBasicMaterial({ color: 0x2266aa }));
+      turretGlass.position.set(0, -0.42, -1.3); g.add(turretGlass);
 
-      // 驾驶舱玻璃
-      const cabin = new T.Mesh(new T.BoxGeometry(0.82, 0.5, 1.05), glassMat);
-      cabin.position.set(0, 0.2, -0.68);
-      g.add(cabin);
+      // 气泡式座舱罩（前上方半球玻璃）
+      const canopy = new T.Mesh(new T.SphereGeometry(0.6, 20, 16), glassMat);
+      canopy.scale.set(1.0, 0.85, 1.25); canopy.position.set(0, 0.28, -0.72); g.add(canopy);
+      // 座舱风框
+      rb(g, darkMat, 0.06, 0.5, 0.06, 0.02, 0, 0.3, -1.1);
 
-      // 尾梁
-      const tail = new T.Mesh(new T.BoxGeometry(0.28, 0.3, 2.0), bodyMat);
-      tail.position.set(0, 0.15, 1.9);
-      g.add(tail);
+      // 顶部发动机舱 + 排气口
+      rb(g, panelMat, 0.7, 0.42, 1.1, 0.16, 0, 0.62, 0.25);
+      const ex1 = new T.Mesh(new T.CylinderGeometry(0.12, 0.14, 0.3, 12), darkMat);
+      ex1.rotation.x = Math.PI / 2; ex1.position.set(0.22, 0.66, 0.85); g.add(ex1);
+      const ex2 = ex1.clone(); ex2.position.x = -0.22; g.add(ex2);
 
-      // 尾翼
-      const fin = new T.Mesh(new T.BoxGeometry(0.1, 0.62, 0.52), redMat);
-      fin.position.set(0, 0.52, 2.68);
-      g.add(fin);
+      // 主旋翼桅杆
+      const mast = new T.Mesh(new T.CylinderGeometry(0.09, 0.12, 0.4, 12), steelMat);
+      mast.position.set(0, 0.95, 0.15); g.add(mast);
 
-      // 尾桨（两片）
-      const tailRotor = new T.Group();
-      tailRotor.position.set(0, 0.46, 2.76);
-      const tr1 = new T.Mesh(new T.BoxGeometry(0.92, 0.05, 0.05), darkMat);
-      const tr2 = new T.Mesh(new T.BoxGeometry(0.05, 0.92, 0.05), darkMat);
-      tailRotor.add(tr1, tr2);
-      g.add(tailRotor);
-
-      // 主旋翼（长条叶片，高速旋转）
+      // 四叶主旋翼（水平面内，绕竖直 Y 轴自旋）
       const mainRotor = new T.Group();
-      mainRotor.position.set(0, 0.62, 0);
-      const bladeMat = new window.MARIO.mat({ color: 0x0d0d0f});
-      const b1 = new T.Mesh(new T.BoxGeometry(6.2, 0.04, 0.22), bladeMat);
-      const b2 = new T.Mesh(new T.BoxGeometry(0.22, 0.04, 6.2), bladeMat);
-      mainRotor.add(b1, b2);
-      // 旋翼毂
-      const hub = new T.Mesh(new T.CylinderGeometry(0.12, 0.14, 0.2, 10), darkMat);
-      hub.position.y = -0.05;
+      mainRotor.position.set(0, 1.12, 0.15);
+      const bladeMat = new T.MeshStandardMaterial({ color: 0x0d0d0f, roughness: 0.6, metalness: 0.2 });
+      const hub = new T.Mesh(new T.CylinderGeometry(0.16, 0.2, 0.14, 14), darkMat);
       mainRotor.add(hub);
+      for (let bi = 0; bi < 4; bi++) {
+        const bl = new T.Mesh(R.roundedBox(7.0, 0.05, 0.26, 0.02), bladeMat);
+        bl.position.set(0, 0, 0);
+        bl.rotation.y = bi * Math.PI / 2;
+        // 桨叶沿长度方向（x）；绕 y 旋转排布四叶
+        const holder = new T.Group();
+        holder.rotation.y = bi * Math.PI / 2;
+        bl.position.x = 3.5;
+        bl.rotation.y = 0;
+        holder.add(bl);
+        mainRotor.add(holder);
+      }
       g.add(mainRotor);
 
-      // 机头灯
-      const lamp = new T.Mesh(
-        new T.SphereGeometry(0.11, 8, 8),
-        new window.MARIO.basic({ color: 0xffe9b0 })
-      );
-      lamp.position.set(0, -0.05, -1.36);
-      g.add(lamp);
+      // 尾梁（锥形，向后上抬）
+      const boom = tubeZ(g, bodyMat, 0.34, 0.16, 2.2, 0, 0.28, 2.35, 14);
+      boom.rotation.x = -0.12;
+      // 垂直尾翼 + 水平安定面
+      rb(g, panelMat, 0.1, 0.72, 0.5, 0.1, 0, 0.72, 3.35, 0, 0, 0);
+      rb(g, panelMat, 0.9, 0.08, 0.4, 0.04, 0, 0.5, 3.3);
+      // 尾桨（侧置，绕 X 轴自旋）
+      const tailRotor = new T.Group();
+      tailRotor.position.set(0.28, 0.78, 3.4);
+      const trHub = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.12, 10), darkMat);
+      trHub.rotation.z = Math.PI / 2; tailRotor.add(trHub);
+      for (let ti = 0; ti < 3; ti++) {
+        const tb = new T.Mesh(R.roundedBox(0.06, 1.0, 0.12, 0.02), bladeMat);
+        const th = new T.Group(); th.rotation.x = ti * Math.PI * 2 / 3; tb.position.y = 0.5; th.add(tb); tailRotor.add(th);
+      }
+      g.add(tailRotor);
 
-      // 机腹攻击炮
-      const gun = new T.Mesh(new T.CylinderGeometry(0.07, 0.07, 0.75, 8), darkMat);
-      gun.rotation.x = Math.PI / 2;
-      gun.position.set(0, -0.44, -0.8);
-      g.add(gun);
-      const gunTip = new T.Mesh(
-        new T.SphereGeometry(0.055, 6, 6),
-        new window.MARIO.basic({ color: 0xff5533 })
-      );
-      gunTip.position.set(0, -0.44, -1.2);
-      g.add(gunTip);
+      // 短翼 + 火箭发射巢（武装直升机特征）
+      function stubWing(side) {
+        const grp = new T.Group();
+        rb(grp, panelMat, 0.9, 0.14, 0.5, 0.06, side * 0.7, 0, 0);
+        const pod = new T.Mesh(new T.CylinderGeometry(0.14, 0.14, 0.7, 12), darkMat);
+        pod.rotation.x = Math.PI / 2; pod.position.set(side * 1.05, -0.12, -0.1); grp.add(pod);
+        for (let ri = 0; ri < 4; ri++) {
+          const rk = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.2, 6), steelMat);
+          rk.rotation.x = Math.PI / 2;
+          const a = ri * Math.PI / 2;
+          rk.position.set(side * 1.05 + Math.cos(a) * 0.08, -0.12 + Math.sin(a) * 0.08, -0.45); grp.add(rk);
+        }
+        return grp;
+      }
+      g.add(stubWing(-1), stubWing(1));
+
+      // 双滑橇起落架
+      function skid(side) {
+        const grp = new T.Group();
+        const rail = tubeZ(grp, steelMat, 0.06, 0.06, 2.4, side * 0.6, -1.05, -0.1, 10);
+        const up = new T.Mesh(R.cylZ(0.05, 0.05, 0.5, 8), steelMat); up.rotation.x = 0.5; up.position.set(side * 0.6, -0.8, -0.7); grp.add(up);
+        const dn = new T.Mesh(R.cylZ(0.05, 0.05, 0.5, 8), steelMat); dn.rotation.x = -0.5; dn.position.set(side * 0.6, -0.8, 0.5); grp.add(dn);
+        return grp;
+      }
+      g.add(skid(-1), skid(1));
+
+      // 机腹机炮（保留原发射锚点位置 ~ (0,-0.44,-1.2)）
+      const gun = tubeZ(g, darkMat, 0.07, 0.07, 0.8, 0, -0.44, -1.0, 10);
+      const gunTip = new T.Mesh(new T.SphereGeometry(0.06, 8, 8), new T.MeshBasicMaterial({ color: 0xff5533 }));
+      gunTip.position.set(0, -0.44, -1.4); g.add(gunTip);
+
+      // 航行灯
+      const navL = new T.Mesh(new T.SphereGeometry(0.06, 8, 8), new T.MeshBasicMaterial({ color: 0xff3333 })); navL.position.set(-0.6, 0.2, 0.1); g.add(navL);
+      const navR = new T.Mesh(new T.SphereGeometry(0.06, 8, 8), new T.MeshBasicMaterial({ color: 0x33ff55 })); navR.position.set(0.6, 0.2, 0.1); g.add(navR);
 
       g.userData = {
         kind: 'helicopter',
@@ -112,7 +159,6 @@
       return g;
     },
 
-    /** 玩家子弹命中；返回 false（直升机没有爆头概念） */
     onHit: function (inst, point, ctx) {
       const u = inst.userData;
       if (u.dead) return false;
@@ -130,7 +176,6 @@
       return false;
     },
 
-    /** 主程序每帧调用 */
     update: function (inst, dt, ctx) {
       const T = global.THREE;
       const u = inst.userData;
@@ -146,9 +191,8 @@
         const dz = b.mesh.position.z - player.pos.z;
         const dy = b.mesh.position.y - player.pos.y;
         if (dx * dx + dz * dz < 1.5 * 1.5 && dy > -0.5 && dy < 2.5) {
-          // 火箭弹命中玩家 → 爆炸伤害
           if (ctx.explode) ctx.explode(b.mesh.position.clone(), 3.5, 600, { nuke: false });
-          if (ctx.hitPlayer) ctx.hitPlayer(u.damage * 0.5);   // 直升机伤害已减半
+          if (ctx.hitPlayer) ctx.hitPlayer(u.damage * 0.5);
           if (ctx.spawnSparks) ctx.spawnSparks(b.mesh.position.clone(), 0xff6633);
           ctx.scene.remove(b.mesh);
           u.projectiles.splice(i, 1);
@@ -167,7 +211,7 @@
         inst.position.y -= dt * 7.5;
         inst.rotation.z += dt * 2.6;
         inst.rotation.x += dt * 1.3;
-        u.mainRotor.rotation.z += dt * 3.5;
+        u.mainRotor.rotation.y += dt * 3.5;
         if (u.deathTimer > 0.45 && !u.exploded) {
           u.exploded = true;
           if (ctx.explode) ctx.explode(inst.position.clone(), 6, 0, { nuke: false });
@@ -185,16 +229,15 @@
       const target = new T.Vector3(tx, ty, tz);
       inst.position.lerp(target, Math.min(1, dt * 0.85));
 
-      // 朝向飞行方向
       const fdx = tx - inst.position.x;
       const fdz = tz - inst.position.z;
       if (fdx * fdx + fdz * fdz > 0.01) inst.rotation.y = Math.atan2(fdx, fdz);
 
-      // 旋翼
-      u.mainRotor.rotation.z += dt * 26;
-      u.tailRotor.rotation.z += dt * 34;
+      // 旋翼：主旋翼绕竖直轴(Y)，尾桨绕侧向轴(X)
+      u.mainRotor.rotation.y += dt * 26;
+      u.tailRotor.rotation.x += dt * 34;
 
-      // ---- 开火：机腹发射火箭弹（命中后爆炸） ----
+      // ---- 开火：机腹发射火箭弹 ----
       u.shootTimer -= dt;
       if (u.shootTimer <= 0 && !player.dead) {
         u.shootTimer = u.shootCooldown;
@@ -211,21 +254,19 @@
         const dist = aim.length();
         aim.normalize();
 
-        // 曳光
         if (ctx.spawnTracer) {
           ctx.spawnTracer(muzzle, muzzle.clone().addScaledVector(aim, Math.min(dist, 18)), 0xff4422);
         }
 
-        // 火箭弹（橙色粗管 + 尾焰）
         const body = new T.Mesh(
           new T.CylinderGeometry(0.11, 0.09, 0.55, 8),
-          new window.MARIO.basic({ color: 0xff5511 })
+          new T.MeshBasicMaterial({ color: 0xff5511 })
         );
         body.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
         body.position.copy(muzzle);
         const flame = new T.Mesh(
           new T.ConeGeometry(0.1, 0.5, 8),
-          new window.MARIO.basic({ color: 0xffcc22 })
+          new T.MeshBasicMaterial({ color: 0xffcc22 })
         );
         flame.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
         flame.position.copy(muzzle).addScaledVector(aim, -0.45);
