@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.10</div>
+<div id="versionTag">v11.11</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -286,7 +286,7 @@
     layoutMissing = true;
     LAYOUT = {
       playerSpawn: { position: [0, 1.6, 12], yaw: 0 },
-      world: { fogColor: 0x8fd4ff, fogNear: 90, fogFar: 340, gravity: -22, playerSpeed: 6, sprintSpeed: 9, jumpSpeed: 8, eyeHeight: 1.6, playerRadius: 0.4, playerHeight: 1.7, maxHealth: 100 },
+      world: { fogColor: 0xdcefff, fogNear: 90, fogFar: 340, gravity: -22, playerSpeed: 6, sprintSpeed: 9, jumpSpeed: 8, eyeHeight: 1.6, playerRadius: 0.4, playerHeight: 1.7, maxHealth: 100 },
       lights: [
         { type: 'ambient', color: 0x8899bb, intensity: 0.6 },
         { type: 'directional', color: 0xfff0dd, intensity: 1.2, position: [12, 25, 8], shadow: true }
@@ -353,6 +353,8 @@
   var waveQueue = [];
   var waveTimer = 1.0;
   var heliTimer = 20;
+  var endlessWaveActive = false;   // v11.11 无尽波次：当前波是否已生成队列
+  var endlessInterWave = 0;        // v11.11 波间安全时间倒计时（秒）
   var heliSpawnedCount = 0;
   var chestSpawnedCount = 0;
   // v6.4 宝箱机制：每关 30% 几率出现宝箱（首杀敌人时在击杀点附近刷出），每关最多 1 个
@@ -2872,12 +2874,85 @@
     return false;
   }
 
+  function startEndlessWave(wave) {
+    endlessWave = wave;
+    var normal = Math.round(20 * Math.pow(1.2, wave - 1));
+    waveQueue = [];
+    for (var i = 0; i < normal; i++) {
+      var t = 'human';
+      if (wave >= 2 && i % 5 === 4) t = 'spider';
+      else if (i % 3 === 1) t = 'monster';
+      waveQueue.push(t);
+    }
+    for (var b = 0; b < wave; b++) waveQueue.push('boss');
+    for (var p = 0; p < wave; p++) waveQueue.push('pig');
+    // 洗牌：让 BOSS / 猪头佳 分散在整波中
+    for (var j = waveQueue.length - 1; j > 0; j--) {
+      var k = Math.floor(Math.random() * (j + 1));
+      var tmp = waveQueue[j]; waveQueue[j] = waveQueue[k]; waveQueue[k] = tmp;
+    }
+    endlessWaveActive = true;
+    waveTimer = 1.0;
+    endlessInterWave = 0;
+    if (sfx) sfx.playLevelUp();
+    showToast('🌊 第 ' + wave + ' 波 — 普通 ' + normal + ' · BOSS ' + wave + ' · 猪头佳 ' + wave, 0x66ccff);
+  }
+
   function updateWaves(dt) {
     if (state !== 'playing') return;
     updateBossMusic();   // v11.7 BOSS/猪头佳在场切狂暴摇滚，离场恢复关卡曲
     var L = getLevel();
 
-    // 波次随机刷怪
+    // ===================== 无尽模式：按 WAVE 刷敌 =====================
+    if (gameMode === 'endless') {
+      if (endlessInterWave > 0) {
+        // 波间 5 秒安全时间，供玩家休整
+        endlessInterWave -= dt;
+        if (endlessInterWave <= 0) startEndlessWave(endlessWave + 1);
+      } else if (!endlessWaveActive) {
+        // 首次进入 → 启动第 1 波
+        startEndlessWave(1);
+      } else if (waveQueue.length > 0) {
+        // 按节奏逐个刷出（boss/pig 受同屏上限约束）
+        waveTimer -= dt;
+        if (waveTimer <= 0) {
+          var t = waveQueue[0];
+          if (t === 'boss') {
+            if (!bossAlive) { waveQueue.shift(); spawnBoss(); }
+          } else if (t === 'pig') {
+            if (!pigAlive) { waveQueue.shift(); spawnPig(); }
+          } else {
+            waveQueue.shift();
+            spawnEnemy(t, randomSpawnPos());
+          }
+          waveTimer = 1.2 + Math.random() * 0.8;
+        }
+      } else {
+        // 本波队列已空 → 等待全部清场后进入安全时间
+        var aliveDyn = 0;
+        for (var di = 0; di < entities.length; di++) {
+          var de = entities[di];
+          if (de.alive && de.cfg && de.cfg.dynamic &&
+              (de.cfg.model === 'enemy' || de.cfg.model === 'spider' || de.cfg.model === 'pig')) aliveDyn++;
+        }
+        if (aliveDyn === 0) {
+          endlessInterWave = 5.0;
+          endlessWaveActive = false;
+          showToast('✅ 第 ' + endlessWave + ' 波清除！5 秒安全时间…', 0x66ff88);
+        }
+      }
+      // 直升机仍随机来袭（提供火箭筒补给）；安全时间内不刷
+      if (endlessInterWave <= 0) {
+        heliTimer -= dt;
+        if (heliTimer <= 0) {
+          if (!helicopterAlive()) spawnHelicopter();
+          heliTimer = 32 + Math.random() * 18;
+        }
+      }
+      return;   // 无尽模式走独立逻辑，跳过下方过关模式波次
+    }
+
+    // ===================== 过关模式：原波次逻辑 =====================
     // 波次随机刷怪 — 当波次耗尽但击杀数未达标时补充新波次
     if (waveQueue.length === 0 && levelKills < L.killTarget) {
       buildWave(L);
@@ -2894,12 +2969,7 @@
       }
     }
 
-    // v7.1 机甲 BOSS 触发：所有关卡+无尽模式统一改为「每击杀 25 名普通敌人随机出现」（见 onEnemyKilled）
-    if (gameMode === 'endless') {
-      if (levelKills >= endlessWave * 25) endlessWave++;
-    }
-
-    // v7.1 直升机随机出现（所有关卡+无尽模式，32~50 秒间隔持续来袭）
+    // v7.1 直升机随机出现（过关模式，32~50 秒间隔持续来袭）
     heliTimer -= dt;
     if (heliTimer <= 0) {
       if (!helicopterAlive()) spawnHelicopter();
@@ -2995,6 +3065,8 @@
       // 无尽模式：每次进入重新随机地图 + 重置波次
       endlessLayout = null;
       endlessWave = 1;
+      endlessWaveActive = false;
+      endlessInterWave = 0;
     }
     currentLayout = getTargetLayout();
     score = 0;
@@ -3066,8 +3138,8 @@
       if (sfx) sfx.playLevelUp();
       return;
     }
-    // v7.1 每击杀 10 名普通敌人 → 猪头佳随机出现（同屏最多 1 只）
-    if ((type === 'human' || type === 'monster' || type === 'spider') && !pigAlive) {
+    // v7.1 每击杀 10 名普通敌人 → 猪头佳随机出现（同屏最多 1 只）；无尽模式改由波次驱动，跳过
+    if (gameMode !== 'endless' && (type === 'human' || type === 'monster' || type === 'spider') && !pigAlive) {
       pigKills++;
       if (pigKills >= 10) {
         pigKills = 0;
@@ -3112,8 +3184,8 @@
     }
     // v7.1 图鉴表掉落：回血 30%
     if (Math.random() < 0.30) spawnHealthDrop(pos);
-    // v7.1 每击杀 25 名普通敌人 → 机甲 BOSS 随机出现（所有关卡+无尽模式，同屏最多 1 只）
-    if ((type === 'human' || type === 'monster' || type === 'spider') && !bossAlive) {
+    // v7.1 每击杀 25 名普通敌人 → 机甲 BOSS 随机出现（过关模式；无尽模式改由波次驱动）
+    if (gameMode !== 'endless' && (type === 'human' || type === 'monster' || type === 'spider') && !bossAlive) {
       bossKills++;
       if (bossKills >= 25) {
         bossKills = 0;
@@ -3816,10 +3888,19 @@
     if (state === 'complete') lines.push('★ 任务完成 — 按 Enter 进入下一关');
     if (state === 'dead') lines.push('GAME OVER');
     if (gameMode === 'endless') {
-      // v6.5 无尽模式 HUD
-      lines.push('无尽模式  「随机战场」  ·  波次 ' + endlessWave);
-      lines.push('任务: 存活到生命耗尽，BOSS 随机出现（15%）');
-      lines.push('击杀 ' + levelKills + (bossAppeared ? (bossAlive ? '  ·  ⚠ 机甲对战中!' : '  ·  BOSS 已击败') : '  ·  等待随机 BOSS…'));
+      // v11.11 无尽模式 HUD：波次 / 安全时间 / 本波剩余
+      lines.push('♾️ 无尽模式  ·  第 ' + endlessWave + ' 波');
+      if (endlessInterWave > 0) {
+        lines.push('⏳ 安全时间 ' + endlessInterWave.toFixed(1) + 's — 休整！');
+      } else {
+        var aliveDyn = 0;
+        for (var di = 0; di < entities.length; di++) {
+          var de = entities[di];
+          if (de.alive && de.cfg && de.cfg.dynamic &&
+              (de.cfg.model === 'enemy' || de.cfg.model === 'spider' || de.cfg.model === 'pig')) aliveDyn++;
+        }
+        lines.push('本波剩余 ' + (waveQueue.length + aliveDyn) + '  ·  BOSS ' + (bossAlive ? '⚠' : '—') + '  猪头佳 ' + (pigAlive ? '⚠' : '—'));
+      }
       lines.push('历史最高 击杀 ' + endlessBest.kills + ' · 得分 ' + endlessBest.score);
     } else {
       lines.push(L.name + '  「' + L.title + '」');

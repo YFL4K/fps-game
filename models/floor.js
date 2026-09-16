@@ -143,14 +143,25 @@
 
   global.MODELS.floor = {
     name: 'floor',
-    create: function () {
+    create: function (cfg) {
       const T = THREE;
       const g = new T.Group();
+      const sc = (cfg && cfg.scale) || [1, 1, 1];   // v11.11 反算世界坐标高度场，保证缩放后网格仍对齐落地高度
       const SIZE = 300, SEG = 160;   // 覆盖放大后的地图并留边缘
 
       // ---- 地形网格 ----
       const geo = new T.PlaneGeometry(SIZE, SIZE, SEG, SEG);
       geo.rotateX(-Math.PI / 2);     // 水平；顶点 y = 高度
+      // v11.11 关键修复：地形网格必须贴合 heightAt（含 flatten），否则实体/玩家按 heightAt 落地而网格仍是平面 → 悬空/陷地。
+      // 用 sc 反算世界坐标的高度场，保证网格表面 == 实体/玩家落地高度（缩放下也成立）。
+      (function () {
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i) * sc[0];
+          const z = pos.getZ(i) * sc[2];
+          pos.setY(i, heightAt(x, z));
+        }
+      })();
       geo.computeVertexNormals();
 
       // 生物群系纹理
@@ -172,7 +183,7 @@
           uLightDir: { value: new T.Vector3(25, 40, 15).normalize() },
           uLightColor: { value: new T.Vector3(1.15, 1.08, 1.0) },
           uAmbient: { value: new T.Vector3(0.29, 0.33, 0.40) },
-          uFogColor: { value: new T.Vector3(0.56, 0.83, 1.0) },
+          uFogColor: { value: new T.Vector3(0.86, 0.93, 1.0) },
           uFogNear: { value: 90.0 },
           uFogFar: { value: 340.0 },
           uCameraPos: { value: new T.Vector3(0, 2, 14) }

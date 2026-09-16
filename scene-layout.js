@@ -483,7 +483,7 @@
       version: 6,
       playerSpawn: { position: [0, 1.6, 14], yaw: 0 },
       world: {
-        fogColor: 0x8fd4ff,
+        fogColor: 0xdcefff,
         fogNear: 90,
         fogFar: 340,
         gravity: -22,
