@@ -71,7 +71,7 @@
       if (!u) return;
       u.phase += dt;
       inst.rotation.y += dt * 2.4;
-      inst.position.y = u.baseY + Math.sin(u.phase * 2.6) * 0.09;
+      inst.position.y = ((inst.userData.groundBase != null) ? inst.userData.groundBase : u.baseY) + Math.sin(u.phase * 2.6) * 0.09;
     }
   };
 })(window);

@@ -16,20 +16,38 @@
     var entities = [];
     var idCounter = 0;
     var nextId = function (prefix) { return prefix + '-' + (++idCounter); };
+    // v11.12：压平点改为「随布局输出的数据」，由主程序在重建地形前统一应用。
+    // 旧版直接调 TERRAIN.flatten() → 6 份关卡布局在页面加载时把压平点全部累加进同一列表且
+    // 从不 reset：地形被挖出大量与本关无关的坑洞，heightAt 遍历也随重开无限增长（卡顿来源之一）。
+    var flattens = [];
+    function pad(x, z, r) { flattens.push({ x: x, z: z, r: r }); }
 
     // ---- 基础环境 ----
     entities.push({ id: nextId('sky'), model: 'sky', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
     entities.push({ id: nextId('floor'), model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
-    // v11.10 出生点/刷怪点压平，避免起伏地形上出生即悬空或陷坑
-    if (window.TERRAIN) {
-      window.TERRAIN.flatten(0, 14, 6);
-      window.TERRAIN.flatten(-38, -38, 9);
-      window.TERRAIN.flatten(38, -38, 9);
-    }
-    entities.push({ id: nextId('wall-n'), model: 'wall', position: [0, 0, -64], rotation: [0, 0, 0], scale: [16, 1, 1], collision: true, destructible: false });
-    entities.push({ id: nextId('wall-s'), model: 'wall', position: [0, 0, 64], rotation: [0, 0, 0], scale: [16, 1, 1], collision: true, destructible: false });
-    entities.push({ id: nextId('wall-e'), model: 'wall', position: [64, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [16, 1, 1], collision: true, destructible: false });
-    entities.push({ id: nextId('wall-w'), model: 'wall', position: [-64, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [16, 1, 1], collision: true, destructible: false });
+    // v11.12 出生点/刷怪点压平（改由 layout.flattens 输出，见上）
+    pad(0, 14, 7);
+    pad(-38, -38, 10);
+    pad(38, -38, 10);
+    // v11.12 边界围墙改为「每边 8 段 × 16m」：旧版一边一整条 128m 墙只按中心点高度落地，
+    // 起伏地形上必然一头扎进地里、另一头悬空 —— 这就是"外围边界围墙不平齐、陷入地面以下"的根因。
+    (function perimeterWalls() {
+      var HB = 64, SEG = 16;                       // 地图 ±64，每段 16m（wall 默认宽 8 → scale[0]=2）
+      for (var side = 0; side < 4; side++) {
+        var horiz = side < 2;                      // 前两条沿 x 轴（北/南），后两条沿 z 轴（东/西）
+        var fixed = (side === 0 ? -HB : (side === 1 ? HB : (side === 2 ? HB : -HB)));
+        var rotY = horiz ? 0 : Math.PI / 2;
+        var tag = ['n', 's', 'e', 'w'][side];
+        for (var k = 0; k < 8; k++) {
+          var c = -HB + SEG / 2 + k * SEG;         // 段中心 -56..56
+          entities.push({
+            id: nextId('wall-' + tag + (k + 1)), model: 'wall',
+            position: [horiz ? c : fixed, 0, horiz ? fixed : c],
+            rotation: [0, rotY, 0], scale: [SEG / 8, 1, 1], collision: true, destructible: false
+          });
+        }
+      }
+    })();
 
     // ---- 建筑（随机放置 6-10 栋）----
     var buildings = [];
@@ -46,8 +64,7 @@
       var broof = randRoofColor();
       var brot = rand(0, Math.PI * 2);
       buildings.push({ x: bx, z: bz, w: bw, d: bd });
-      // v11.9 建筑脚下压平地形，避免坡地穿模/悬空（v11.10 加大半径适配 ±10m 起伏）
-      if (window.TERRAIN) window.TERRAIN.flatten(bx, bz, Math.max(bw, bd) / 2 + 5);
+      // v11.12 建筑脚下的平整台地改由下方 autoPads() 统一登记（含半径自适应）
 
       entities.push({
         id: nextId('build'), model: 'building',
@@ -305,8 +322,7 @@
       if (!ok) return;
       var PH = 13.44;   // 平台顶面高度（v11.5 再高 1 倍），需与 watchtower.js 一致
       towerPos = { x: tx, z: tz };
-      // v11.9 瞭望塔脚下压平地形（保证螺旋台阶与平台在平地上对齐；v11.10 加大半径适配 ±10m）
-      if (window.TERRAIN) window.TERRAIN.flatten(tx, tz, 9);
+      // v11.12 瞭望塔脚下平整台地由下方 autoPads() 统一登记（螺旋台阶/平台改为相对本地地面抬升）
       entities.push({ id: nextId('tower'), model: 'watchtower',
         position: [tx, 0, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, destructible: false });
       // 螺旋楼梯：48 级绕中心盘旋 2 整圈，结束角 = 2*360° ≡ 0°（+z），与模型 +z 入口缺口对齐
@@ -479,9 +495,32 @@
       collision: false
     });
 
+    // ---- v11.12：为大型落地物自动登记「平整台地」----
+    // 刚性大体量模型（楼、摩天轮、飞机、高墙、集装箱…）只按中心点高度落地，在起伏地形上
+    // 必然四脚悬空或单边陷地；给它一块"保持局部高度的平地"才是正解（小物件不用，浪费且显平）。
+    (function autoPads() {
+      for (var pi = 0; pi < entities.length; pi++) {
+        var e = entities[pi], r = 0, sc = e.scale ? Math.abs(e.scale[0]) : 1;
+        switch (e.model) {
+          case 'building':    r = Math.max(e.w || 6, e.d || 6) / 2 + 6; break;
+          case 'watchtower':  r = 10; break;      // 覆盖半径 2m 的螺旋台阶 + 平台
+          case 'ferriswheel': r = 15 * sc; break;
+          case 'highwall':    r = 7; break;
+          case 'plane':       r = 10; break;
+          case 'truck':       r = 6; break;
+          case 'container':   r = 5; break;
+          case 'vehicle':     r = 4.5; break;
+          case 'gatling':     r = 3.5; break;
+          default: break;
+        }
+        if (r > 0) pad(e.position[0], e.position[2], r);
+      }
+    })();
+
     return {
       version: 6,
       playerSpawn: { position: [0, 1.6, 14], yaw: 0 },
+      flattens: flattens,                         // v11.12 由主程序在重建地形前应用
       world: {
         fogColor: 0xdcefff,
         fogNear: 90,

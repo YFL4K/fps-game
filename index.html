@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.11</div>
+<div id="versionTag">v11.12</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -172,23 +172,23 @@
 <script src="three.min.js" onerror="window.__modErr('three.min.js')"></script>
 <script src="models/_mario.js?v=106" onerror="window.__modErr('models/_mario.js')"></script>
 <script src="models/round.js?v=1" onerror="window.__modErr('models/round.js')"></script>
-<script src="models/floor.js?v=2" onerror="window.__modErr('models/floor.js')"></script>
+<script src="models/floor.js?v=112" onerror="window.__modErr('models/floor.js')"></script>
 <script src="models/wall.js" onerror="window.__modErr('models/wall.js')"></script>
 <script src="models/crate.js" onerror="window.__modErr('models/crate.js')"></script>
 <script src="models/obstacle.js" onerror="window.__modErr('models/obstacle.js')"></script>
 <script src="models/target.js" onerror="window.__modErr('models/target.js')"></script>
-<script src="models/pickup.js" onerror="window.__modErr('models/pickup.js')"></script>
-<script src="models/weapon.js" onerror="window.__modErr('models/weapon.js')"></script>
+<script src="models/pickup.js?v=112" onerror="window.__modErr('models/pickup.js')"></script>
+<script src="models/weapon.js?v=112" onerror="window.__modErr('models/weapon.js')"></script>
 <script src="models/building.js" onerror="window.__modErr('models/building.js')"></script>
 <script src="models/tree.js" onerror="window.__modErr('models/tree.js')"></script>
 <script src="models/lamp.js" onerror="window.__modErr('models/lamp.js')"></script>
-<script src="models/sky.js" onerror="window.__modErr('models/sky.js')"></script>
+<script src="models/sky.js?v=112" onerror="window.__modErr('models/sky.js')"></script>
 <script src="models/spawner.js" onerror="window.__modErr('models/spawner.js')"></script>
 <script src="models/step.js?v=2" onerror="window.__modErr('models/step.js')"></script>
 <script src="models/vehicle.js" onerror="window.__modErr('models/vehicle.js')"></script>
 <script src="models/barrel.js" onerror="window.__modErr('models/barrel.js')"></script>
 <script src="models/tnt.js" onerror="window.__modErr('models/tnt.js')"></script>
-<script src="models/chest.js" onerror="window.__modErr('models/chest.js')"></script>
+<script src="models/chest.js?v=112" onerror="window.__modErr('models/chest.js')"></script>
 <script src="models/helicopter.js?v=2" onerror="window.__modErr('models/helicopter.js')"></script>
 <script src="models/enemy.js?v=3" onerror="window.__modErr('models/enemy.js')"></script>
 <script src="models/gun.js?v=93" onerror="window.__modErr('models/gun.js')"></script>
@@ -205,12 +205,12 @@
 <script src="models/mushroom.js" onerror="window.__modErr('models/mushroom.js')"></script>
 <script src="models/jetpack.js" onerror="window.__modErr('models/jetpack.js')"></script>
 <script src="models/birds.js" onerror="window.__modErr('models/birds.js')"></script>
-<script src="models/walkie.js" onerror="window.__modErr('models/walkie.js')"></script>
-<script src="models/shield.js" onerror="window.__modErr('models/shield.js')"></script>
+<script src="models/walkie.js?v=112" onerror="window.__modErr('models/walkie.js')"></script>
+<script src="models/shield.js?v=112" onerror="window.__modErr('models/shield.js')"></script>
 <script src="models/gatling.js" onerror="window.__modErr('models/gatling.js')"></script>
 <script src="models/pig.js?v=3" onerror="window.__modErr('models/pig.js')"></script>
 <script src="models/watchtower.js?v=3" onerror="window.__modErr('models/watchtower.js')"></script>
-<script src="scene-layout.js?v=95" onerror="window.__modErr('scene-layout.js')"></script>
+<script src="scene-layout.js?v=112" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
 <script>
@@ -514,11 +514,19 @@
       }
     }
     applyTransform(inst, cfg);
-    // v11.9 地面道具贴合地形高度（略下沉 0.15 隐藏底缝）
+    // v11.12 落地：把布局作者写的"离地高度"整体抬到地形面上（台阶 0.14+s*0.28、拾取物 0.8、
+    // 中心原点模型如 crate 0.5 都必须保留）；贴地类（authored y=0）额外下沉 0.12 藏底缝。
+    // 旧版一律压成 groundAt-0.15 → 台阶被埋进地下、箱子半陷地、悬空与陷地并存。
     if (window.TERRAIN && GROUND_PROPS && GROUND_PROPS[cfg.model]) {
-      inst.position.y = groundY(cfg.position[0], cfg.position[2]) - 0.15;
+      var ay = cfg.position[1] || 0;
+      inst.position.y = groundY(cfg.position[0], cfg.position[2]) + (ay > 0.001 ? ay : -0.12);
     }
     // v11.10: 悬浮类掉落物的浮动基准改用贴合后的地形高度（spawnPos.y 原固定 0.8，会埋进山坡）
+    // v11.12 再修根因：ctx.spawnPos 是**共享暂存位**，而 pickup/weapon/chest/walkie 是在"首次 update"
+    // 才懒抓 baseY —— 那时全场实体早已建完，抓到的是最后建的那个实体的 y，
+    // 于是所有悬浮道具挤在同一绝对高度 → 坡上陷进地里、洼处凭空悬空。改为把本实体贴地后的 y
+    // 直接写进实例，模型一律以 userData.groundBase 为准。
+    if (inst.userData) inst.userData.groundBase = inst.position.y;
     ctx.spawnPos.y = inst.position.y;
     scene.add(inst);
 
@@ -583,12 +591,18 @@
 
   // v11.9 地形：地面道具贴合地形高度。必须在加载时构建实体之前定义，
   // 否则 buildEntity 在遍历首个实体(sky)时引用 GROUND_PROPS 会读到 undefined 而崩溃。
-  // v11.10: 武器/拾取物也登记，使其贴合地形高度（否则 ±10m 起伏时会埋进山坡，导致“掉落物看不见/捡不到”）
-  var GROUND_PROPS = { building: 1, wall: 1, tree: 1, bigtree: 1, highwall: 1, crate: 1, barrel: 1, tnt: 1, obstacle: 1, container: 1, truck: 1, plane: 1, vehicle: 1, lamp: 1, target: 1, gatling: 1, watchtower: 1, ferriswheel: 1, mushroom: 1, grass: 1, pot: 1, chest: 1, enemy: 1, pig: 1, spider: 1, weapon: 1, pickup: 1 };
+  // v11.10: 武器/拾取物也登记，使其贴合地形高度（否则起伏地形会埋进山坡，导致"掉落物看不见/捡不到"）
+  // v11.12: 追加 step（楼旁台阶 / 瞭望塔螺旋踏板与平台）—— 旧版台阶按绝对 y 放置，在起伏地形上被整段埋进地下
+  var GROUND_PROPS = { building: 1, wall: 1, tree: 1, bigtree: 1, highwall: 1, crate: 1, barrel: 1, tnt: 1, obstacle: 1, container: 1, truck: 1, plane: 1, vehicle: 1, lamp: 1, target: 1, gatling: 1, watchtower: 1, ferriswheel: 1, mushroom: 1, grass: 1, pot: 1, chest: 1, enemy: 1, pig: 1, spider: 1, weapon: 1, pickup: 1, step: 1, walkie: 1, shield: 1 };
+
+  // v11.12 首屏构建实体前必须先把本关压平点写入地形场（顺序：压平 → 建地形网格 → 按网格面落地）
+  applyFlattens(LAYOUT);
 
   (LAYOUT.entities || []).forEach(function (cfg) {
     layoutRecs.push(buildEntity(cfg));
   });
+  wireSkyEnv();                                 // 把灯光/雾/地形材质交给昼夜系统接管
+  if (window.SKYCYCLE) SKYCYCLE.rollPhase();    // 进游戏随机落在 7 个时段之一
 
   /* ================= 5. 玩家状态 ================= */
   var W = WORLD;
@@ -2616,6 +2630,9 @@
     layoutRecs = [];
     colliders = [];
     
+    // v11.12 顺序关键：先只应用本关压平点 → 再建地形网格（floor 实体在 entities 里排第 2）
+    //          → 之后所有落地判定共用同一份高度场，地形/实体不会再各自为政
+    applyFlattens(layoutObj);
     // 重建灯光和雾
     rebuildLights(layoutObj);
     
@@ -2623,6 +2640,8 @@
     (layoutObj.entities || []).forEach(function (cfg) {
       layoutRecs.push(buildEntity(cfg));
     });
+    wireSkyEnv();                                 // rebuildLights 会清灯 → 重建后重新挂给昼夜系统
+    if (window.SKYCYCLE) SKYCYCLE.rollPhase();    // 每关/每次重开：7 时段随机出现
     
     // 恢复玩家位置（使用新的出生点）
     var newSpawn = layoutObj.playerSpawn || SPAWN;
@@ -3457,7 +3476,11 @@
       player.pos.y = gy;
       player.vel.y = 0;
       player.onGround = true;
-    } else if (player.vel.y <= 0 && player.onGround) {
+    } else if (player.vel.y <= 0 && player.onGround && player.pos.y - gy < 0.06) {
+      // v11.12 修复玩家悬空：旧版只要 onGround 为 true 就把下落速度归零，而出生点写死 y=1.6，
+      // 地形低于 1.6 的局（取决于每局随机种子）玩家会被"钉"在半空里下不来（实测高出 0.8m）。
+      // 现在仅当已经贴在地表附近(6cm 内)才归零；离地超过 6cm 就交给重力落回地面。
+      // 站在箱子/台阶上不受影响：collideWorld 每帧会把脚底重新吸附到台阶顶面。
       player.vel.y = 0;
     }
 
@@ -3475,7 +3498,30 @@
   function randInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
   // v11.9 地形高度采样（无 TERRAIN 时退回平地 0）
-  function groundY(x, z) { return (window.TERRAIN && window.TERRAIN.heightAt) ? window.TERRAIN.heightAt(x, z) : 0; }
+  // v11.12 落地统一走 TERRAIN.groundAt —— 直接对地形网格顶点高度表做双线性采样，
+  // 落地面与真正渲染出来的表面严格一致（解析 heightAt 与 1.5m 插值面之间的偏差正是悬空/陷地根因）
+  function groundY(x, z) { return (window.TERRAIN && window.TERRAIN.groundAt) ? window.TERRAIN.groundAt(x, z) : 0; }
+
+  // v11.12 压平点改为「每关一份」：先 reset 再只应用本关 layout.flattens，
+  // 消除旧版 6 份布局累加造成的无关坑洞与逐帧高度查询变慢
+  function applyFlattens(layoutObj) {
+    if (!window.TERRAIN) return;
+    TERRAIN.resetPads();
+    var fs = (layoutObj && layoutObj.flattens) || [];
+    for (var i = 0; i < fs.length; i++) TERRAIN.flatten(fs[i].x, fs[i].z, fs[i].r);
+  }
+
+  // v11.12 把场景里的平行光/环境光/半球光 + 雾 + 背景 + 地形材质交给昼夜系统驱动
+  function wireSkyEnv() {
+    if (!window.SKYCYCLE) return;
+    var dir = null, amb = null, hemi = null;
+    scene.traverse(function (o) {
+      if (o.isDirectionalLight && !dir) dir = o;
+      else if (o.isAmbientLight && !amb) amb = o;
+      else if (o.isHemisphereLight && !hemi) hemi = o;
+    });
+    SKYCYCLE.setEnv({ dir: dir, amb: amb, hemi: hemi, fog: scene.fog, bg: scene.background });
+  }
 
 
   function collideWorld() {
@@ -3744,11 +3790,19 @@
     }
     if (!inst) inst = fallbackInst(cfg);
     applyTransform(inst, cfg);
-    // v11.9 地面道具贴合地形高度（略下沉 0.15 隐藏底缝）
+    // v11.12 落地：把布局作者写的"离地高度"整体抬到地形面上（台阶 0.14+s*0.28、拾取物 0.8、
+    // 中心原点模型如 crate 0.5 都必须保留）；贴地类（authored y=0）额外下沉 0.12 藏底缝。
+    // 旧版一律压成 groundAt-0.15 → 台阶被埋进地下、箱子半陷地、悬空与陷地并存。
     if (window.TERRAIN && GROUND_PROPS && GROUND_PROPS[cfg.model]) {
-      inst.position.y = groundY(cfg.position[0], cfg.position[2]) - 0.15;
+      var ay = cfg.position[1] || 0;
+      inst.position.y = groundY(cfg.position[0], cfg.position[2]) + (ay > 0.001 ? ay : -0.12);
     }
     // v11.10: 悬浮类掉落物的浮动基准改用贴合后的地形高度（spawnPos.y 原固定 0.8，会埋进山坡）
+    // v11.12 再修根因：ctx.spawnPos 是**共享暂存位**，而 pickup/weapon/chest/walkie 是在"首次 update"
+    // 才懒抓 baseY —— 那时全场实体早已建完，抓到的是最后建的那个实体的 y，
+    // 于是所有悬浮道具挤在同一绝对高度 → 坡上陷进地里、洼处凭空悬空。改为把本实体贴地后的 y
+    // 直接写进实例，模型一律以 userData.groundBase 为准。
+    if (inst.userData) inst.userData.groundBase = inst.position.y;
     ctx.spawnPos.y = inst.position.y;
     scene.add(inst);
     inst.traverse(function (o) {
@@ -3885,6 +3939,7 @@
     var L = getLevel();
     var gt = GUN_TYPES[player.gun];
     var lines = [];
+    if (window.SKYCYCLE) lines.push(SKYCYCLE.label());   // v11.12 当前时段（午夜→黄昏 7 段）
     if (state === 'complete') lines.push('★ 任务完成 — 按 Enter 进入下一关');
     if (state === 'dead') lines.push('GAME OVER');
     if (gameMode === 'endless') {
@@ -4003,6 +4058,8 @@
     lastTime = now;
     _lastDt = dt;
     loopCount++;
+    // v11.12 昼夜推进：菜单界面也走（天空/云/日月氛围常驻，进关时已是随机时段）
+    if (window.SKYCYCLE) SKYCYCLE.update(dt, camera.position);
 
     try {
       if (state === 'playing') {
@@ -4155,6 +4212,103 @@
     };
     // 键盘触发（指针锁定下鼠标点击不可用）：K=击杀达标+通关判定, L=complete 状态进下一关,
     // F=持续开火开关, H=血量压到15%（触发狂暴）, M=满血（解除狂暴）
+    // ================= v11.12 昼夜 + 贴地验证钩子 =================
+    window.__fpsTest.skyState = function () { return window.SKYCYCLE ? SKYCYCLE.getState() : { err: 'no SKYCYCLE' }; };
+    window.__fpsTest.setSkyPhase = function (i) {
+      if (!window.SKYCYCLE) return { err: 'no SKYCYCLE' };
+      var r = SKYCYCLE.setPhase(i);
+      SKYCYCLE.update(0.016, camera.position);           // 立刻把新氛围推到整条管线
+      return r;
+    };
+    window.__fpsTest.rollSkyPhase = function () { return window.SKYCYCLE ? SKYCYCLE.rollPhase() : null; };
+    // 贴地校验：对每个静态落地实体，用 Raycaster 与"真正渲染出来的地形面"求交，
+    // 比较实体 y 与"地表 + 作者离地高度"，偏差 > tol 记为悬空/陷地。
+    window.__fpsTest.groundCheck = function (maxSample, tol) {
+      maxSample = maxSample || 70; tol = tol || 0.12;
+      var floorRec = null;
+      for (var i = 0; i < entities.length; i++) if (entities[i].cfg.model === 'floor') { floorRec = entities[i]; break; }
+      if (!floorRec) return { err: 'no floor entity' };
+      var rc = new THREE.Raycaster();
+      var down = new THREE.Vector3(0, -1, 0);
+      var cand = [];
+      for (i = 0; i < entities.length; i++) {
+        var rec = entities[i];
+        if (!rec.alive || !rec.cfg || rec.cfg.dynamic) continue;
+        var m = rec.cfg.model;
+        if (m === 'floor' || m === 'sky' || !GROUND_PROPS[m]) continue;
+        cand.push(rec);
+      }
+      var stride = Math.max(1, Math.floor(cand.length / maxSample));
+      var bad = [], checked = 0, maxAbs = 0, sum = 0;
+      for (var ci = 0; ci < cand.length; ci += stride) {
+        var r2 = cand[ci];
+        var x = r2.inst.position.x, z = r2.inst.position.z;
+        rc.set(new THREE.Vector3(x, groundY(x, z) + 80, z), down);
+        var hits = rc.intersectObject(floorRec.inst, true);
+        if (!hits.length) continue;
+        var surf = hits[0].point.y;
+        var ay = r2.cfg.position[1] || 0;
+        var want = ay > 0.001 ? surf + ay : surf - 0.12;
+        // 用"贴地后写回的基准 y"比，排除浮动动画 ±0.14 摆幅造成的假阳性
+        var base = (r2.inst.userData && r2.inst.userData.groundBase != null) ? r2.inst.userData.groundBase : r2.inst.position.y;
+        var err = base - want;
+        checked++; sum += Math.abs(err);
+        if (Math.abs(err) > maxAbs) maxAbs = Math.abs(err);
+        if (Math.abs(err) > tol) bad.push({ id: r2.cfg.id, m: r2.cfg.model, err: Math.round(err * 100) / 100, surf: Math.round(surf * 100) / 100, y: Math.round(r2.inst.position.y * 100) / 100 });
+      }
+      // 玩家脚底 / 动态敌人贴地
+      var pErr = player.pos.y - groundY(player.pos.x, player.pos.z);
+      // 边界围墙逐段校验（v11.12 分段后每段自己贴地，这里确认没有一段陷进地下）
+      var wallTotal = 0, wallBad = 0, wallMax = 0;
+      for (var wi = 0; wi < entities.length; wi++) {
+        var wr = entities[wi];
+        if (!wr.alive || !wr.cfg || wr.cfg.model !== 'wall' || wr.cfg.destructible !== false) continue;
+        var wx = wr.cfg.position[0], wz = wr.cfg.position[2];
+        if (Math.abs(Math.abs(wx) - 64) > 0.5 && Math.abs(Math.abs(wz) - 64) > 0.5) continue;
+        wallTotal++;
+        rc.set(new THREE.Vector3(wx, groundY(wx, wz) + 80, wz), down);
+        var wh = rc.intersectObject(floorRec.inst, true);
+        if (!wh.length) continue;
+        var we = wr.inst.position.y - (wh[0].point.y - 0.12);
+        if (Math.abs(we) > wallMax) wallMax = Math.abs(we);
+        if (Math.abs(we) > tol) wallBad++;
+      }
+      return {
+        checked: checked, badCount: bad.length, maxAbsErr: Math.round(maxAbs * 1000) / 1000,
+        avgAbsErr: checked ? Math.round(sum / checked * 1000) / 1000 : 0,
+        sample: bad.slice(0, 10), playerErr: Math.round(pErr * 1000) / 1000,
+        wallTotal: wallTotal, wallBad: wallBad, wallMaxErr: Math.round(wallMax * 1000) / 1000,
+        pads: (window.TERRAIN && TERRAIN.groundAt) ? 'groundAt' : 'MISSING'
+      };
+    };
+    // 单实体探针：定位"落地高度 vs 渲染面"究竟哪一侧不对
+    window.__fpsTest.probe = function (id) {
+      var floors = [], rec = null;
+      for (var i = 0; i < entities.length; i++) {
+        if (entities[i].cfg.model === 'floor') floors.push(entities[i]);
+        if (entities[i].cfg.id === id) rec = entities[i];
+      }
+      if (!rec) return { err: 'no entity ' + id };
+      var f = floors[floors.length - 1];
+      var cx = rec.cfg.position[0], cz = rec.cfg.position[2];
+      var rc = new THREE.Raycaster(), down = new THREE.Vector3(0, -1, 0);
+      function surfAt(x, z) {
+        rc.set(new THREE.Vector3(x, 80, z), down);
+        var hits = f ? rc.intersectObject(f.inst, true) : [];
+        return hits.length ? { y: Math.round(hits[0].point.y * 100) / 100, obj: hits[0].object.name || hits[0].object.type } : null;
+      }
+      var gi = f && f.inst.geometry ? 1 : 0;
+      return {
+        id: id, model: rec.cfg.model, floors: floors.length,
+        cfgPos: rec.cfg.position.map(function (v) { return Math.round(v * 100) / 100; }),
+        instPos: [Math.round(rec.inst.position.x * 100) / 100, Math.round(rec.inst.position.y * 100) / 100, Math.round(rec.inst.position.z * 100) / 100],
+        groundAtCfg: Math.round(groundY(cx, cz) * 100) / 100,
+        groundAtInst: Math.round(groundY(rec.inst.position.x, rec.inst.position.z) * 100) / 100,
+        heightAtCfg: (window.TERRAIN && Math.round(TERRAIN.heightAt(cx, cz) * 100) / 100) || null,
+        surfAtCfg: surfAt(cx, cz), surfAtInst: surfAt(rec.inst.position.x, rec.inst.position.z),
+        hasGeo: gi, dyn: !!rec.cfg.dynamic
+      };
+    };
     window.__fpsTest.hitPlayerTest = function (d) { hitPlayer(d); };   // v6.7 伤害钳制测试
     window.__fpsTest.advanceAirstrikes = function (frames) {          // v6.7 空袭推进测试
       var f = frames || 80;

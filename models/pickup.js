@@ -45,7 +45,11 @@
     },
     update: function (inst, dt, ctx) {
       const u = inst.userData;
-      if (u.baseY === 0 && ctx && ctx.spawnPos) u.baseY = ctx.spawnPos.y;
+      if (u.baseY === 0) {
+              // v11.12 以主程序贴地后写回的 groundBase 为准（ctx.spawnPos 是共享暂存位，懒抓会抓到别的实体）
+              if (inst.userData && inst.userData.groundBase != null) u.baseY = inst.userData.groundBase;
+              else if (ctx && ctx.spawnPos) u.baseY = ctx.spawnPos.y;
+            }
       u.phase += dt * 2;
       inst.position.y = u.baseY + Math.sin(u.phase) * 0.12;
       inst.rotation.y += dt * 1.5;
