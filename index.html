@@ -1155,6 +1155,7 @@
     src.connect(bp); bp.connect(g); g.connect(bgm.master);
     src.start(t); src.stop(t + dur + 0.03);
   }
+  function bgmCrash(t) { bgmNoise(t, 0.5, 0.09, 4200, 'highpass'); }
   var bgm = {
     idx: -1, track: null, playing: false, muted: false,
     master: null, timer: null, nextT: 0, step: 0,
