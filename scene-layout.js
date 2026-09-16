@@ -114,6 +114,35 @@
       }
     }
 
+    // ---- v11.16 穿模修复：大物件（车/货车/集装箱/飞机）随机放置前做重叠检测 + 重试，
+    // 避免镶嵌进建筑墙体或互相堆叠。----
+    function insideBuilding(x, z, margin) {
+      margin = margin || 1;
+      for (var bi = 0; bi < buildings.length; bi++) {
+        var b = buildings[bi];
+        if (Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(z - b.z) < b.d / 2 + margin) return true;
+      }
+      return false;
+    }
+    var largeProps = [];
+    function largePropBlocked(x, z, r) {
+      if (insideBuilding(x, z, r)) return true;
+      for (var i = 0; i < largeProps.length; i++) {
+        var p = largeProps[i];
+        var dx = x - p.x, dz = z - p.z;
+        if (dx * dx + dz * dz < (p.r + r) * (p.r + r)) return true;
+      }
+      return false;
+    }
+    // r=占据半径，place=实际写入 entities 的回调（接收 x,z）
+    function placeLargeProp(r, place) {
+      for (var t = 0; t < 14; t++) {
+        var x = rand(-50, 50), z = rand(-50, 50);
+        if (!largePropBlocked(x, z, r)) { largeProps.push({ x: x, z: z, r: r }); place(x, z); return; }
+      }
+      place(rand(-50, 50), rand(-50, 50));   // 实在找不到空位则兜底放置
+    }
+
     // ---- v10.1 墙体掩体结构：走廊/胡同/L形拐角/直墙（利用现有 wall 模型拼接）----
     // wall 默认 8x4x0.5，scale[0] 控制长度，rotation[1] 控制朝向；高度 4 米可作完整掩体
     function placeWallRow(cx, cz, rotY, segCount, segLen, gap) {
@@ -204,34 +233,42 @@
     // ---- 新场景模型 ----
     // 大型货车（semi）
     if (Math.random() > 0.4) {
-      entities.push({
-        id: nextId('truck'), model: 'truck',
-        position: [rand(-35, 35), 0, rand(-35, 35)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
-        collision: true, variant: 'semi'
+      placeLargeProp(8, function (x, z) {
+        entities.push({
+          id: nextId('truck'), model: 'truck',
+          position: [x, 0, z], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+          collision: true, variant: 'semi'
+        });
       });
     }
     // 普通货车
     if (Math.random() > 0.5) {
-      entities.push({
-        id: nextId('truck2'), model: 'truck',
-        position: [rand(-35, 35), 0, rand(-35, 35)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
-        collision: true, variant: 'truck'
+      placeLargeProp(6, function (x, z) {
+        entities.push({
+          id: nextId('truck2'), model: 'truck',
+          position: [x, 0, z], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+          collision: true, variant: 'truck'
+        });
       });
     }
     // 飞机
     if (Math.random() > 0.6) {
-      entities.push({
-        id: nextId('plane'), model: 'plane',
-        position: [rand(-50, 50), 0, rand(-50, 50)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
-        collision: true
+      placeLargeProp(10, function (x, z) {
+        entities.push({
+          id: nextId('plane'), model: 'plane',
+          position: [x, 0, z], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+          collision: true
+        });
       });
     }
     // 集装箱（20ft 或 40ft）
     for (var ci = 0; ci < randInt(2, 4); ci++) {
-      entities.push({
-        id: nextId('container'), model: 'container',
-        position: [rand(-35, 35), 0.3, rand(-35, 35)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
-        collision: true, size: randChoice(['20ft', '40ft'])
+      placeLargeProp(5, function (x, z) {
+        entities.push({
+          id: nextId('container'), model: 'container',
+          position: [x, 0.3, z], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+          collision: true, size: randChoice(['20ft', '40ft'])
+        });
       });
     }
     // 花盆
@@ -342,10 +379,12 @@
 
     // ---- 车辆 ----
     for (var vi = 0; vi < randInt(3, 6); vi++) {
-      entities.push({
-        id: nextId('vehicle'), model: 'vehicle',
-        position: [rand(-35, 35), 0, rand(-35, 35)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
-        collision: true, variant: randChoice(['car', 'truck', 'jeep']), color: randColor()
+      placeLargeProp(4.5, function (x, z) {
+        entities.push({
+          id: nextId('vehicle'), model: 'vehicle',
+          position: [x, 0, z], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+          collision: true, variant: randChoice(['car', 'truck', 'jeep']), color: randColor()
+        });
       });
     }
 
