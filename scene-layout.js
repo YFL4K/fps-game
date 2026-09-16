@@ -19,18 +19,18 @@
 
     // ---- 基础环境 ----
     entities.push({ id: nextId('sky'), model: 'sky', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
-    entities.push({ id: nextId('floor'), model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [2.5, 1, 2.5], collision: false });
-    entities.push({ id: nextId('wall-n'), model: 'wall', position: [0, 0, -45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true, destructible: false });
-    entities.push({ id: nextId('wall-s'), model: 'wall', position: [0, 0, 45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true, destructible: false });
-    entities.push({ id: nextId('wall-e'), model: 'wall', position: [45, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true, destructible: false });
-    entities.push({ id: nextId('wall-w'), model: 'wall', position: [-45, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true, destructible: false });
+    entities.push({ id: nextId('floor'), model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
+    entities.push({ id: nextId('wall-n'), model: 'wall', position: [0, 0, -64], rotation: [0, 0, 0], scale: [16, 1, 1], collision: true, destructible: false });
+    entities.push({ id: nextId('wall-s'), model: 'wall', position: [0, 0, 64], rotation: [0, 0, 0], scale: [16, 1, 1], collision: true, destructible: false });
+    entities.push({ id: nextId('wall-e'), model: 'wall', position: [64, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [16, 1, 1], collision: true, destructible: false });
+    entities.push({ id: nextId('wall-w'), model: 'wall', position: [-64, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [16, 1, 1], collision: true, destructible: false });
 
     // ---- 建筑（随机放置 6-10 栋）----
     var buildings = [];
     var numBuildings = randInt(6, 10);
     for (var i = 0; i < numBuildings; i++) {
-      var bx = rand(-38, 38);
-      var bz = rand(-38, 38);
+      var bx = rand(-58, 58);
+      var bz = rand(-58, 58);
       // 避免与出生点太近
       if (Math.sqrt(bx * bx + bz * bz) < 12) continue;
       var bw = rand(4, 8);
@@ -40,6 +40,8 @@
       var broof = randRoofColor();
       var brot = rand(0, Math.PI * 2);
       buildings.push({ x: bx, z: bz, w: bw, d: bd });
+      // v11.9 建筑脚下压平地形，避免坡地穿模/悬空
+      if (window.TERRAIN) window.TERRAIN.flatten(bx, bz, Math.max(bw, bd) / 2 + 2);
 
       entities.push({
         id: nextId('build'), model: 'building',
@@ -107,8 +109,8 @@
     function wallBlocked(cx, cz, margin) {
       margin = margin || 7;
       if (Math.sqrt(cx * cx + (cz - 14) * (cz - 14)) < margin + 6) return true;   // 出生点（额外 6 安全）
-      if (cx > -30 - margin && cx < -15 + margin && cz > -30 - margin && cz < -15 + margin) return true;  // 刷怪点1
-      if (cx > 15 - margin && cx < 30 + margin && cz > -30 - margin && cz < -15 + margin) return true;      // 刷怪点2
+      if (cx > -52 - margin && cx < -25 + margin && cz > -52 - margin && cz < -25 + margin) return true;  // 刷怪点1
+      if (cx > 25 - margin && cx < 52 + margin && cz > -52 - margin && cz < -25 + margin) return true;      // 刷怪点2
       for (var bi = 0; bi < buildings.length; bi++) {
         var b = buildings[bi];
         if (Math.abs(cx - b.x) < b.w / 2 + margin && Math.abs(cz - b.z) < b.d / 2 + margin) return true;    // 建筑
@@ -117,7 +119,7 @@
     }
     function tryPlaceWallStruct(maxTry, span, placeFn) {
       for (var t = 0; t < maxTry; t++) {
-        var cx = rand(-38, 38), cz = rand(-38, 38);
+        var cx = rand(-58, 58), cz = rand(-58, 58);
         if (!wallBlocked(cx, cz, Math.max(span / 2, 6))) { placeFn(cx, cz); return; }
       }
     }
@@ -197,7 +199,7 @@
     if (Math.random() > 0.6) {
       entities.push({
         id: nextId('plane'), model: 'plane',
-        position: [rand(-30, 30), 0, rand(-30, 30)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+        position: [rand(-50, 50), 0, rand(-50, 50)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
         collision: true
       });
     }
@@ -222,14 +224,14 @@
     for (var bti = 0; bti < randInt(2, 4); bti++) {
       entities.push({
         id: nextId('bigtree'), model: 'bigtree',
-        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.9, 1.3), rand(0.9, 1.3), rand(0.9, 1.3)],
+        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.9, 1.3), rand(0.9, 1.3), rand(0.9, 1.3)],
         collision: true
       });
     }
     for (var hwi = 0; hwi < randInt(2, 3); hwi++) {
       entities.push({
         id: nextId('highwall'), model: 'highwall',
-        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, rand(0.85, 1.2), 1],
+        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, rand(0.85, 1.2), 1],
         collision: true
       });
     }
@@ -244,7 +246,7 @@
     for (var gsi = 0; gsi < randInt(5, 9); gsi++) {
       entities.push({
         id: nextId('grass'), model: 'grass',
-        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.7, 1.4), rand(0.7, 1.4), rand(0.7, 1.4)],
+        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.7, 1.4), rand(0.7, 1.4), rand(0.7, 1.4)],
         collision: false
       });
     }
@@ -254,14 +256,14 @@
       var ms = rand(0.4, 1.6);
       entities.push({
         id: nextId('mushroom'), model: 'mushroom',
-        position: [rand(-36, 36), 0, rand(-36, 36)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [ms, ms, ms],
+        position: [rand(-56, 56), 0, rand(-56, 56)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [ms, ms, ms],
         collision: false,
         variant: randChoice(['red', 'flyagaric', 'brown', 'orange', 'purple', 'teal', 'yellow', 'pink', 'white'])
       });
     }
     // v6.7 空中飞鸟：2 种（白鸥/深灰猎鸟）随机 2~4 群绕地图上空盘旋
     for (var bri = 0; bri < randInt(2, 4); bri++) {
-      var birc = rand(-20, 20), bircc = rand(-20, 20);
+      var birc = rand(-35, 35), bircc = rand(-35, 35);
       entities.push({
         id: nextId('birds'), model: 'birds',
         position: [birc, rand(20, 28), bircc], rotation: [0, 0, 0], scale: [1, 1, 1],
@@ -274,7 +276,7 @@
     // v6.8 加特林机枪碉堡：每关随机位置固定 1 座（站桩火力点）
     entities.push({
       id: nextId('gatling'), model: 'gatling',
-      position: [rand(-34, 34), 0, rand(-34, 34)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+      position: [rand(-54, 54), 0, rand(-54, 54)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
       collision: true,
       kind: 'gatling'
     });
@@ -283,7 +285,7 @@
     (function placeTower() {
       var tx = 0, tz = 0, ok = false;
       for (var t = 0; t < 40; t++) {
-        tx = rand(-34, 34); tz = rand(-34, 34);
+        tx = rand(-54, 54); tz = rand(-54, 54);
         if (Math.sqrt(tx * tx + (tz - 14) * (tz - 14)) < 12) continue;   // 远离出生点
         var clash = false;
         for (var bi = 0; bi < buildings.length; bi++) {
@@ -295,6 +297,8 @@
       }
       if (!ok) return;
       var PH = 13.44;   // 平台顶面高度（v11.5 再高 1 倍），需与 watchtower.js 一致
+      // v11.9 瞭望塔脚下压平地形（保证螺旋台阶与平台在平地上对齐）
+      if (window.TERRAIN) window.TERRAIN.flatten(tx, tz, 7);
       entities.push({ id: nextId('tower'), model: 'watchtower',
         position: [tx, 0, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, destructible: false });
       // 螺旋楼梯：48 级绕中心盘旋 2 整圈，结束角 = 2*360° ≡ 0°（+z），与模型 +z 入口缺口对齐
@@ -325,7 +329,7 @@
     for (var ti = 0; ti < randInt(10, 18); ti++) {
       entities.push({
         id: nextId('tree'), model: 'tree',
-        position: [rand(-40, 40), 0, rand(-40, 40)], rotation: [0, 0, 0], scale: [rand(0.8, 1.4), rand(0.8, 1.4), rand(0.8, 1.4)],
+        position: [rand(-60, 60), 0, rand(-60, 60)], rotation: [0, 0, 0], scale: [rand(0.8, 1.4), rand(0.8, 1.4), rand(0.8, 1.4)],
         collision: true
       });
     }
@@ -334,7 +338,7 @@
     for (var bi = 0; bi < randInt(6, 12); bi++) {
       entities.push({
         id: nextId('barrel'), model: 'barrel',
-        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, 0, 0], scale: [1, 1, 1],
+        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: true
       });
     }
@@ -343,7 +347,7 @@
     for (var tni = 0; tni < randInt(3, 6); tni++) {
       entities.push({
         id: nextId('tnt'), model: 'tnt',
-        position: [rand(-38, 38), 0, rand(-38, 38)], rotation: [0, rand(0, Math.PI), 0], scale: [1, 1, 1],
+        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, rand(0, Math.PI), 0], scale: [1, 1, 1],
         collision: true
       });
     }
@@ -361,7 +365,7 @@
     for (var targi = 0; targi < randInt(2, 4); targi++) {
       entities.push({
         id: nextId('target'), model: 'target',
-        position: [rand(-25, 25), 0, rand(-25, 25)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+        position: [rand(-45, 45), 0, rand(-45, 45)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
         collision: false, score: 50
       });
     }
@@ -370,14 +374,14 @@
     for (var hi = 0; hi < randInt(2, 4); hi++) {
       entities.push({
         id: nextId('pickup-h'), model: 'pickup',
-        position: [rand(-30, 30), 0.8, rand(-30, 30)], rotation: [0, 0, 0], scale: [1, 1, 1],
+        position: [rand(-50, 50), 0.8, rand(-50, 50)], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: false, kind: 'health', respawn: 15
       });
     }
     for (var ai = 0; ai < randInt(3, 5); ai++) {
       entities.push({
         id: nextId('pickup-a'), model: 'pickup',
-        position: [rand(-30, 30), 0.8, rand(-30, 30)], rotation: [0, 0, 0], scale: [1, 1, 1],
+        position: [rand(-50, 50), 0.8, rand(-50, 50)], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: false, kind: 'ammo', respawn: 15
       });
     }
@@ -385,29 +389,29 @@
     // ---- 武器掉落 ----
     entities.push({
       id: nextId('wpn-r'), model: 'weapon',
-      position: [rand(-25, 25), 0.8, rand(-25, 25)], rotation: [0, 0, 0], scale: [1, 1, 1],
+      position: [rand(-45, 45), 0.8, rand(-45, 45)], rotation: [0, 0, 0], scale: [1, 1, 1],
       collision: false, kind: 'weapon', type: 'rifle', respawn: 25
     });
     entities.push({
       id: nextId('wpn-f'), model: 'weapon',
-      position: [rand(-25, 25), 0.8, rand(-25, 25)], rotation: [0, 0, 0], scale: [1, 1, 1],
+      position: [rand(-45, 45), 0.8, rand(-45, 45)], rotation: [0, 0, 0], scale: [1, 1, 1],
       collision: false, kind: 'weapon', type: 'flamethrower', respawn: 25
     });
     entities.push({
       id: nextId('wpn-s'), model: 'weapon',
-      position: [rand(-25, 25), 0.8, rand(-25, 25)], rotation: [0, 0, 0], scale: [1, 1, 1],
+      position: [rand(-45, 45), 0.8, rand(-45, 45)], rotation: [0, 0, 0], scale: [1, 1, 1],
       collision: false, kind: 'weapon', type: 'sniper', respawn: 25
     });
 
     // ---- 刷怪点 ----
     entities.push({
       id: nextId('spawn1'), model: 'spawner',
-      position: [rand(-30, -15), 0, rand(-30, -15)], rotation: [0, 0, 0], scale: [1, 1, 1],
+      position: [rand(-52, -25), 0, rand(-52, -25)], rotation: [0, 0, 0], scale: [1, 1, 1],
       collision: false
     });
     entities.push({
       id: nextId('spawn2'), model: 'spawner',
-      position: [rand(15, 30), 0, rand(-30, -15)], rotation: [0, 0, 0], scale: [1, 1, 1],
+      position: [rand(25, 52), 0, rand(-52, -25)], rotation: [0, 0, 0], scale: [1, 1, 1],
       collision: false
     });
 
@@ -415,9 +419,9 @@
       version: 6,
       playerSpawn: { position: [0, 1.6, 14], yaw: 0 },
       world: {
-        fogColor: 0x9db4cc,
-        fogNear: 35,
-        fogFar: 150,
+        fogColor: 0x8fd4ff,
+        fogNear: 90,
+        fogFar: 340,
         gravity: -22,
         playerSpeed: 6,
         sprintSpeed: 9,

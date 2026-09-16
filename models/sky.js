@@ -10,39 +10,38 @@
       const T = global.THREE;
       const g = new T.Group();
 
-      // 湛蓝明亮渐变天空
+      // v11.9 更饱和的马里奥蓝天
       const c = document.createElement('canvas');
       c.width = 8; c.height = 512;
       const ctx = c.getContext('2d');
       const grad = ctx.createLinearGradient(0, 0, 0, 512);
-      grad.addColorStop(0.0, '#1e90ff');   // 湛蓝
-      grad.addColorStop(0.5, '#4db8ff');   // 明亮蓝
-      grad.addColorStop(0.75, '#9fd8ff');  // 浅蓝
-      grad.addColorStop(0.9, '#e0f2ff');   // 接近白
-      grad.addColorStop(1.0, '#ffffff');
+      grad.addColorStop(0.0, '#1f7bff');   // 饱和湛蓝（天顶）
+      grad.addColorStop(0.45, '#3f9dff');  // 亮蓝
+      grad.addColorStop(0.75, '#8ecbff');  // 浅蓝
+      grad.addColorStop(1.0, '#d6f0ff');   // 地平线近白
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 8, 512);
 
       const tex = new T.CanvasTexture(c);
       const sky = new T.Mesh(
         new T.SphereGeometry(300, 24, 18),
-        new window.MARIO.basic({ map: tex, side: T.BackSide, fog: false, depthWrite: false })
+        new T.MeshBasicMaterial({ map: tex, side: T.BackSide, fog: false, depthWrite: false })
       );
       sky.renderOrder = -1000;
       g.add(sky);
 
-      // 圆太阳（带光晕）
-      const sun = new T.Mesh(new T.SphereGeometry(10, 20, 16), new window.MARIO.basic({ color: 0xffdd44 }));
+      // 金黄太阳（不受光照，纯亮）+ 暖光晕
+      const sun = new T.Mesh(new T.SphereGeometry(11, 20, 16), new T.MeshBasicMaterial({ color: 0xffcf33, fog: false }));
       sun.position.set(70, 85, -120);
       g.add(sun);
-      const sunGlow = new T.Mesh(new T.SphereGeometry(15, 20, 16), new window.MARIO.basic({ color: 0xffee88, transparent: true, opacity: 0.35 }));
+      const sunGlow = new T.Mesh(new T.SphereGeometry(17, 20, 16), new T.MeshBasicMaterial({ color: 0xffe27a, transparent: true, opacity: 0.4, fog: false, depthWrite: false }));
       sunGlow.position.set(70, 85, -120);
       g.add(sunGlow);
 
-      // 棉花糖白云（圆球拼接）
+      // 棉花糖白云（不受光照 → 纯白，不再发灰）
       function cloud(x, y, z, s) {
         const cg = new T.Group();
-        const cm = new window.MARIO.mat({ color: 0xffffff });
+        const cm = new T.MeshBasicMaterial({ color: 0xffffff, fog: false });
         const puff = [
           [0, 0, 0, 1.0], [1.0, 0.1, 0, 0.75], [-1.0, 0.1, 0, 0.75],
           [0.4, 0.35, 0.2, 0.6], [-0.4, 0.35, 0.2, 0.6], [0, 0.5, 0, 0.55]

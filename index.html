@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.8</div>
+<div id="versionTag">v11.9</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -286,17 +286,17 @@
     layoutMissing = true;
     LAYOUT = {
       playerSpawn: { position: [0, 1.6, 12], yaw: 0 },
-      world: { fogColor: 0x8fa3bf, fogNear: 30, fogFar: 140, gravity: -22, playerSpeed: 6, sprintSpeed: 9, jumpSpeed: 8, eyeHeight: 1.6, playerRadius: 0.4, playerHeight: 1.7, maxHealth: 100 },
+      world: { fogColor: 0x8fd4ff, fogNear: 90, fogFar: 340, gravity: -22, playerSpeed: 6, sprintSpeed: 9, jumpSpeed: 8, eyeHeight: 1.6, playerRadius: 0.4, playerHeight: 1.7, maxHealth: 100 },
       lights: [
         { type: 'ambient', color: 0x8899bb, intensity: 0.6 },
         { type: 'directional', color: 0xfff0dd, intensity: 1.2, position: [12, 25, 8], shadow: true }
       ],
       entities: [
         { id: 'floor-1', model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false },
-        { id: 'wall-n', model: 'wall', position: [0, 0, -45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true, destructible: false },
-        { id: 'wall-s', model: 'wall', position: [0, 0, 45], rotation: [0, 0, 0], scale: [11.5, 1, 1], collision: true, destructible: false },
-        { id: 'wall-e', model: 'wall', position: [45, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true, destructible: false },
-        { id: 'wall-w', model: 'wall', position: [-45, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [11.5, 1, 1], collision: true, destructible: false }
+        { id: 'wall-n', model: 'wall', position: [0, 0, -64], rotation: [0, 0, 0], scale: [16, 1, 1], collision: true, destructible: false },
+        { id: 'wall-s', model: 'wall', position: [0, 0, 64], rotation: [0, 0, 0], scale: [16, 1, 1], collision: true, destructible: false },
+        { id: 'wall-e', model: 'wall', position: [64, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [16, 1, 1], collision: true, destructible: false },
+        { id: 'wall-w', model: 'wall', position: [-64, 0, 0], rotation: [0, -Math.PI / 2, 0], scale: [16, 1, 1], collision: true, destructible: false }
       ]
     };
     showError('scene-layout.js 加载失败，使用内置默认场景');
@@ -373,16 +373,13 @@
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = false;   // v10 完全关闭阴影，消除阴影 pass 渲染开销
   if (renderer.outputEncoding !== undefined) renderer.outputEncoding = THREE.sRGBEncoding;
-  // v11.6 画面：ACES 电影级色调映射，高光更柔和、色彩更有层次（几乎零开销）
-  if (THREE.ACESFilmicToneMapping !== undefined) {
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
-  }
+  // v11.9 画面鲜艳：关闭 ACES（它会把高饱和色彩压灰），改线性输出 + 轻微提亮，还原马里奥3D的鲜艳
+  renderer.toneMapping = THREE.NoToneMapping;
   appEl.appendChild(renderer.domElement);
 
   var scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(WORLD.fogColor || 0x8fa3bf, WORLD.fogNear || 30, WORLD.fogFar || 140);
-  scene.background = new THREE.Color(0x8fa3bf);
+  scene.fog = new THREE.Fog(WORLD.fogColor || 0x8fd4ff, WORLD.fogNear || 90, WORLD.fogFar || 340);
+  scene.background = new THREE.Color(0x8fd4ff);
 
   // v11.1 枪械独立渲染场景：主场景渲染后 clearDepth 再渲染 gunScene，
   // 使枪械永远浮于场景之上（不被墙/箱遮挡残缺），同时枪械各部件之间用
@@ -515,6 +512,10 @@
       }
     }
     applyTransform(inst, cfg);
+    // v11.9 地面道具贴合地形高度（略下沉 0.15 隐藏底缝）
+    if (window.TERRAIN && GROUND_PROPS[cfg.model]) {
+      inst.position.y = groundY(cfg.position[0], cfg.position[2]) - 0.15;
+    }
     scene.add(inst);
 
     inst.traverse(function (o) {
@@ -897,23 +898,30 @@
     o.connect(og); og.connect(AC.destination);
     o.start(t); o.stop(t + 0.45);
   }
-  // 喷火器：喷射"呼"声（带通喷流 + 低频燃气轰鸣 + 轻微爆裂噼啪）
+  // 喷火器（v11.9 重做）：真实火焰喷射 = 低频燃气轰鸣 + 幅度调制湍流咆哮 + 高速燃气嘶嘶，短促连发叠加成持续"呼——"的喷射声
   function flameShot() {
     if (!AC) return;
     var t = AC.currentTime;
-    var s = AC.createBufferSource(); s.buffer = getWhiteBuf(); s.playbackRate.value = 0.7 + Math.random() * 0.2;
-    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.6;
-    bp.frequency.setValueAtTime(950, t); bp.frequency.linearRampToValueAtTime(680, t + 0.26);
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.3, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-    s.connect(bp); bp.connect(g); g.connect(AC.destination); s.start(t); s.stop(t + 0.34);
-    var o = AC.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(56, t);
-    var og = AC.createGain(); og.gain.setValueAtTime(0.2, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-    o.connect(og); og.connect(AC.destination); o.start(t); o.stop(t + 0.32);
-    var cr = AC.createBufferSource(); cr.buffer = getWhiteBuf(); cr.playbackRate.value = 1.6;
-    var chp = AC.createBiquadFilter(); chp.type = 'highpass'; chp.frequency.value = 3200;
-    var cg2 = AC.createGain(); cg2.gain.setValueAtTime(0.0001, t); cg2.gain.linearRampToValueAtTime(0.08, t + 0.01); cg2.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-    cr.connect(chp); chp.connect(cg2); cg2.connect(AC.destination); cr.start(t); cr.stop(t + 0.14);
+    var out = AC.createGain(); out.gain.value = 0.5; out.connect(AC.destination);
+    // ① 低频轰鸣（燃气压力体）
+    var bo = AC.createOscillator(); bo.type = 'sawtooth';
+    bo.frequency.setValueAtTime(70, t); bo.frequency.linearRampToValueAtTime(48, t + 0.14);
+    var blp = AC.createBiquadFilter(); blp.type = 'lowpass'; blp.frequency.value = 180;
+    var bg = AC.createGain(); bg.gain.setValueAtTime(0.0001, t); bg.gain.linearRampToValueAtTime(0.5, t + 0.01); bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    bo.connect(blp); blp.connect(bg); bg.connect(out); bo.start(t); bo.stop(t + 0.18);
+    // ② 湍流咆哮（带通噪声 + 12~20Hz 幅度调制 = 火焰抖动）
+    var s = AC.createBufferSource(); s.buffer = getWhiteBuf(); s.playbackRate.value = 0.55 + Math.random() * 0.2;
+    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.7;
+    bp.frequency.setValueAtTime(420, t); bp.frequency.linearRampToValueAtTime(300, t + 0.14);
+    var rg = AC.createGain(); rg.gain.setValueAtTime(0.0001, t); rg.gain.linearRampToValueAtTime(0.42, t + 0.012); rg.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+    var am = AC.createOscillator(); am.type = 'sine'; am.frequency.value = 14 + Math.random() * 8;
+    var amg = AC.createGain(); amg.gain.value = 0.18; am.connect(amg); amg.connect(rg.gain);
+    s.connect(bp); bp.connect(rg); rg.connect(out); s.start(t); s.stop(t + 0.17); am.start(t); am.stop(t + 0.17);
+    // ③ 高速燃气嘶嘶（高通噪声，轻）
+    var hs = AC.createBufferSource(); hs.buffer = getWhiteBuf(); hs.playbackRate.value = 1.4;
+    var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 3800;
+    var hg = AC.createGain(); hg.gain.setValueAtTime(0.0001, t); hg.gain.linearRampToValueAtTime(0.12, t + 0.01); hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+    hs.connect(hp); hp.connect(hg); hg.connect(out); hs.start(t); hs.stop(t + 0.15);
   }
   // v11.8 真实爆炸：脆裂 + 低通扫频爆炸主体 + 低频 boom + 长尾隆隆（scale 控制体量）
   function explosionSfx(scale) {
@@ -2656,7 +2664,7 @@
     
     // 更新雾
     if (layout.world && layout.world.fogColor) {
-      scene.fog = new THREE.Fog(layout.world.fogColor, layout.world.fogNear || 30, layout.world.fogFar || 140);
+      scene.fog = new THREE.Fog(layout.world.fogColor, layout.world.fogNear || 90, layout.world.fogFar || 340);
       scene.background = new THREE.Color(layout.world.fogColor);
     }
   }
@@ -3367,8 +3375,9 @@
     collideWorld();
     collideBigEntities();   // v7.7 大体型敌人（猪头佳/BOSS 机甲）3D 挡体，禁止从下方穿模
 
-    if (player.pos.y < 0) {
-      player.pos.y = 0;
+    var gy = groundY(player.pos.x, player.pos.z);   // v11.9 玩家贴地形起伏落地
+    if (player.pos.y < gy) {
+      player.pos.y = gy;
       player.vel.y = 0;
       player.onGround = true;
     } else if (player.vel.y <= 0 && player.onGround) {
@@ -3376,7 +3385,7 @@
     }
 
     // v7.4 世界边界硬钳制：绝不穿过围墙（墙内界 ≈ ±44.7，留玩家半径余量）
-    var WL = 43.9;
+    var WL = 62.9;
     player.pos.x = clamp(player.pos.x, -WL, WL);
     player.pos.z = clamp(player.pos.z, -WL, WL);
 
@@ -3388,6 +3397,10 @@
 
   function randInt(min, max) { return min + Math.floor(Math.random() * (max - min + 1)); }
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+  // v11.9 地形高度采样（无 TERRAIN 时退回平地 0）
+  function groundY(x, z) { return (window.TERRAIN && window.TERRAIN.heightAt) ? window.TERRAIN.heightAt(x, z) : 0; }
+  // 需要贴合地形高度的地面道具（step 楼梯/拾取物/飞行/天空/地面 不在此列）
+  var GROUND_PROPS = { building: 1, wall: 1, tree: 1, bigtree: 1, highwall: 1, crate: 1, barrel: 1, tnt: 1, obstacle: 1, container: 1, truck: 1, plane: 1, vehicle: 1, lamp: 1, target: 1, gatling: 1, watchtower: 1, ferriswheel: 1, mushroom: 1, grass: 1, pot: 1, chest: 1, enemy: 1, pig: 1, spider: 1 };
 
   function collideWorld() {
     var r = playerRadius;
@@ -3580,7 +3593,7 @@
         }
       }
       // v7.4 世界边界硬钳制：敌人（蜘蛛/陆行敌人/猪/BOSS）绝不越过围墙
-      var wl = rm === 'pig' ? 41.5 : 43.9;
+      var wl = rm === 'pig' ? 60.5 : 62.9;
       rec.inst.position.x = clamp(rec.inst.position.x, -wl, wl);
       rec.inst.position.z = clamp(rec.inst.position.z, -wl, wl);
     }
@@ -3627,6 +3640,11 @@
         } catch (e) {
           showError('实体更新失败 (' + rec.cfg.id + '): ' + e.message);
         }
+        // v11.9 动态敌人贴地形（死亡/飞行除外）
+        if (rec.cfg.dynamic && (rec.cfg.model === 'enemy' || rec.cfg.model === 'pig' || rec.cfg.model === 'spider') &&
+            !(rec.inst.userData && rec.inst.userData.dead)) {
+          rec.inst.position.y = groundY(rec.inst.position.x, rec.inst.position.z);
+        }
         if (rec.inst.userData && rec.inst.userData.respawnReady) {
           if (rec.cfg.respawn === 0) destroyEntity(rec);
           else respawnEntity(rec);
@@ -3650,6 +3668,10 @@
     }
     if (!inst) inst = fallbackInst(cfg);
     applyTransform(inst, cfg);
+    // v11.9 地面道具贴合地形高度（略下沉 0.15 隐藏底缝）
+    if (window.TERRAIN && GROUND_PROPS[cfg.model]) {
+      inst.position.y = groundY(cfg.position[0], cfg.position[2]) - 0.15;
+    }
     scene.add(inst);
     inst.traverse(function (o) {
       if (o.isMesh) { o.userData.entityId = cfg.id; o.userData.hitTarget = true; }
@@ -5070,7 +5092,7 @@
       player.pos.set(70, 0.1, 20);
       updatePlayer(0.016);
       out.east = Math.round(player.pos.x * 10) / 10;
-      out.ok = Math.abs(out.corner.x) <= 43.9 && Math.abs(out.corner.z) <= 43.9 && out.north >= -43.9 && out.east <= 43.9;
+      out.ok = Math.abs(out.corner.x) <= 62.9 && Math.abs(out.corner.z) <= 62.9 && out.north >= -62.9 && out.east <= 62.9;
       player.pos.set(0, 0.1, 0);
       return out;
     };
@@ -5085,7 +5107,7 @@
       collideEnemies();
       var after = { x: Math.round(sp.inst.position.x * 10) / 10, z: Math.round(sp.inst.position.z * 10) / 10 };
       removeEntity(sp);
-      return { ok: Math.abs(after.x) <= 43.9 && Math.abs(after.z) <= 43.9, after: after };
+      return { ok: Math.abs(after.x) <= 62.9 && Math.abs(after.z) <= 62.9, after: after };
     };
     // v7.4 需求6：加特林新模型结构（明显枪身/6管/支架/弹链，分层布局不穿模）
     window.__fpsTest.gatlingModelTest = function () {
