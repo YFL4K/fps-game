@@ -27,8 +27,8 @@
 
   function ensureBeams(u, ctx) {
     if (u.laserBeams) return;
-    var outer = new global.window.MARIO.basic({ color: 0x00ff66, transparent: true, opacity: 0.8 });
-    var core = new global.window.MARIO.basic({ color: 0xd2ffd2, transparent: true, opacity: 0.95 });
+    var outer = new global.window.MARIO.basicS({ color: 0x00ff66, transparent: true, opacity: 0.8 });
+    var core = new global.window.MARIO.basicS({ color: 0xd2ffd2, transparent: true, opacity: 0.95 });
     u.laserBeams = [];
     for (var i = 0; i < 2; i++) {
       var beam = new T.Mesh(new T.BoxGeometry(1, 1, 1), outer);

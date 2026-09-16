@@ -47,9 +47,41 @@
     return new T.MeshBasicMaterial(copy);
   }
 
+  /* v11.13 共享材质：静态场景模型（楼/树/草/墙/箱/台阶/道具…经核实在运行时绝不改自己的
+   * 材质属性）按参数缓存复用 —— 基线实测 661 个唯一 MeshStandardMaterial，每帧都要各自上传
+   * uniform；收敛后只剩几十份。标 __shared 后主程序销毁单个实体不会把它 dispose 掉。
+   * 会改材质的模型（enemy 受击闪红、spider、target、gatling、gun、spawner）请继续用 mat/basic。 */
+  var _matCache = {}, _basicCache = {};
+  function keyOf(params) {
+    var ks = Object.keys(params).sort(), s = '';
+    for (var i = 0; i < ks.length; i++) {
+      var v = params[ks[i]];
+      if (v && v.isTexture) s += ks[i] + ':tex' + v.id + ',';
+      else if (v && v.isColor) s += ks[i] + ':' + v.getHexString() + ',';
+      else s += ks[i] + ':' + v + ',';
+    }
+    return s;
+  }
+  function matS(params) {
+    params = params || {};
+    var k = keyOf(params);
+    var m = _matCache[k];
+    if (!m) { m = _matCache[k] = mat(params); m.__shared = true; }
+    return m;
+  }
+  function basicS(params) {
+    params = params || {};
+    var k = keyOf(params);
+    var m = _basicCache[k];
+    if (!m) { m = _basicCache[k] = basic(params); m.__shared = true; }
+    return m;
+  }
+
   global.MARIO = {
     mat: mat,
     basic: basic,
+    matS: matS,
+    basicS: basicS,
     boostColor: boostColor
   };
 })(window);

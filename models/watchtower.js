@@ -18,9 +18,9 @@
       const TH = PH + 2.4;       // 上部立柱顶（屋顶底）——净高 2.4m
       const L = 1.35;            // 腿半距
 
-      const wood = new window.MARIO.mat({ color: 0x7a5230, roughness: 0.82 });
-      const woodDark = new window.MARIO.mat({ color: 0x563a20, roughness: 0.85 });
-      const roofMat = new window.MARIO.mat({ color: 0x4a3320, roughness: 0.8 });
+      const wood = new window.MARIO.matS({ color: 0x7a5230, roughness: 0.82 });
+      const woodDark = new window.MARIO.matS({ color: 0x563a20, roughness: 0.85 });
+      const roofMat = new window.MARIO.matS({ color: 0x4a3320, roughness: 0.8 });
 
       function rb(mat, w, h, d, r, x, y, z) { var m = new T.Mesh(R.roundedBox(w, h, d, r), mat); m.position.set(x, y, z); g.add(m); return m; }
       function strut(ax, ay, az, bx, by, bz, r, mat) {

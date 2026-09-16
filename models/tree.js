@@ -12,8 +12,8 @@
       const T = global.THREE;
       const cfg = config || {};
 
-      const trunkMat = new window.MARIO.mat({ color: 0x6b4a2f});
-      const leafMat = new window.MARIO.mat({
+      const trunkMat = new window.MARIO.matS({ color: 0x6b4a2f});
+      const leafMat = new window.MARIO.matS({
         color: cfg.color || 0x2d6a3f,
       });
 

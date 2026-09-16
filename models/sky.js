@@ -177,6 +177,29 @@
     });
   }
 
+  /* ---- 云朵固定布局（确定性伪随机）---- */
+  // 必须稳定：每团云的球簇在首次构建时烘焙成一个几何体并缓存，换关重建时复用同一批
+  // GPU 缓冲；若布局每次随机，就会不断产生新的缓存条目（内存与上载持续增长）。
+  var PUFF = [
+    [0.0, 0.0, 0.0, 1.6], [1.6, 0.2, 0.2, 1.1], [-1.5, 0.25, -0.2, 1.15],
+    [0.7, 0.7, 0.3, 0.95], [-0.7, 0.7, 0.1, 0.95], [0.1, 1.15, 0.0, 0.8],
+    [2.4, -0.1, -0.3, 0.8], [-2.3, 0.0, 0.1, 0.85], [1.0, -0.4, 0.3, 0.7],
+    [-1.0, -0.5, -0.2, 0.75]
+  ];
+  function lcg(seed) { var v = seed >>> 0; return function () { v = (v * 1664525 + 1013904223) >>> 0; return v / 4294967296; }; }
+  var CLOUD_LAYOUT = (function () {
+    var rnd = lcg(20260916), out = [];
+    for (var k = 0; k < 10; k++) {
+      var s = 9 + rnd() * 6;
+      var ca = (k / 10) * Math.PI * 2 + rnd() * 0.5;
+      var cr = 150 + rnd() * 60;
+      out.push({ s: s, rot: rnd() * Math.PI, puffs: PUFF,
+        xyz: [Math.cos(ca) * cr, 42 + rnd() * 52, Math.sin(ca) * cr] });
+    }
+    return out;
+  })();
+  var CLOUD_GEOS = null;
+
   /* ---- 模块级昼夜状态（跨关卡重建保持连续）---- */
   var state = {
     t: 0.5, phaseIdx: 3, sunEl: 1, dayF: 1, nightF: 0, dt: 0,
@@ -464,33 +487,31 @@
       g.add(meteors);
 
       // ---- 立体云朵：3D 蓬松球簇，整环缓慢漂移（共享一份材质，随时段染色）----
+      // v11.13 合批：旧版每团云 10 个球 = 100 个网格（一帧 100 次 draw call）。
+      // 现在每团云在首次构建时把 10 个球烘焙成一个几何体并缓存（布局固定 → 换关复用，
+      // 不产生新的 GPU 缓冲），10 团云只剩 10 个网格。
       const clouds = new T.Group();
       const cloudMat = new T.MeshStandardMaterial({
         color: 0xffffff, emissive: 0x223044, emissiveIntensity: 0.55, roughness: 1.0, metalness: 0.0, fog: false
       });
-      const PUFF = [
-        [0.0, 0.0, 0.0, 1.6], [1.6, 0.2, 0.2, 1.1], [-1.5, 0.25, -0.2, 1.15],
-        [0.7, 0.7, 0.3, 0.95], [-0.7, 0.7, 0.1, 0.95], [0.1, 1.15, 0.0, 0.8],
-        [2.4, -0.1, -0.3, 0.8], [-2.3, 0.0, 0.1, 0.85], [1.0, -0.4, 0.3, 0.7],
-        [-1.0, -0.5, -0.2, 0.75]
-      ];
-      var puffs = [];
-      for (var ci = 0; ci < PUFF.length; ci++) puffs.push(new T.SphereGeometry(PUFF[ci][3], 16, 12));
-      for (var k = 0; k < 10; k++) {
-        var cg = new T.Group();
-        var s = 9 + Math.random() * 6;
-        for (var pi = 0; pi < PUFF.length; pi++) {
-          var p = PUFF[pi];
-          var b = new T.Mesh(puffs[pi], cloudMat);
-          b.scale.setScalar(s);
-          b.position.set(p[0] * s, p[1] * s, p[2] * s);
-          cg.add(b);
+      if (!CLOUD_GEOS) {
+        CLOUD_GEOS = [];
+        const uni = new T.SphereGeometry(1, 16, 12);
+        for (var cc = 0; cc < CLOUD_LAYOUT.length; cc++) {
+          var lay = CLOUD_LAYOUT[cc], parts = [];
+          for (var pp = 0; pp < lay.puffs.length; pp++) {
+            var q = lay.puffs[pp], sq = q[3] * lay.s;
+            parts.push({ geo: uni, p: [q[0] * lay.s, q[1] * lay.s, q[2] * lay.s], s: [sq, sq * 0.82, sq] });
+          }
+          CLOUD_GEOS.push(global.ROUND.merge(parts));
         }
-        var ca = (k / 10) * Math.PI * 2 + Math.random() * 0.5;
-        var cr = 150 + Math.random() * 60;
-        cg.position.set(Math.cos(ca) * cr, 42 + Math.random() * 52, Math.sin(ca) * cr);
-        cg.rotation.y = Math.random() * Math.PI;
-        clouds.add(cg);
+        uni.dispose();
+      }
+      for (var k = 0; k < CLOUD_LAYOUT.length; k++) {
+        var cl = new T.Mesh(CLOUD_GEOS[k], cloudMat);
+        cl.position.set(CLOUD_LAYOUT[k].xyz[0], CLOUD_LAYOUT[k].xyz[1], CLOUD_LAYOUT[k].xyz[2]);
+        cl.rotation.y = CLOUD_LAYOUT[k].rot;
+        clouds.add(cl);
       }
       g.add(clouds);
 

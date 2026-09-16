@@ -16,13 +16,13 @@
       const d = cfg.d || 5;
       const h = cfg.h || 3.4;
 
-      const wallMat = new window.MARIO.mat({
+      const wallMat = new window.MARIO.matS({
         color: cfg.color || 0x8a9bb0,
       });
-      const roofMat = new window.MARIO.mat({
+      const roofMat = new window.MARIO.matS({
         color: cfg.roofColor || 0x5d4a3a,
       });
-      const windowMat = new window.MARIO.mat({
+      const windowMat = new window.MARIO.matS({
         color: 0xffe9a8,
         emissive: 0xffcf6e,
         emissiveIntensity: 0.9
@@ -58,7 +58,7 @@
       ].forEach(function (p) {
         const win = new T.Mesh(
           new T.SphereGeometry(winR, 14, 12),
-          new window.MARIO.mat({ color: 0xffe9a8, emissive: 0xffcf6e, emissiveIntensity: 0.9 })
+          new window.MARIO.matS({ color: 0xffe9a8, emissive: 0xffcf6e, emissiveIntensity: 0.9 })
         );
         win.scale.set(1, 1, 0.2);
         win.position.set(p[0], p[1], p[2]);
@@ -68,7 +68,7 @@
       // 拱形门（门框 + 暗色门板 + 顶部半圆）
       const doorW = Math.min(1.2, w * 0.3);
       const doorH = 1.7;
-      const doorMat = new window.MARIO.mat({ color: 0x5a3a20 });
+      const doorMat = new window.MARIO.matS({ color: 0x5a3a20 });
       const door = new T.Mesh(new T.BoxGeometry(doorW, doorH, 0.08), doorMat);
       door.position.set(0, doorH / 2, d / 2 + 0.01);
       g.add(door);

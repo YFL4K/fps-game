@@ -63,9 +63,118 @@
     return g;
   }
 
+  /* ================= v11.13 性能公共设施：几何体缓存 + 同材质合批 =================
+   * 实测（v11.12 基线，无头 640×360 真实游戏页）：一帧 1068~1095 次 draw call、
+   * 1326 个唯一几何体、661 个唯一材质 —— 掉帧主因不是着色器，而是"每个小零件一个网格、
+   * 每个实体一套几何体/材质"。摩天轮 2 个实体 232 个网格，台阶 60 个 120 个网格。
+   * ============================================================================== */
+  var _geoCache = {};
+  /** 按 key 缓存几何体（跨实例共享）。标 __shared 让主程序销毁单个实体时不会释放它。 */
+  function geo(key, make) {
+    var g = _geoCache[key];
+    if (!g) { g = _geoCache[key] = make(); g.__shared = true; }
+    return g;
+  }
+  var _m4 = null, _m3 = null, _q = null, _e = null, _vp = null, _vn = null, _p3 = null, _s3 = null;
+  function tmp() {
+    if (_m4) return;
+    _m4 = new T.Matrix4(); _m3 = new T.Matrix3(); _q = new T.Quaternion(); _e = new T.Euler();
+    _vp = new T.Vector3(); _vn = new T.Vector3(); _p3 = new T.Vector3(); _s3 = new T.Vector3();
+  }
+  /** 把若干部件（{geo, p, r, s}）烘焙成一个几何体（保留 position/normal/uv） */
+  function merge(list) {
+    tmp();
+    var pa = [], na = [], ua = [], ix = [], vo = 0;
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i], gg = it.geo;
+      if (it.m) {                       // 已烘焙好的矩阵（用于嵌套变换，如吊舱内的零件）
+        _m4.copy(it.m);
+      } else {
+        var p = it.p || [0, 0, 0], r = it.r || [0, 0, 0], s = it.s || [1, 1, 1];
+        _e.set(r[0], r[1], r[2]); _q.setFromEuler(_e);
+        _p3.set(p[0], p[1], p[2]); _s3.set(s[0], s[1], s[2]);
+        _m4.compose(_p3, _q, _s3);
+      }
+      _m3.getNormalMatrix(_m4);
+      var pos = gg.attributes.position, nor = gg.attributes.normal, uvs = gg.attributes.uv;
+      var n = pos.count;
+      for (var v = 0; v < n; v++) {
+        _vp.fromBufferAttribute(pos, v).applyMatrix4(_m4); pa.push(_vp.x, _vp.y, _vp.z);
+        if (nor) { _vn.fromBufferAttribute(nor, v).applyMatrix3(_m3).normalize(); na.push(_vn.x, _vn.y, _vn.z); }
+        else na.push(0, 1, 0);
+        if (uvs) ua.push(uvs.getX(v), uvs.getY(v)); else ua.push(0, 0);
+      }
+      var gi = gg.index;
+      if (gi) { for (var k = 0; k < gi.count; k++) ix.push(gi.array[k] + vo); }
+      else { for (var k2 = 0; k2 < n; k2++) ix.push(k2 + vo); }
+      vo += n;
+    }
+    var out = new T.BufferGeometry();
+    out.setAttribute('position', new T.Float32BufferAttribute(pa, 3));
+    out.setAttribute('normal', new T.Float32BufferAttribute(na, 3));
+    out.setAttribute('uv', new T.Float32BufferAttribute(ua, 2));
+    out.setIndex(ix);
+    out.computeBoundingSphere();
+    out.__shared = true;
+    return out;
+  }
+  /**
+   * 合批器：模型把部件先 add 进 (父节点, 材质) 桶里，flush 时每个桶只产出 1 个网格。
+   * 需要单独动画/单独开关的零件不要走这里（照旧 new Mesh 直接挂）。
+   */
+  function batcher() {
+    var buckets = [];   // {parent, mat, list}
+    function find(parent, mat) {
+      for (var i = 0; i < buckets.length; i++) if (buckets[i].parent === parent && buckets[i].mat === mat) return buckets[i];
+      var b = { parent: parent, mat: mat, list: [] }; buckets.push(b); return b;
+    }
+    return {
+      add: function (parent, g2, mat, p, r, s) {
+        find(parent, mat).list.push({ geo: g2, p: p, r: r, s: s });
+      },
+      // 该桶只有一个零件时不必烘焙，直接复用原几何体（省一次顶点拷贝）
+      flush: function () {
+        for (var i = 0; i < buckets.length; i++) {
+          var b = buckets[i];
+          if (!b.list.length) continue;
+          var geoOut = b.list.length === 1 ? b.list[0].geo : merge(b.list);
+          var mesh = new T.Mesh(geoOut, b.mat);
+          if (b.list.length === 1) {
+            var it = b.list[0];
+            if (it.p) mesh.position.set(it.p[0], it.p[1], it.p[2]);
+            if (it.r) mesh.rotation.set(it.r[0], it.r[1], it.r[2]);
+            if (it.s) mesh.scale.set(it.s[0], it.s[1], it.s[2]);
+          }
+          mesh.castShadow = false; mesh.receiveShadow = false;
+          b.parent.add(mesh);
+        }
+        buckets = [];
+      },
+      count: function () { return buckets.length; }
+    };
+  }
+
+  /* v11.13 三个形状工厂默认带参数缓存：全工程几十处 "每个实体 new 一份几何体" 的写法
+   * 因此自动变成共享（实测基线 1188 个唯一几何体 → 大量为同尺寸重复品，如 60 级塔台阶
+   * 各建一套、26 棵树各建一套）。已核实没有任何模型在运行时改写几何体顶点内容。 */
+  function boxC(w, h, d, r, seg) { return geo('RB|' + w + '|' + h + '|' + d + '|' + r + '|' + (seg || 3), function () { return roundedBox(w, h, d, r, seg); }); }
+  function cylC(rt, rb, len, seg) { return geo('RC2|' + rt + '|' + rb + '|' + len + '|' + seg, function () { return roundedCyl(rt, rb, len, seg); }); }
+  function cylZC(rt, rb, len, seg) { return geo('RZ2|' + rt + '|' + rb + '|' + len + '|' + seg, function () { return cylZ(rt, rb, len, seg); }); }
+
   global.ROUND = {
-    roundedBox: roundedBox,
-    roundedCyl: roundedCyl,
-    cylZ: cylZ
+    roundedBox: boxC,
+    roundedCyl: cylC,
+    cylZ: cylZC,
+    geo: geo,
+    merge: merge,
+    batcher: batcher,
+    // 常用基础形状的一行缓存版（模型里直接替换 new T.XxxGeometry(...) 即可共享）
+    box: function (w, h, d) { return geo('x|' + w + '|' + h + '|' + d, function () { return new T.BoxGeometry(w, h, d); }); },
+    sph: function (r, a, b2) { return geo('s|' + r + '|' + (a || 16) + '|' + (b2 || 12), function () { return new T.SphereGeometry(r, a || 16, b2 || 12); }); },
+    cyl: function (rt, rb, len, seg) { return geo('y|' + rt + '|' + rb + '|' + len + '|' + (seg || 14), function () { return new T.CylinderGeometry(rt, rb, len, seg || 14); }); },
+    cone: function (r, h, seg) { return geo('n|' + r + '|' + h + '|' + (seg || 8), function () { return new T.ConeGeometry(r, h, seg || 8); }); },
+    rbox: function (w, h, d, r) { return geo('R|' + w + '|' + h + '|' + d + '|' + r, function () { return roundedBox(w, h, d, r); }); },
+    rcyl: function (rt, rb, len, seg) { return geo('RC|' + rt + '|' + rb + '|' + len + '|' + seg, function () { return roundedCyl(rt, rb, len, seg); }); },
+    rcylZ: function (rt, rb, len, seg) { return geo('RZ|' + rt + '|' + rb + '|' + len + '|' + seg, function () { return cylZ(rt, rb, len, seg); }); }
   };
 })(window);

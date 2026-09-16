@@ -14,10 +14,10 @@
       const sc = config && config.scale;
       const s = Array.isArray(sc) ? (sc[0] || 1) : (sc || 1);
 
-      const steel = new window.MARIO.mat({ color: 0x6a7688, metalness: 0.5, roughness: 0.45 });
-      const beam = new window.MARIO.mat({ color: 0xd8542f });
-      const hub = new window.MARIO.mat({ color: 0x3a4250 });
-      const glassMat = new window.MARIO.mat({ color: 0x9fd4ff, emissive: 0x224455, emissiveIntensity: 0.3 });
+      const steel = new window.MARIO.matS({ color: 0x6a7688, metalness: 0.5, roughness: 0.45 });
+      const beam = new window.MARIO.matS({ color: 0xd8542f });
+      const hub = new window.MARIO.matS({ color: 0x3a4250 });
+      const glassMat = new window.MARIO.matS({ color: 0x9fd4ff, emissive: 0x224455, emissiveIntensity: 0.3 });
       const cabinColors = [0xe0563a, 0x2f80c4, 0xf2c14e, 0x3aa76d, 0x9b59b6, 0xe67e22];
 
       const Rr = 7.0 * s;      // 轮盘半径
@@ -90,7 +90,7 @@
         // 吊舱（圆润盒 + 窗 + 顶 + 挂臂）
         const cabin = new T.Group();
         const cc = cabinColors[i % cabinColors.length];
-        const cmat = new window.MARIO.mat({ color: cc });
+        const cmat = new window.MARIO.matS({ color: cc });
         const hang = beamCyl(0.03, 0.03, 0.7, steel);
         hang.position.y = 0.35 * s; cabin.add(hang);
         const box = new T.Mesh(R.roundedBox(1.0 * s, 0.8 * s, 0.9 * s, 0.22 * s), cmat);

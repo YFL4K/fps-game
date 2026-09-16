@@ -24,11 +24,11 @@
       const g = new T.Group();
 
       const bodyColor = cfg.color || v.bodyColor;
-      const bodyMat = new window.MARIO.mat({ color: bodyColor });
-      const darkMat = new window.MARIO.mat({ color: 0x22262a });
-      const glassMat = new window.MARIO.mat({ color: 0x9fd8ff, transparent: true, opacity: 0.75 });
-      const wheelMat = new window.MARIO.mat({ color: 0x0d0d0f });
-      const hubMat = new window.MARIO.mat({ color: 0xffd700, metalness: 0.6, roughness: 0.25 }); // 亮金轮毂
+      const bodyMat = new window.MARIO.matS({ color: bodyColor });
+      const darkMat = new window.MARIO.matS({ color: 0x22262a });
+      const glassMat = new window.MARIO.matS({ color: 0x9fd8ff, transparent: true, opacity: 0.75 });
+      const wheelMat = new window.MARIO.matS({ color: 0x0d0d0f });
+      const hubMat = new window.MARIO.matS({ color: 0xffd700, metalness: 0.6, roughness: 0.25 }); // 亮金轮毂
 
       const L = v.bodyLen, H = v.bodyH, W = v.bodyW;
       const baseY = v.wheelY + 0.25;
@@ -69,12 +69,12 @@
       g.add(bumperF, bumperR);
 
       // 车灯（前白后红，圆球发光）
-      const headMat = new window.MARIO.basic({ color: 0xfff6c0 });
+      const headMat = new window.MARIO.basicS({ color: 0xfff6c0 });
       const lampF1 = new T.Mesh(new T.SphereGeometry(0.09, 10, 8), headMat);
       lampF1.position.set(-W * 0.32, v.wheelY + 0.52, -L / 2 - 0.02);
       const lampF2 = lampF1.clone();
       lampF2.position.x = W * 0.32;
-      const tailMat = new window.MARIO.basic({ color: 0xff4444 });
+      const tailMat = new window.MARIO.basicS({ color: 0xff4444 });
       const lampR1 = new T.Mesh(new T.SphereGeometry(0.09, 10, 8), tailMat);
       lampR1.position.set(-W * 0.32, v.wheelY + 0.52, L / 2 + 0.02);
       const lampR2 = lampR1.clone();
