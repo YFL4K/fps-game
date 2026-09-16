@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.13</div>
+<div id="versionTag">v11.14</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -533,6 +533,7 @@
     // v11.13 性能：既不随关卡逻辑动、模型自身也没有 update 动画的静态实体（楼/墙/树/箱/台阶/
     // 花盆…约 1200 个网格），逐帧的 matrixWorld 重算是纯浪费 → 贴地完成后一次性固化矩阵。
     if (!cfg.dynamic && !(def && def.update)) {
+      staticBatchMerge(inst);      // v11.13 先按材质合批，再固化世界矩阵
       inst.updateMatrixWorld(true);
       inst.traverse(function (o) { o.matrixAutoUpdate = false; });
     }
@@ -2644,6 +2645,63 @@
     return window.SCENE_LAYOUT;
   }
 
+  // v11.13 静态实体通用合批：把"每个小零件一个网格"的静态道具（树/台阶/楼/集装箱/花盆/油桶/
+  // 瞭望塔…）按材质烘焙合并成 1~N 个网格，一次改动覆盖全部静态模型。
+  // 安全边界：
+  //   · 只对"没有 update 动画且非 dynamic"的实体做（摩天轮/动物/枪械/云等一律不动）；
+  //   · 只有某材质桶里 ≥2 个零件才合并（单件保留原样）；
+  //   · 合并结果是本实体独占 → 显式置 __shared=false，实体销毁时正常释放；
+  //     而作为输入的那些跨实例共享缓存几何体绝不释放（它们各自带 __shared=true）；
+  //   · 需要保留独立的零件可在 mesh 上打 userData.noBatch；
+  //   · 线框（LineSegments）与网格分桶，绝不混进同一几何体。
+  function staticBatchMerge(inst) {
+    try {
+      var R = window.ROUND;
+      if (!R || !R.merge) return 0;
+      inst.updateMatrixWorld(true);
+      var inv = new THREE.Matrix4().copy(inst.matrixWorld).invert();
+      var buckets = {}, keys = [], total = 0, moved = [];
+      inst.traverse(function (o) {
+        if (o === inst || !(o.isMesh || o.isLineSegments)) return;
+        if (!o.geometry || !o.material || Array.isArray(o.material)) return;
+        if (o.userData && o.userData.noBatch) return;
+        var isLine = !!o.isLineSegments;
+        var kk = (isLine ? 'L' : 'M') + o.material.uuid;
+        var b = buckets[kk];
+        if (!b) { b = buckets[kk] = { mat: o.material, line: isLine, list: [] }; keys.push(kk); }
+        var m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+        b.list.push({ geo: o.geometry, m: m });
+        b.shadows = b.shadows || { c: o.castShadow, r: o.receiveShadow };
+        total++;
+        moved.push(o);
+      });
+      if (total < 2) return 0;
+      var made = 0;
+      for (var ki = 0; ki < keys.length; ki++) {
+        var bk = buckets[keys[ki]];
+        if (bk.list.length < 2) continue;
+        var merged = R.merge(bk.list);
+        merged.__shared = false;              // 本实体独占，销毁时该释放
+        var mesh;
+        if (bk.line) mesh = new THREE.LineSegments(merged, bk.mat);
+        else {
+          mesh = new THREE.Mesh(merged, bk.mat);
+          mesh.castShadow = bk.shadows.c; mesh.receiveShadow = bk.shadows.r;
+        }
+        inst.add(mesh);
+        made++;
+      }
+      if (!made) return 0;
+      for (var mi = 0; mi < moved.length; mi++) {
+        var mm = moved[mi];
+        if (mm.parent) mm.parent.remove(mm);
+        if (mm.geometry && mm.geometry.__shared !== true && mm.geometry.dispose) mm.geometry.dispose();
+      }
+      inst.updateMatrixWorld(true);
+      return made;
+    } catch (e) { return 0; }   // 合批失败绝不影响游戏：保持原始零件
+  }
+
   function rebuildFullScene(layoutObj) {
     // 保存当前场景状态
     var currentSpawn = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
@@ -3836,6 +3894,7 @@
     // v11.13 性能：既不随关卡逻辑动、模型自身也没有 update 动画的静态实体（楼/墙/树/箱/台阶/
     // 花盆…约 1200 个网格），逐帧的 matrixWorld 重算是纯浪费 → 贴地完成后一次性固化矩阵。
     if (!cfg.dynamic && !(def && def.update)) {
+      staticBatchMerge(inst);      // v11.13 先按材质合批，再固化世界矩阵
       inst.updateMatrixWorld(true);
       inst.traverse(function (o) { o.matrixAutoUpdate = false; });
     }
