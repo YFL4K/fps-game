@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.7</div>
+<div id="versionTag">v11.8</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -808,16 +808,26 @@
     var t = AC.currentTime;
     var out = AC.createGain(); out.gain.value = 0.85; out.connect(AC.destination);
     var rnd = 0.92 + Math.random() * 0.16;
-    // ① Crack：枪口激波（1ms attack，尖锐）
+    // ① Crack：枪口激波（高通噪声极短爆发）——决定"尖锐/清脆"度
     var c = AC.createBufferSource(); c.buffer = getWhiteBuf(); c.playbackRate.value = rnd;
-    var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = cfg.crackHz;
+    var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = cfg.crackHz; hp.Q.value = cfg.crackQ || 0.7;
     var cg = AC.createGain();
     cg.gain.setValueAtTime(0.0001, t);
     cg.gain.linearRampToValueAtTime(cfg.crackVol, t + 0.001);
     cg.gain.exponentialRampToValueAtTime(0.0001, t + cfg.crackDur);
     c.connect(hp); hp.connect(cg); cg.connect(out);
     c.start(t); c.stop(t + cfg.crackDur + 0.05);
-    // ② Thump：低频压力波（正弦快速下滑）
+    // ② Punch：中频枪身"砰"体（bandpass 噪声，赋予每把枪不同的音色个性）
+    if (cfg.punchHz) {
+      var pd = cfg.punchDur || 0.08;
+      var pc = AC.createBufferSource(); pc.buffer = getWhiteBuf(); pc.playbackRate.value = rnd * 0.95;
+      var pbp = AC.createBiquadFilter(); pbp.type = 'bandpass'; pbp.frequency.value = cfg.punchHz; pbp.Q.value = cfg.punchQ || 1.1;
+      var pg = AC.createGain(); pg.gain.setValueAtTime(0.0001, t);
+      pg.gain.linearRampToValueAtTime(cfg.punchVol || 0.3, t + 0.003);
+      pg.gain.exponentialRampToValueAtTime(0.0001, t + pd);
+      pc.connect(pbp); pbp.connect(pg); pg.connect(out); pc.start(t); pc.stop(t + pd + 0.03);
+    }
+    // ③ Thump/Boom：低频压力波（口径重量/浑厚度）
     var o = AC.createOscillator(); o.type = 'sine';
     o.frequency.setValueAtTime(cfg.thumpHz, t);
     o.frequency.exponentialRampToValueAtTime(Math.max(20, cfg.thumpHz * 0.25), t + cfg.thumpDur);
@@ -826,7 +836,7 @@
     og.gain.exponentialRampToValueAtTime(0.0001, t + cfg.thumpDur);
     o.connect(og); og.connect(out);
     o.start(t); o.stop(t + cfg.thumpDur + 0.05);
-    // ③ Tail：低通扫频衰减（空间反射尾音）
+    // ④ Tail：低通扫频衰减（空间尾音）
     var tl = AC.createBufferSource(); tl.buffer = getWhiteBuf(); tl.playbackRate.value = rnd * 0.9;
     var lp = AC.createBiquadFilter(); lp.type = 'lowpass';
     lp.frequency.setValueAtTime(cfg.tailHz0, t);
@@ -837,7 +847,7 @@
     tg.gain.exponentialRampToValueAtTime(0.0001, t + cfg.tailDur);
     tl.connect(lp); lp.connect(tg); tg.connect(out);
     tl.start(t); tl.stop(t + cfg.tailDur + 0.1);
-    // ④ 回声（狙击/步枪的远处反射）
+    // ⑤ 回声（远处反射）
     if (cfg.echo) {
       for (var e = 0; e < cfg.echo.length; e++) {
         var ec = AC.createBufferSource(); ec.buffer = getWhiteBuf(); ec.playbackRate.value = rnd;
@@ -846,61 +856,85 @@
         var dt = cfg.echo[e][0], ev = cfg.echo[e][1];
         eg.gain.setValueAtTime(0.0001, t + dt);
         eg.gain.linearRampToValueAtTime(ev, t + dt + 0.01);
-        eg.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.2);
+        eg.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.25);
         ec.connect(ebp); ebp.connect(eg); eg.connect(out);
-        ec.start(t + dt); ec.stop(t + dt + 0.28);
+        ec.start(t + dt); ec.stop(t + dt + 0.32);
       }
     }
   }
+  // v11.8 每把枪音色各异（真实枪械特性）：
+  //   手枪=清脆短小高频；步枪=干净急促中等；霰弹=低频浑厚爆炸感；狙击=最响最浑厚长尾+多重回声。
   var SHOT_CFG = {
-    pistol:  { crackHz: 3800, crackDur: 0.03, crackVol: 0.85, thumpHz: 190, thumpDur: 0.09, thumpVol: 0.55, tailHz0: 3200, tailHz1: 400, tailDur: 0.3, tailVol: 0.15 },
-    rifle:   { crackHz: 3200, crackDur: 0.032, crackVol: 0.9, thumpHz: 160, thumpDur: 0.1, thumpVol: 0.6, tailHz0: 3000, tailHz1: 350, tailDur: 0.38, tailVol: 0.18, echo: [[0.13, 0.05]] },
-    shotgun: { crackHz: 1500, crackDur: 0.05, crackVol: 0.85, thumpHz: 95, thumpDur: 0.16, thumpVol: 0.75, tailHz0: 2200, tailHz1: 250, tailDur: 0.42, tailVol: 0.22 },
-    sniper:  { crackHz: 4600, crackDur: 0.045, crackVol: 1.0, thumpHz: 80, thumpDur: 0.22, thumpVol: 0.85, tailHz0: 4200, tailHz1: 300, tailDur: 0.9, tailVol: 0.28, echo: [[0.16, 0.11], [0.36, 0.06]] }
+    pistol:  { crackHz: 4600, crackQ: 0.9, crackDur: 0.02, crackVol: 0.72, punchHz: 2100, punchVol: 0.3, punchDur: 0.05, thumpHz: 230, thumpDur: 0.06, thumpVol: 0.34, tailHz0: 4200, tailHz1: 900, tailDur: 0.16, tailVol: 0.09 },
+    rifle:   { crackHz: 3400, crackQ: 0.7, crackDur: 0.028, crackVol: 0.88, punchHz: 1300, punchVol: 0.36, punchDur: 0.07, thumpHz: 175, thumpDur: 0.09, thumpVol: 0.5, tailHz0: 3000, tailHz1: 450, tailDur: 0.3, tailVol: 0.14, echo: [[0.1, 0.035]] },
+    shotgun: { crackHz: 1300, crackQ: 0.5, crackDur: 0.05, crackVol: 0.72, punchHz: 520, punchQ: 0.8, punchVol: 0.5, punchDur: 0.12, thumpHz: 92, thumpDur: 0.17, thumpVol: 0.82, tailHz0: 1700, tailHz1: 200, tailDur: 0.42, tailVol: 0.2 },
+    sniper:  { crackHz: 2600, crackQ: 0.6, crackDur: 0.05, crackVol: 1.0, punchHz: 780, punchQ: 0.9, punchVol: 0.55, punchDur: 0.14, thumpHz: 68, thumpDur: 0.3, thumpVol: 0.95, tailHz0: 3600, tailHz1: 160, tailDur: 1.1, tailVol: 0.34, echo: [[0.18, 0.14], [0.44, 0.08], [0.72, 0.04]] }
   };
-  // AT4 发射声：带通扫频 whoosh + 低频 boom
+  // AT4 发射声：出膛"咔" + 带通 whoosh 上升 + 低频尾焰轰鸣
   function rocketShot() {
     if (!AC) return;
     var t = AC.currentTime;
+    var clack = AC.createBufferSource(); clack.buffer = getWhiteBuf(); clack.playbackRate.value = 1.3;
+    var cbp = AC.createBiquadFilter(); cbp.type = 'bandpass'; cbp.frequency.value = 1800; cbp.Q.value = 2;
+    var cg = AC.createGain(); cg.gain.setValueAtTime(0.0001, t); cg.gain.linearRampToValueAtTime(0.4, t + 0.002); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    clack.connect(cbp); cbp.connect(cg); cg.connect(AC.destination); clack.start(t); clack.stop(t + 0.06);
     var s = AC.createBufferSource(); s.buffer = getWhiteBuf();
-    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
-    bp.frequency.setValueAtTime(280, t);
-    bp.frequency.exponentialRampToValueAtTime(1400, t + 0.35);
+    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+    bp.frequency.setValueAtTime(260, t);
+    bp.frequency.exponentialRampToValueAtTime(1500, t + 0.4);
     var g = AC.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.65, t + 0.05);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    g.gain.exponentialRampToValueAtTime(0.6, t + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
     s.connect(bp); bp.connect(g); g.connect(AC.destination);
-    s.start(t); s.stop(t + 0.6);
+    s.start(t); s.stop(t + 0.65);
     var o = AC.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(120, t);
-    o.frequency.exponentialRampToValueAtTime(35, t + 0.3);
+    o.frequency.setValueAtTime(110, t);
+    o.frequency.exponentialRampToValueAtTime(30, t + 0.35);
     var og = AC.createGain();
-    og.gain.setValueAtTime(0.65, t);
-    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+    og.gain.setValueAtTime(0.6, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
     o.connect(og); og.connect(AC.destination);
-    o.start(t); o.stop(t + 0.4);
+    o.start(t); o.stop(t + 0.45);
   }
-  // 喷火器：持续宽带呼呼火焰声 + 低频燃气轰鸣
+  // 喷火器：喷射"呼"声（带通喷流 + 低频燃气轰鸣 + 轻微爆裂噼啪）
   function flameShot() {
     if (!AC) return;
     var t = AC.currentTime;
-    var s = AC.createBufferSource(); s.buffer = getWhiteBuf();
-    var lp = AC.createBiquadFilter(); lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(750, t);
-    lp.frequency.linearRampToValueAtTime(520, t + 0.25);
+    var s = AC.createBufferSource(); s.buffer = getWhiteBuf(); s.playbackRate.value = 0.7 + Math.random() * 0.2;
+    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.6;
+    bp.frequency.setValueAtTime(950, t); bp.frequency.linearRampToValueAtTime(680, t + 0.26);
     var g = AC.createGain();
-    g.gain.setValueAtTime(0.22, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-    s.connect(lp); lp.connect(g); g.connect(AC.destination);
-    s.start(t); s.stop(t + 0.32);
-    var o = AC.createOscillator(); o.type = 'triangle';
-    o.frequency.setValueAtTime(58, t);
-    var og = AC.createGain();
-    og.gain.setValueAtTime(0.18, t);
-    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
-    o.connect(og); og.connect(AC.destination);
-    o.start(t); o.stop(t + 0.3);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.3, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+    s.connect(bp); bp.connect(g); g.connect(AC.destination); s.start(t); s.stop(t + 0.34);
+    var o = AC.createOscillator(); o.type = 'triangle'; o.frequency.setValueAtTime(56, t);
+    var og = AC.createGain(); og.gain.setValueAtTime(0.2, t); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+    o.connect(og); og.connect(AC.destination); o.start(t); o.stop(t + 0.32);
+    var cr = AC.createBufferSource(); cr.buffer = getWhiteBuf(); cr.playbackRate.value = 1.6;
+    var chp = AC.createBiquadFilter(); chp.type = 'highpass'; chp.frequency.value = 3200;
+    var cg2 = AC.createGain(); cg2.gain.setValueAtTime(0.0001, t); cg2.gain.linearRampToValueAtTime(0.08, t + 0.01); cg2.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    cr.connect(chp); chp.connect(cg2); cg2.connect(AC.destination); cr.start(t); cr.stop(t + 0.14);
+  }
+  // v11.8 真实爆炸：脆裂 + 低通扫频爆炸主体 + 低频 boom + 长尾隆隆（scale 控制体量）
+  function explosionSfx(scale) {
+    if (!AC) return; scale = scale || 1;
+    var t = AC.currentTime;
+    var out = AC.createGain(); out.gain.value = Math.min(1, 0.8 * scale); out.connect(AC.destination);
+    var cr = AC.createBufferSource(); cr.buffer = getWhiteBuf(); cr.playbackRate.value = 1 + Math.random() * 0.2;
+    var chp = AC.createBiquadFilter(); chp.type = 'highpass'; chp.frequency.value = 2500;
+    var cg = AC.createGain(); cg.gain.setValueAtTime(0.0001, t); cg.gain.linearRampToValueAtTime(0.5, t + 0.003); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    cr.connect(chp); chp.connect(cg); cg.connect(out); cr.start(t); cr.stop(t + 0.15);
+    var bl = AC.createBufferSource(); bl.buffer = getWhiteBuf(); bl.playbackRate.value = 0.8;
+    var blp = AC.createBiquadFilter(); blp.type = 'lowpass'; blp.frequency.setValueAtTime(1400, t); blp.frequency.exponentialRampToValueAtTime(120, t + 0.4 * scale);
+    var bg = AC.createGain(); bg.gain.setValueAtTime(0.0001, t); bg.gain.linearRampToValueAtTime(0.9, t + 0.02); bg.gain.exponentialRampToValueAtTime(0.0001, t + 0.5 * scale);
+    bl.connect(blp); blp.connect(bg); bg.connect(out); bl.start(t); bl.stop(t + 0.55 * scale + 0.05);
+    var bo = AC.createOscillator(); bo.type = 'sine'; bo.frequency.setValueAtTime(90, t); bo.frequency.exponentialRampToValueAtTime(24, t + 0.4 * scale);
+    var bog = AC.createGain(); bog.gain.setValueAtTime(0.9, t); bog.gain.exponentialRampToValueAtTime(0.0001, t + 0.45 * scale);
+    bo.connect(bog); bog.connect(out); bo.start(t); bo.stop(t + 0.5 * scale + 0.05);
+    var ru = AC.createBufferSource(); ru.buffer = getWhiteBuf(); ru.playbackRate.value = 0.5;
+    var rlp = AC.createBiquadFilter(); rlp.type = 'lowpass'; rlp.frequency.value = 260;
+    var rg = AC.createGain(); rg.gain.setValueAtTime(0.0001, t + 0.03); rg.gain.linearRampToValueAtTime(0.35, t + 0.1); rg.gain.exponentialRampToValueAtTime(0.0001, t + 0.9 * scale);
+    ru.connect(rlp); rlp.connect(rg); rg.connect(out); ru.start(t); ru.stop(t + 0.95 * scale + 0.1);
   }
   function shotSound(type) {
     if (type === 'flamethrower') { flameShot(); return; }
@@ -933,13 +967,13 @@
     playHeadshot: function () { impactThud(220, 90, 0.05, 0.36); impactClick(4300, 8, 0.05, 0.42); impactClick(1400, 3, 0.1, 0.16); }, // 爆头：更脆更响 + 骨裂尾音
     playDeath: function () { impactThud(120, 42, 0.2, 0.42); impactClick(850, 2, 0.14, 0.14); },               // 死亡：低沉倒地闷响
     playEnemyShot: function () { gunShot({ crackHz: 2600, crackDur: 0.03, crackVol: 0.22, thumpHz: 150, thumpDur: 0.09, thumpVol: 0.16, tailHz0: 2200, tailHz1: 300, tailDur: 0.3, tailVol: 0.05 }); },
-    playRocket: function () { noiseBurst(0.35, 0.6, 700); tone(120, 0.3, 0.3, 'sawtooth', 55); },
+    playRocket: function () { explosionSfx(0.8); },
     playPickup: function () { tone(660, 0.08, 0.18, 'sine'); setTimeout(function () { tone(990, 0.12, 0.18, 'sine'); }, 80); },
     playReload: function () { tone(200, 0.06, 0.12, 'square'); setTimeout(function () { tone(260, 0.06, 0.12, 'square'); }, 120); },
     playHurt: function () { impactThud(180, 66, 0.16, 0.42); impactClick(600, 1.5, 0.12, 0.1); },              // 玩家受伤：低沉闷击
     playLevelUp: function () { tone(520, 0.12, 0.22, 'sine'); setTimeout(function () { tone(780, 0.16, 0.22, 'sine'); }, 120); },
-    playExplode: function () { noiseBurst(0.5, 0.8, 500); tone(60, 0.5, 0.5, 'sawtooth', 25); },
-    playNuke: function () { noiseBurst(1.2, 0.9, 400); tone(45, 1.1, 0.6, 'sawtooth', 18); },
+    playExplode: function () { explosionSfx(1); },
+    playNuke: function () { explosionSfx(2.4); tone(38, 1.6, 0.5, 'sine', 16); },   // 核爆：巨型爆炸 + 低频辐射轰鸣尾
     playChest: function () { tone(660, 0.1, 0.25, 'sine'); setTimeout(function () { tone(880, 0.1, 0.25, 'sine'); }, 90); setTimeout(function () { tone(1320, 0.16, 0.28, 'sine'); }, 180); },
     playBoss: function () { tone(110, 0.4, 0.5, 'sawtooth', 55); setTimeout(function () { tone(160, 0.5, 0.5, 'sawtooth', 80); }, 300); }
   };
@@ -1002,31 +1036,43 @@
   function bgmHat(t, open) {
     bgmNoise(t, open ? 0.09 : 0.035, open ? 0.14 : 0.11, 6500, 'highpass');
   }
-  function bgmBass(t, note, dur) {
+  function bgmBass(t, note, dur, vol) {
     if (!AC) return;
+    vol = (vol === undefined) ? 0.15 : vol;
     var f = midiHz(note);
     var o = AC.createOscillator(); o.type = 'sawtooth';
     o.frequency.setValueAtTime(f, t);
-    var fl = AC.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 520; fl.Q.value = 6;
-    var g = AC.createGain(); g.gain.setValueAtTime(0.24, t);
+    var fl = AC.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 480; fl.Q.value = 5;
+    var g = AC.createGain(); g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(fl); fl.connect(g); g.connect(bgm.master);
     o.start(t); o.stop(t + dur + 0.02);
     var sub = AC.createOscillator(); sub.type = 'square';
     sub.frequency.setValueAtTime(f / 2, t);
-    var g2 = AC.createGain(); g2.gain.setValueAtTime(0.09, t);
+    var g2 = AC.createGain(); g2.gain.setValueAtTime(vol * 0.5, t);
     g2.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     sub.connect(g2); g2.connect(bgm.master); sub.start(t); sub.stop(t + dur + 0.02);
   }
   function bgmLead(t, note, dur, type, vol) {
+    // v11.8 失真电吉他主音（双锯齿→tanh 削波→低通 + 轻微揉弦），让 BGM 以电吉他为主
     if (!AC) return;
-    var o = AC.createOscillator(); o.type = type || 'square';
-    o.frequency.setValueAtTime(midiHz(note), t);
-    var fl = AC.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 2400;
-    var g = AC.createGain(); g.gain.setValueAtTime(vol || 0.1, t);
+    vol = vol || 0.12;
+    var f = midiHz(note);
+    var ws = AC.createWaveShaper(); ws.curve = distCurve(9); ws.oversample = '2x';
+    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3400; lp.Q.value = 0.8;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.setValueAtTime(vol, t + dur * 0.6);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(fl); fl.connect(g); g.connect(bgm.master);
-    o.start(t); o.stop(t + dur + 0.02);
+    var mix = AC.createGain(); mix.gain.value = 0.5; mix.connect(ws); ws.connect(lp); lp.connect(g); g.connect(bgm.master);
+    var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    var o2 = AC.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = f; o2.detune.value = 9;
+    var lfo = AC.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 6;
+    var lfoG = AC.createGain(); lfoG.gain.value = 5; lfo.connect(lfoG); lfoG.connect(o.detune); lfoG.connect(o2.detune);
+    o.connect(mix); o2.connect(mix);
+    o.start(t); o2.start(t); lfo.start(t);
+    o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02); lfo.stop(t + dur + 0.02);
   }
   function bgmCrash(t) { bgmNoise(t, 0.5, 0.14, 5200, 'highpass'); }
   var _distCurves = {};
@@ -1124,19 +1170,19 @@
       if (beat === 0 && bar === 0) bgmCrash(t);
       if (tr.hat === 'eighth') { if (s % 2 === 0) bgmHat(t, beat === 2 || beat === 10); }
       else { bgmHat(t, beat % 4 === 2); }    // 16 分
-      // 贝斯根音（8 分）
-      if (s % 2 === 0) bgmBass(t, chord, spb * 1.7);
-      // 失真吉他强力和弦 riff（8 分，prog 决定每小节和弦根音）
+      // 贝斯根音（8 分，压低让电吉他主导混音）
+      if (s % 2 === 0) bgmBass(t, chord, spb * 1.7, (tr.bassVol || 0.16) * 0.7);
+      // 失真电吉他强力和弦 riff（8 分，主节奏层，音量抬高）
       if (s % 2 === 0 && tr.riff) {
         var ri = (s >> 1) & 7;
         var off = tr.riff[ri];
-        if (off !== null && off !== undefined) bgmGuitar(t, chord + off, spb * 1.6, 0.15, tr.gtrAmt || 12);
+        if (off !== null && off !== undefined) bgmGuitar(t, chord + off, spb * 1.6, 0.24, tr.gtrAmt || 12);
       }
-      // 主音 hook（8 分，16 音符 loop）
+      // 电吉他主音 hook（8 分，16 音符 loop）
       if (s % 2 === 0 && tr.lead) {
         var li = (s >> 1) & 15;
         var ln = tr.lead[li];
-        if (ln !== null && ln !== undefined) bgmLead(t, tr.key + 12 + ln, spb * 1.5, 'sawtooth', tr.leadVol);
+        if (ln !== null && ln !== undefined) bgmLead(t, tr.key + 12 + ln, spb * 1.5, 'sawtooth', (tr.leadVol || 0.09) * 1.6);
       }
     }
   };
