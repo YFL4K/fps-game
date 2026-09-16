@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.6</div>
+<div id="versionTag">v11.7</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -907,17 +907,37 @@
     if (type === 'rocket') { rocketShot(); return; }
     gunShot(SHOT_CFG[type] || SHOT_CFG.pistol);
   }
+  /* ============ v11.7 真实打击音效（参考 CS：短促带通命中反馈 + 低频闷响） ============ */
+  function impactClick(freq, q, dur, vol) {
+    if (!AC) return;
+    var t = AC.currentTime;
+    var s = AC.createBufferSource(); s.buffer = getWhiteBuf(); s.playbackRate.value = 0.9 + Math.random() * 0.25;
+    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = q;
+    var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(bp); bp.connect(g); g.connect(AC.destination);
+    s.start(t); s.stop(t + dur + 0.03);
+  }
+  function impactThud(f0, f1, dur, vol) {
+    if (!AC) return;
+    var t = AC.currentTime;
+    var o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    var g = AC.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
   var sfx = {
     playShot: function (type) { shotSound(type); },
-    playHit: function () { tone(880, 0.07, 0.2, 'square', 440); },
-    playHeadshot: function () { tone(1200, 0.08, 0.25, 'square', 600); },
-    playDeath: function () { tone(300, 0.5, 0.3, 'sawtooth', 60); },
-    playEnemyShot: function () { gunShot({ crackHz: 2600, crackDur: 0.03, crackVol: 0.26, thumpHz: 150, thumpDur: 0.09, thumpVol: 0.18, tailHz0: 2200, tailHz1: 300, tailDur: 0.3, tailVol: 0.05 }); },
+    playHit: function () { impactThud(155, 70, 0.06, 0.3); impactClick(2600, 6, 0.03, 0.2); },                 // 中弹：闷响 + 清脆命中反馈
+    playHeadshot: function () { impactThud(220, 90, 0.05, 0.36); impactClick(4300, 8, 0.05, 0.42); impactClick(1400, 3, 0.1, 0.16); }, // 爆头：更脆更响 + 骨裂尾音
+    playDeath: function () { impactThud(120, 42, 0.2, 0.42); impactClick(850, 2, 0.14, 0.14); },               // 死亡：低沉倒地闷响
+    playEnemyShot: function () { gunShot({ crackHz: 2600, crackDur: 0.03, crackVol: 0.22, thumpHz: 150, thumpDur: 0.09, thumpVol: 0.16, tailHz0: 2200, tailHz1: 300, tailDur: 0.3, tailVol: 0.05 }); },
     playRocket: function () { noiseBurst(0.35, 0.6, 700); tone(120, 0.3, 0.3, 'sawtooth', 55); },
-    playPickup: function () { tone(660, 0.08, 0.2, 'sine'); setTimeout(function () { tone(990, 0.12, 0.2, 'sine'); }, 80); },
-    playReload: function () { tone(200, 0.06, 0.15, 'square'); setTimeout(function () { tone(260, 0.06, 0.15, 'square'); }, 120); },
-    playHurt: function () { tone(160, 0.2, 0.25, 'sawtooth', 90); },
-    playLevelUp: function () { tone(520, 0.12, 0.25, 'sine'); setTimeout(function () { tone(780, 0.16, 0.25, 'sine'); }, 120); },
+    playPickup: function () { tone(660, 0.08, 0.18, 'sine'); setTimeout(function () { tone(990, 0.12, 0.18, 'sine'); }, 80); },
+    playReload: function () { tone(200, 0.06, 0.12, 'square'); setTimeout(function () { tone(260, 0.06, 0.12, 'square'); }, 120); },
+    playHurt: function () { impactThud(180, 66, 0.16, 0.42); impactClick(600, 1.5, 0.12, 0.1); },              // 玩家受伤：低沉闷击
+    playLevelUp: function () { tone(520, 0.12, 0.22, 'sine'); setTimeout(function () { tone(780, 0.16, 0.22, 'sine'); }, 120); },
     playExplode: function () { noiseBurst(0.5, 0.8, 500); tone(60, 0.5, 0.5, 'sawtooth', 25); },
     playNuke: function () { noiseBurst(1.2, 0.9, 400); tone(45, 1.1, 0.6, 'sawtooth', 18); },
     playChest: function () { tone(660, 0.1, 0.25, 'sine'); setTimeout(function () { tone(880, 0.1, 0.25, 'sine'); }, 90); setTimeout(function () { tone(1320, 0.16, 0.28, 'sine'); }, 180); },
@@ -930,25 +950,24 @@
    *   L1 巷战冲锋 / L2 火力围猎 / L3 机甲降临 / L4 钢铁洪流 / L5 终焉之战 / 无尽鏖战
    * 每曲 = 鼓(4/4 循环) + 锯齿贝斯 + 合成器主旋律 riff，节奏/调式/音色各不相同。
    */
+  // v11.7 硬摇滚 BGM：失真强力和弦吉他 riff + 摇滚鼓组(底/军/踩镲/吊镲) + 锯齿贝斯。
+  //   key=根音MIDI，prog=4小节和弦根音偏移，riff=8个八分强力和弦偏移，lead=16分主音hook，
+  //   kick 风格(rock/drive/heavy/double)，gtrAmt=失真度。索引 6 = BOSS 战专属狂暴摇滚。
   var BGM_TRACKS = [
-    { name: '巷战冲锋', tempo: 132, key: 55, scale: [0, 3, 5, 7, 10, 12],
-      bass: [0, 0, 12, 7], lead: [0, 3, 7, 3, 10, 7, 3, 5, 7, 10, 12, 10, 5, 7, 3, 5],
-      kick: 'four', hat: 'eighth', leadType: 'square', leadVol: 0.09, bassVol: 0.16 },
-    { name: '火力围猎', tempo: 148, key: 50, scale: [0, 2, 3, 5, 7, 8, 10],
-      bass: [0, 0, 7, 12], lead: [0, 5, 7, 5, 12, 10, 7, 5, 3, 5, 7, 10, 7, 5, 3, 2],
-      kick: 'double', hat: 'sixteenth', leadType: 'sawtooth', leadVol: 0.09, bassVol: 0.18 },
-    { name: '机甲降临', tempo: 140, key: 52, scale: [0, 2, 3, 5, 7, 8, 10],
-      bass: [0, 0, 0, 7], lead: [0, 3, 5, 0, 5, 3, 0, -5, 7, 5, 3, 2, 3, 5, 7, 3],
-      kick: 'heavy', hat: 'eighth', leadType: 'sawtooth', leadVol: 0.11, bassVol: 0.20 },
-    { name: '钢铁洪流', tempo: 156, key: 53, scale: [0, 2, 3, 5, 7, 8, 10],
-      bass: [0, 7, 0, 10], lead: [0, 7, 10, 7, 12, 10, 7, 5, 3, 2, 0, 2, 3, 5, 7, 10],
-      kick: 'double', hat: 'sixteenth', leadType: 'square', leadVol: 0.10, bassVol: 0.18 },
-    { name: '终焉之战', tempo: 170, key: 48, scale: [0, 2, 3, 5, 7, 8, 10],
-      bass: [0, 0, 12, 12], lead: [0, 5, 7, 10, 12, 10, 7, 5, 7, 10, 12, 15, 12, 10, 7, 3],
-      kick: 'double', hat: 'sixteenth', leadType: 'sawtooth', leadVol: 0.12, bassVol: 0.20 },
-    { name: '无尽鏖战', tempo: 152, key: 46, scale: [0, 3, 5, 7, 10, 12, 15],
-      bass: [0, 7, 0, 12], lead: [0, 3, 7, 10, 12, 10, 7, 3, 5, 7, 10, 7, 12, 10, 7, 5],
-      kick: 'heavy', hat: 'sixteenth', leadType: 'sawtooth', leadVol: 0.11, bassVol: 0.19 }
+    { name: '硬摇滚·推进', tempo: 152, key: 45, prog: [0, 0, 3, 5], riff: [0, 0, 0, 0, 0, 0, 3, 0],
+      lead: [12, 12, 15, 12, 10, 12, 10, 7, 12, 12, 17, 15, 12, 10, 7, 5], kick: 'rock', hat: 'eighth', gtrAmt: 10, leadVol: 0.07, bassVol: 0.16 },
+    { name: '硬摇滚·围猎', tempo: 160, key: 43, prog: [0, 0, 7, 5], riff: [0, 0, 3, 0, 0, 5, 3, 0],
+      lead: [12, 15, 12, 10, 12, 15, 17, 15, 12, 10, 12, 15, 12, 10, 7, 5], kick: 'drive', hat: 'sixteenth', gtrAmt: 12, leadVol: 0.07, bassVol: 0.17 },
+    { name: '重金属·机甲', tempo: 150, key: 40, prog: [0, 0, 0, 8], riff: [0, 0, 0, 3, 0, 0, 5, 3],
+      lead: [12, 12, 13, 12, 15, 13, 12, 10, 12, 12, 15, 17, 15, 13, 12, 8], kick: 'heavy', hat: 'eighth', gtrAmt: 14, leadVol: 0.08, bassVol: 0.18 },
+    { name: '硬摇滚·洪流', tempo: 168, key: 42, prog: [0, 5, 0, 7], riff: [0, 0, 0, 0, 3, 3, 5, 5],
+      lead: [12, 14, 15, 14, 12, 10, 12, 14, 15, 17, 15, 14, 12, 10, 7, 10], kick: 'drive', hat: 'sixteenth', gtrAmt: 12, leadVol: 0.07, bassVol: 0.17 },
+    { name: '硬摇滚·终焉', tempo: 176, key: 38, prog: [0, 0, 10, 8], riff: [0, 0, 3, 0, 5, 3, 0, 0],
+      lead: [12, 15, 17, 15, 12, 10, 12, 15, 17, 20, 17, 15, 12, 10, 8, 5], kick: 'heavy', hat: 'sixteenth', gtrAmt: 15, leadVol: 0.08, bassVol: 0.19 },
+    { name: '硬摇滚·鏖战', tempo: 164, key: 41, prog: [0, 7, 5, 3], riff: [0, 0, 0, 3, 0, 5, 3, 0],
+      lead: [12, 12, 15, 12, 17, 15, 12, 10, 12, 12, 15, 17, 20, 17, 15, 12], kick: 'drive', hat: 'sixteenth', gtrAmt: 13, leadVol: 0.08, bassVol: 0.18 },
+    { name: 'BOSS·狂暴摇滚', tempo: 184, key: 36, prog: [0, 0, 8, 7], riff: [0, 0, 0, 0, 0, 0, 0, 3],
+      lead: [12, 15, 12, 17, 12, 15, 20, 17, 12, 15, 12, 17, 22, 20, 17, 15], kick: 'double', hat: 'sixteenth', gtrAmt: 18, leadVol: 0.09, bassVol: 0.22 }
   ];
   function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
   function bgmNoise(t, dur, vol, cutoff, type) {
@@ -1009,6 +1028,35 @@
     o.connect(fl); fl.connect(g); g.connect(bgm.master);
     o.start(t); o.stop(t + dur + 0.02);
   }
+  function bgmCrash(t) { bgmNoise(t, 0.5, 0.14, 5200, 'highpass'); }
+  var _distCurves = {};
+  function distCurve(amount) {
+    amount = amount || 12;
+    if (_distCurves[amount]) return _distCurves[amount];
+    var n = 1024, c = new Float32Array(n);
+    for (var i = 0; i < n; i++) { var x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(x * amount); }
+    _distCurves[amount] = c; return c;
+  }
+  // v11.7 失真电吉他强力和弦（root+五度+八度，tanh 削波 + 高低通），硬摇滚音色
+  function bgmGuitar(t, midi, dur, vol, amount) {
+    if (!AC) return;
+    var f = midiHz(midi);
+    var ws = AC.createWaveShaper(); ws.curve = distCurve(amount); ws.oversample = '4x';
+    var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 80;
+    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2800; lp.Q.value = 0.6;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var freqs = [f, f * Math.pow(2, 7 / 12), f * 2];
+    var gains = [1, 0.55, 0.7];
+    for (var i = 0; i < 3; i++) {
+      var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freqs[i]; o.detune.value = (i - 1) * 7;
+      var og = AC.createGain(); og.gain.value = gains[i];
+      o.connect(og); og.connect(ws); o.start(t); o.stop(t + dur + 0.02);
+    }
+    ws.connect(hp); hp.connect(lp); lp.connect(g); g.connect(bgm.master);
+  }
   var bgm = {
     idx: -1, track: null, playing: false, muted: false,
     master: null, timer: null, nextT: 0, step: 0,
@@ -1066,37 +1114,42 @@
       var spb = 60 / tr.tempo / 4;
       var bar = (s >> 4) & 3;                // 0-3 小节
       var beat = s & 15;                     // 16 分内位置
-      // 鼓
-      if (tr.kick === 'four') {
-        if (beat === 0 || beat === 8) bgmKick(t, false);
-      } else if (tr.kick === 'heavy') {
-        if (beat === 0 || beat === 8) bgmKick(t, true);
-        if (beat === 14) bgmKick(t, false);
-      } else if (tr.kick === 'double') {
-        if (beat === 0 || beat === 8) bgmKick(t, true);
-        if (beat === 2 || beat === 6 || beat === 10 || beat === 14) bgmKick(t, false);
-      }
+      var chord = tr.key + (tr.prog ? tr.prog[bar] : 0);
+      // 摇滚鼓组：底鼓 + 军鼓(2/4拍) + 踩镲 + 每乐句首吊镲
+      if (tr.kick === 'rock') { if (beat === 0 || beat === 6 || beat === 8) bgmKick(t, beat === 0); }
+      else if (tr.kick === 'drive') { if (beat === 0 || beat === 4 || beat === 8 || beat === 12) bgmKick(t, beat === 0 || beat === 8); }
+      else if (tr.kick === 'heavy') { if (beat === 0 || beat === 7 || beat === 8 || beat === 14) bgmKick(t, true); }
+      else if (tr.kick === 'double') { if (beat % 2 === 0) bgmKick(t, beat === 0 || beat === 8); }   // BOSS 八分双踩，更猛
       if (beat === 4 || beat === 12) bgmSnare(t);
-      if (tr.hat === 'eighth') { if (s % 2 === 0) bgmHat(t, s % 4 === 2); }
+      if (beat === 0 && bar === 0) bgmCrash(t);
+      if (tr.hat === 'eighth') { if (s % 2 === 0) bgmHat(t, beat === 2 || beat === 10); }
       else { bgmHat(t, beat % 4 === 2); }    // 16 分
-      // 贝斯（8 分音符）
-      if (s % 2 === 0) {
-        var bnote = tr.key + tr.bass[bar];
-        bgmBass(t, bnote, spb * 1.7);
+      // 贝斯根音（8 分）
+      if (s % 2 === 0) bgmBass(t, chord, spb * 1.7);
+      // 失真吉他强力和弦 riff（8 分，prog 决定每小节和弦根音）
+      if (s % 2 === 0 && tr.riff) {
+        var ri = (s >> 1) & 7;
+        var off = tr.riff[ri];
+        if (off !== null && off !== undefined) bgmGuitar(t, chord + off, spb * 1.6, 0.15, tr.gtrAmt || 12);
       }
-      // 主旋律 riff（8 分音符，16 音符 loop，值为半音程度数）
-      if (s % 2 === 0) {
+      // 主音 hook（8 分，16 音符 loop）
+      if (s % 2 === 0 && tr.lead) {
         var li = (s >> 1) & 15;
-        var deg = tr.lead[li];
-        if (deg !== undefined && deg !== null) {
-          bgmLead(t, tr.key + 12 + deg, spb * 1.5, tr.leadType, tr.leadVol);
-        }
+        var ln = tr.lead[li];
+        if (ln !== null && ln !== undefined) bgmLead(t, tr.key + 12 + ln, spb * 1.5, 'sawtooth', tr.leadVol);
       }
     }
   };
   function bgmPlayForCurrent() {
     if (gameMode === 'endless') bgm.playTrack(5);
     else bgm.playTrack(Math.min(levelIndex, 4));
+  }
+  // v11.7 BOSS/猪头佳在场时切到狂暴摇滚轨(6)，离场后恢复关卡曲（仅在切换时触发，逐帧调用开销极小）
+  function updateBossMusic() {
+    if (!bgm.track) return;
+    var boss = pigAlive || bossAlive;
+    if (boss) { if (bgm.idx !== 6) bgm.playTrack(6); }
+    else if (bgm.idx === 6) bgmPlayForCurrent();
   }
   bgm.setMuted(false);
   ctx.bgm = bgm;
@@ -2760,6 +2813,7 @@
 
   function updateWaves(dt) {
     if (state !== 'playing') return;
+    updateBossMusic();   // v11.7 BOSS/猪头佳在场切狂暴摇滚，离场恢复关卡曲
     var L = getLevel();
 
     // 波次随机刷怪
