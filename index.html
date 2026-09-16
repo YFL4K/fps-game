@@ -841,7 +841,7 @@
   function gunShot(cfg) {
     if (!AC) return;
     var t = AC.currentTime;
-    var out = AC.createGain(); out.gain.value = 0.85; out.connect(AC.destination);
+    var out = AC.createGain(); out.gain.value = 1.0; out.connect(AC.destination);
     var rnd = 0.92 + Math.random() * 0.16;
     // ① Crack：枪口激波（高通噪声极短爆发）——决定"尖锐/清脆"度
     var c = AC.createBufferSource(); c.buffer = getWhiteBuf(); c.playbackRate.value = rnd;
@@ -911,7 +911,7 @@
     var t = AC.currentTime;
     var clack = AC.createBufferSource(); clack.buffer = getWhiteBuf(); clack.playbackRate.value = 1.3;
     var cbp = AC.createBiquadFilter(); cbp.type = 'bandpass'; cbp.frequency.value = 1800; cbp.Q.value = 2;
-    var cg = AC.createGain(); cg.gain.setValueAtTime(0.0001, t); cg.gain.linearRampToValueAtTime(0.4, t + 0.002); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    var cg = AC.createGain(); cg.gain.setValueAtTime(0.0001, t); cg.gain.linearRampToValueAtTime(0.52, t + 0.002); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
     clack.connect(cbp); cbp.connect(cg); cg.connect(AC.destination); clack.start(t); clack.stop(t + 0.06);
     var s = AC.createBufferSource(); s.buffer = getWhiteBuf();
     var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
@@ -919,7 +919,7 @@
     bp.frequency.exponentialRampToValueAtTime(1500, t + 0.4);
     var g = AC.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.6, t + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.78, t + 0.06);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
     s.connect(bp); bp.connect(g); g.connect(AC.destination);
     s.start(t); s.stop(t + 0.65);
@@ -927,7 +927,7 @@
     o.frequency.setValueAtTime(110, t);
     o.frequency.exponentialRampToValueAtTime(30, t + 0.35);
     var og = AC.createGain();
-    og.gain.setValueAtTime(0.6, t);
+    og.gain.setValueAtTime(0.78, t);
     og.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
     o.connect(og); og.connect(AC.destination);
     o.start(t); o.stop(t + 0.45);
@@ -936,7 +936,7 @@
   function flameShot() {
     if (!AC) return;
     var t = AC.currentTime;
-    var out = AC.createGain(); out.gain.value = 0.5; out.connect(AC.destination);
+    var out = AC.createGain(); out.gain.value = 0.65; out.connect(AC.destination);
     // ① 低频轰鸣（燃气压力体）
     var bo = AC.createOscillator(); bo.type = 'sawtooth';
     bo.frequency.setValueAtTime(70, t); bo.frequency.linearRampToValueAtTime(48, t + 0.14);
