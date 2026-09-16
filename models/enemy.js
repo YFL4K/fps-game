@@ -99,6 +99,31 @@
   }
   function meshOf(geo, mat) { var m = new global.THREE.Mesh(geo, mat); m.castShadow = false; m.receiveShadow = false; return m; }
 
+  // v11.15 水深采样：返回该点水面以下深度（米），陆地/浅水(<=0.5m)视为可通行返回 0 判定用
+  function waterDepth(x, z) {
+    if (!global.TERRAIN || global.TERRAIN.waterLevel == null || !global.TERRAIN.groundAt) return 0;
+    var g = global.TERRAIN.groundAt(x, z);
+    return g < global.TERRAIN.waterLevel ? (global.TERRAIN.waterLevel - g) : 0;
+  }
+  // v11.15 敌人移动避水：向 (dirX,dirZ) 走 stepLen；若落点在深水(>0.5m)则左右滑动绕行，
+  // 四周皆深水则原地不动。返回是否实际移动。
+  function stepAvoidWater(inst, dirX, dirZ, stepLen) {
+    var nx = inst.position.x + dirX * stepLen;
+    var nz = inst.position.z + dirZ * stepLen;
+    if (waterDepth(nx, nz) <= 0.5) {
+      inst.position.x = nx;
+      inst.position.z = nz;
+      return true;
+    }
+    var px = -dirZ, pz = dirX;   // 垂直方向
+    var lx = inst.position.x + px * stepLen, lz = inst.position.z + pz * stepLen;
+    var rx = inst.position.x - px * stepLen, rz = inst.position.z - pz * stepLen;
+    var dl = waterDepth(lx, lz), dr = waterDepth(rx, rz);
+    if (dl <= 0.5 && dl <= dr) { inst.position.x = lx; inst.position.z = lz; return true; }
+    if (dr <= 0.5) { inst.position.x = rx; inst.position.z = rz; return true; }
+    return false;
+  }
+
   /* ---- 哨兵机器人：外壳/内骨骼/发光/涂装 四组材质，一台机器人一次构建 ---- */
   // 4 套涂装让同批敌人互相有别（外形一致、配色不同）
   var ROBOT_SCHEMES = [
@@ -555,18 +580,13 @@
       const dist = Math.sqrt(dx * dx + dz * dz);
       if (dist > 1e-4) inst.rotation.y = Math.atan2(dx, dz);
 
-      // ---- 移动：太远靠近，太近后退 ----
+      // ---- 移动：太远靠近，太近后退（v11.15 避开水深>0.5m 水域，沿水岸滑动绕行）----
       const stopDist = u.baseStopDist * s;
       let moving = false;
       if (dist > stopDist) {
-        const mv = u.speed * dt;
-        inst.position.x += (dx / dist) * mv;
-        inst.position.z += (dz / dist) * mv;
-        moving = true;
+        moving = stepAvoidWater(inst, dx / dist, dz / dist, u.speed * dt);
       } else if (u.type !== 'boss' && dist < stopDist * 0.55 && dist > 1e-4) {
-        inst.position.x -= (dx / dist) * u.speed * dt * 0.5;
-        inst.position.z -= (dz / dist) * u.speed * dt * 0.5;
-        moving = true;
+        moving = stepAvoidWater(inst, -dx / dist, -dz / dist, u.speed * dt * 0.5);
       }
 
       // v10.3 BOSS 撞开前方障碍物（前进时自动破坏挡路的墙/房/箱）

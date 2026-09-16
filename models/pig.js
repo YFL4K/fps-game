@@ -13,6 +13,24 @@
 
   function sqDist(ax, az, bx, bz) { var dx = ax - bx, dz = az - bz; return dx * dx + dz * dz; }
 
+  // v11.15 水深采样（猪头佳避水：深水>0.5m 不入水，沿水岸滑动绕行）
+  function waterDepth(x, z) {
+    if (!global.TERRAIN || global.TERRAIN.waterLevel == null || !global.TERRAIN.groundAt) return 0;
+    var g = global.TERRAIN.groundAt(x, z);
+    return g < global.TERRAIN.waterLevel ? (global.TERRAIN.waterLevel - g) : 0;
+  }
+  function stepAvoidWater(inst, dirX, dirZ, stepLen) {
+    var nx = inst.position.x + dirX * stepLen, nz = inst.position.z + dirZ * stepLen;
+    if (waterDepth(nx, nz) <= 0.5) { inst.position.x = nx; inst.position.z = nz; return true; }
+    var px = -dirZ, pz = dirX;
+    var lx = inst.position.x + px * stepLen, lz = inst.position.z + pz * stepLen;
+    var rx = inst.position.x - px * stepLen, rz = inst.position.z - pz * stepLen;
+    var dl = waterDepth(lx, lz), dr = waterDepth(rx, rz);
+    if (dl <= 0.5 && dl <= dr) { inst.position.x = lx; inst.position.z = lz; return true; }
+    if (dr <= 0.5) { inst.position.x = rx; inst.position.z = rz; return true; }
+    return false;
+  }
+
   var LASER_ON = 5, LASER_OFF = 3, LASER_RANGE = 200, LASER_HALF_W = 1.5;
   var LASER_PITCH_MIN = 20, LASER_PITCH_MAX = 20;
   var LASER_DPS_PLAYER = 30, LASER_DPS_ENEMY = 50;
@@ -309,8 +327,7 @@
         dirX = dx / d; dirZ = dz / d;
         inst.rotation.y = Math.atan2(dirX, dirZ);
       }
-      inst.position.x += dirX * u.speed * dt;
-      inst.position.z += dirZ * u.speed * dt;
+      stepAvoidWater(inst, dirX, dirZ, u.speed * dt);
 
       if (best && ctx.breakObstacleAhead) {
         u._ramT = (u._ramT || 0) + dt;

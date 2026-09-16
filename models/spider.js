@@ -13,6 +13,24 @@
     spider: { body: 0x2d1f1f, dark: 0x1a1212, eye: 0xff4444, leg: 0x3d2b2b }
   };
 
+  // v11.15 水深采样 + 蜘蛛避水（深水>0.5m 不入水，沿水岸滑动绕行）
+  function waterDepth(x, z) {
+    if (!global.TERRAIN || global.TERRAIN.waterLevel == null || !global.TERRAIN.groundAt) return 0;
+    var g = global.TERRAIN.groundAt(x, z);
+    return g < global.TERRAIN.waterLevel ? (global.TERRAIN.waterLevel - g) : 0;
+  }
+  function stepAvoidWater(inst, dirX, dirZ, stepLen) {
+    var nx = inst.position.x + dirX * stepLen, nz = inst.position.z + dirZ * stepLen;
+    if (waterDepth(nx, nz) <= 0.5) { inst.position.x = nx; inst.position.z = nz; return true; }
+    var px = -dirZ, pz = dirX;
+    var lx = inst.position.x + px * stepLen, lz = inst.position.z + pz * stepLen;
+    var rx = inst.position.x - px * stepLen, rz = inst.position.z - pz * stepLen;
+    var dl = waterDepth(lx, lz), dr = waterDepth(rx, rz);
+    if (dl <= 0.5 && dl <= dr) { inst.position.x = lx; inst.position.z = lz; return true; }
+    if (dr <= 0.5) { inst.position.x = rx; inst.position.z = rz; return true; }
+    return false;
+  }
+
   global.MODELS.spider = {
     name: 'spider',
 
@@ -199,11 +217,9 @@
       const dist = Math.sqrt(dx * dx + dz * dz);
       if (dist > 0.1) inst.rotation.y = Math.atan2(dx, dz);
 
-      // 移动：快速爬向玩家
+      // 移动：快速爬向玩家（v11.15 避开水深>0.5m 水域）
       if (dist > u.explodeRange) {
-        const mv = u.speed * dt;
-        inst.position.x += (dx / dist) * mv;
-        inst.position.z += (dz / dist) * mv;
+        stepAvoidWater(inst, dx / dist, dz / dist, u.speed * dt);
       }
 
       // 触发自爆

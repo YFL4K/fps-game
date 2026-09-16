@@ -311,7 +311,7 @@
     rifle:      { name: '步枪',     damage: 35, mag: 60,  maxAmmo: 360, fireRate: 15.0, reload: 1.0,  spread: 0.02,  pellets: 1,   range: 120,  auto: true,  aimFov: 45, scopeLens: false },   // v7.2: 伤害20→35 射速9→15 换弹1.17→1，初始自带；v11.4: 弹匣30→60 备弹240→360
     flamethrower: { name: '喷火器', damage: 300, mag: 5,  maxAmmo: 30,  fireRate: 35.0, reload: 1.5,  spread: 0.08,  pellets: 1,   range: 80,   auto: true, flame: true, flameRadius: 12, aimFov: 55, scopeLens: false },  // v7.2: 伤害216→100 射速12→35 换弹2.0→1.5 射程80→60；v10.4: 伤害100→300 射程60→80 范围9→12
     sniper:     { name: '狙击枪',   damage: 300, mag: 12,  maxAmmo: 120, fireRate: 3.0,  reload: 1.0,  spread: 0.003, pellets: 1,   range: 300,  auto: false, aimFov: 18, scopeLens: true, explosive: true },   // v7.2: 伤害120→300 射程260→300；v8.4: 射速1→3 换弹2→1；v11.4: 弹匣5→12 备弹40→120 命中敌人附加小范围爆炸
-    rocket:     { name: '火箭筒',   damage: 210, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 200,  auto: false, aoe: { radius: 6, damage: 255 }, aimFov: 35, scopeLens: false }   // v7.2: 射程240→200；v7.9: 伤害140→210、爆炸170→255（+50%）
+    rocket:     { name: '火箭筒',   damage: 630, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 200,  auto: false, aoe: { radius: 6, damage: 765 }, aimFov: 35, scopeLens: false }   // v11.15: 伤害×3(210→630, AOE 255→765)
   };
   var GUN_ORDER = ['pistol', 'rifle', 'flamethrower', 'sniper', 'rocket'];
   // v7.2 加特林碉堡参数（伤害40 / 射速30发每秒 / 射程120）
@@ -3396,8 +3396,13 @@
     explode(p, 95, 3000, { nuke: true, noPlayer: true, bossDmgMul: 6, onlyEnemies: true });   // v11.5 只伤敌人不毁建筑/物品
     spawnMushroomCloud(p);
     // 核弹伤害 = 最大生命 × 30%（不按当前血量，是固定的）；自伤不钳制
-    var nukeDmg = Math.round(player.maxHealth * 0.30);
-    hitPlayer(nukeDmg, { noClamp: true });
+    // v11.15: 玩家身处水深 >0.5m 的水域时免于核弹自伤（深水作为掩体）
+    if (waterDepthAt(player.pos.x, player.pos.z) > 0.5) {
+      showToast('🌊 深水中引爆！核爆冲击被水体抵消，你毫发无伤', 0x66ccff);
+    } else {
+      var nukeDmg = Math.round(player.maxHealth * 0.30);
+      hitPlayer(nukeDmg, { noClamp: true });
+    }
     if (player.dead) {
       bgm.stop();
       if (gameMode === 'endless') {
@@ -3604,6 +3609,13 @@
   // v11.12 落地统一走 TERRAIN.groundAt —— 直接对地形网格顶点高度表做双线性采样，
   // 落地面与真正渲染出来的表面严格一致（解析 heightAt 与 1.5m 插值面之间的偏差正是悬空/陷地根因）
   function groundY(x, z) { return (window.TERRAIN && window.TERRAIN.groundAt) ? window.TERRAIN.groundAt(x, z) : 0; }
+  // v11.15 水深采样：返回该点水面以下的深度（米），无水域/陆地返回 0。水线 = TERRAIN.waterLevel。
+  function waterDepthAt(x, z) {
+    if (!window.TERRAIN || window.TERRAIN.waterLevel == null || !window.TERRAIN.groundAt) return 0;
+    var wl = window.TERRAIN.waterLevel;
+    var g = window.TERRAIN.groundAt(x, z);
+    return g < wl ? (wl - g) : 0;
+  }
 
   // v11.12 压平点改为「每关一份」：先 reset 再只应用本关 layout.flattens，
   // 消除旧版 6 份布局累加造成的无关坑洞与逐帧高度查询变慢
@@ -4231,6 +4243,9 @@
       document.getElementById('tComplete').addEventListener('click', completeLevel);
     }
     window.__fpsTest = {
+      // v11.15 水深采样测试钩子：返回某点水深 + 火箭筒伤害值
+      waterDepth: function (x, z) { return Math.round(waterDepthAt(x, z) * 100) / 100; },
+      rocketDamage: function () { return { direct: GUN_TYPES.rocket.damage, aoe: GUN_TYPES.rocket.aoe.damage }; },
       getState: function () {
         return {
           state: state, mode: gameMode, levelIndex: levelIndex, levelKills: levelKills,
