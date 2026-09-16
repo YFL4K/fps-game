@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.9.1</div>
+<div id="versionTag">v11.10</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -516,6 +516,8 @@
     if (window.TERRAIN && GROUND_PROPS && GROUND_PROPS[cfg.model]) {
       inst.position.y = groundY(cfg.position[0], cfg.position[2]) - 0.15;
     }
+    // v11.10: 悬浮类掉落物的浮动基准改用贴合后的地形高度（spawnPos.y 原固定 0.8，会埋进山坡）
+    ctx.spawnPos.y = inst.position.y;
     scene.add(inst);
 
     inst.traverse(function (o) {
@@ -579,7 +581,8 @@
 
   // v11.9 地形：地面道具贴合地形高度。必须在加载时构建实体之前定义，
   // 否则 buildEntity 在遍历首个实体(sky)时引用 GROUND_PROPS 会读到 undefined 而崩溃。
-  var GROUND_PROPS = { building: 1, wall: 1, tree: 1, bigtree: 1, highwall: 1, crate: 1, barrel: 1, tnt: 1, obstacle: 1, container: 1, truck: 1, plane: 1, vehicle: 1, lamp: 1, target: 1, gatling: 1, watchtower: 1, ferriswheel: 1, mushroom: 1, grass: 1, pot: 1, chest: 1, enemy: 1, pig: 1, spider: 1 };
+  // v11.10: 武器/拾取物也登记，使其贴合地形高度（否则 ±10m 起伏时会埋进山坡，导致“掉落物看不见/捡不到”）
+  var GROUND_PROPS = { building: 1, wall: 1, tree: 1, bigtree: 1, highwall: 1, crate: 1, barrel: 1, tnt: 1, obstacle: 1, container: 1, truck: 1, plane: 1, vehicle: 1, lamp: 1, target: 1, gatling: 1, watchtower: 1, ferriswheel: 1, mushroom: 1, grass: 1, pot: 1, chest: 1, enemy: 1, pig: 1, spider: 1, weapon: 1, pickup: 1 };
 
   (LAYOUT.entities || []).forEach(function (cfg) {
     layoutRecs.push(buildEntity(cfg));
@@ -3145,12 +3148,10 @@
     score += 800;
     // v7.3 5000 分里程碑奖励检查
     checkScoreMilestone();
-    // v7.1 图鉴表：直升机掉落 火箭筒 30%
+    // v11.10: 直升机必掉火箭筒（用户反馈极难获得；改为稳定产出，“至少 30%”已满足）
     var extra = '';
-    if (Math.random() < 0.30) {
-      spawnWeaponDrop(pos, 'rocket');
-      extra = ' + 火箭筒（5 发炮弹）';
-    }
+    spawnWeaponDrop(pos, 'rocket');
+    extra = ' + 火箭筒（5 发炮弹）';
     // v7.1 图鉴表：直升机掉落 喷火弹药 30%
     if (Math.random() < 0.30) {
       spawnAmmoDrop(pos, 'flame');
@@ -3675,6 +3676,8 @@
     if (window.TERRAIN && GROUND_PROPS && GROUND_PROPS[cfg.model]) {
       inst.position.y = groundY(cfg.position[0], cfg.position[2]) - 0.15;
     }
+    // v11.10: 悬浮类掉落物的浮动基准改用贴合后的地形高度（spawnPos.y 原固定 0.8，会埋进山坡）
+    ctx.spawnPos.y = inst.position.y;
     scene.add(inst);
     inst.traverse(function (o) {
       if (o.isMesh) { o.userData.entityId = cfg.id; o.userData.hitTarget = true; }

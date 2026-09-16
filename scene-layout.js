@@ -20,6 +20,12 @@
     // ---- 基础环境 ----
     entities.push({ id: nextId('sky'), model: 'sky', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
     entities.push({ id: nextId('floor'), model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
+    // v11.10 出生点/刷怪点压平，避免起伏地形上出生即悬空或陷坑
+    if (window.TERRAIN) {
+      window.TERRAIN.flatten(0, 14, 6);
+      window.TERRAIN.flatten(-38, -38, 9);
+      window.TERRAIN.flatten(38, -38, 9);
+    }
     entities.push({ id: nextId('wall-n'), model: 'wall', position: [0, 0, -64], rotation: [0, 0, 0], scale: [16, 1, 1], collision: true, destructible: false });
     entities.push({ id: nextId('wall-s'), model: 'wall', position: [0, 0, 64], rotation: [0, 0, 0], scale: [16, 1, 1], collision: true, destructible: false });
     entities.push({ id: nextId('wall-e'), model: 'wall', position: [64, 0, 0], rotation: [0, Math.PI / 2, 0], scale: [16, 1, 1], collision: true, destructible: false });
@@ -40,8 +46,8 @@
       var broof = randRoofColor();
       var brot = rand(0, Math.PI * 2);
       buildings.push({ x: bx, z: bz, w: bw, d: bd });
-      // v11.9 建筑脚下压平地形，避免坡地穿模/悬空
-      if (window.TERRAIN) window.TERRAIN.flatten(bx, bz, Math.max(bw, bd) / 2 + 2);
+      // v11.9 建筑脚下压平地形，避免坡地穿模/悬空（v11.10 加大半径适配 ±10m 起伏）
+      if (window.TERRAIN) window.TERRAIN.flatten(bx, bz, Math.max(bw, bd) / 2 + 5);
 
       entities.push({
         id: nextId('build'), model: 'building',
@@ -282,6 +288,7 @@
     });
 
     // ---- v11.1 瞭望塔：每关 / 无尽随机 1 座，可攀爬（台阶碰撞体）+ 不可破坏 ----
+    var towerPos = null;
     (function placeTower() {
       var tx = 0, tz = 0, ok = false;
       for (var t = 0; t < 40; t++) {
@@ -297,8 +304,9 @@
       }
       if (!ok) return;
       var PH = 13.44;   // 平台顶面高度（v11.5 再高 1 倍），需与 watchtower.js 一致
-      // v11.9 瞭望塔脚下压平地形（保证螺旋台阶与平台在平地上对齐）
-      if (window.TERRAIN) window.TERRAIN.flatten(tx, tz, 7);
+      towerPos = { x: tx, z: tz };
+      // v11.9 瞭望塔脚下压平地形（保证螺旋台阶与平台在平地上对齐；v11.10 加大半径适配 ±10m）
+      if (window.TERRAIN) window.TERRAIN.flatten(tx, tz, 9);
       entities.push({ id: nextId('tower'), model: 'watchtower',
         position: [tx, 0, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, destructible: false });
       // 螺旋楼梯：48 级绕中心盘旋 2 整圈，结束角 = 2*360° ≡ 0°（+z），与模型 +z 入口缺口对齐
@@ -325,13 +333,69 @@
       });
     }
 
-    // ---- 树木 ----
-    for (var ti = 0; ti < randInt(10, 18); ti++) {
-      entities.push({
-        id: nextId('tree'), model: 'tree',
-        position: [rand(-60, 60), 0, rand(-60, 60)], rotation: [0, 0, 0], scale: [rand(0.8, 1.4), rand(0.8, 1.4), rand(0.8, 1.4)],
-        collision: true
-      });
+    // ---- 树木：聚集成“林地”，更符合森林样貌；林地内 5% 为 2 倍大树 ----
+    var TERR = window.TERRAIN;
+    function onWater(x, z) {
+      if (!TERR) return false;
+      var wl = (TERR.waterLevel != null) ? TERR.waterLevel : -0.55;
+      return TERR.heightAt(x, z) < wl;   // 湖面以下不种树
+    }
+    function treeBlocked(x, z, m) {
+      if (Math.sqrt(x * x + (z - 14) * (z - 14)) < (m + 8)) return true;        // 出生点
+      if (x > -52 - m && x < -25 + m && z > -52 - m && z < -25 + m) return true; // 刷怪点1
+      if (x > 25 - m && x < 52 + m && z > -52 - m && z < -25 + m) return true;   // 刷怪点2
+      for (var bi = 0; bi < buildings.length; bi++) {
+        var b = buildings[bi];
+        if (Math.abs(x - b.x) < b.w / 2 + m && Math.abs(z - b.z) < b.d / 2 + m) return true;
+      }
+      if (towerPos && Math.sqrt((x - towerPos.x) * (x - towerPos.x) + (z - towerPos.z) * (z - towerPos.z)) < (m + 9)) return true;
+      return false;
+    }
+    var placedTrees = [];
+    function tryTree(x, z, giant) {
+      if (onWater(x, z)) return false;
+      if (treeBlocked(x, z, giant ? 3.5 : 1.8)) return false;
+      for (var p = 0; p < placedTrees.length; p++) {
+        var dx = x - placedTrees[p].x, dz = z - placedTrees[p].z;
+        var minD = (giant ? 4.5 : 2.2) + (placedTrees[p].giant ? 2.5 : 0);
+        if (dx * dx + dz * dz < minD * minD) return false;
+      }
+      placedTrees.push({ x: x, z: z, giant: giant });
+      if (giant) {
+        var gs = rand(1.8, 2.6);   // 比当前大树(0.9~1.3)大约 2 倍
+        entities.push({
+          id: nextId('bigtree'), model: 'bigtree',
+          position: [x, 0, z], rotation: [0, rand(0, Math.PI * 2), 0], scale: [gs, gs, gs],
+          collision: true
+        });
+      } else {
+        entities.push({
+          id: nextId('tree'), model: 'tree',
+          position: [x, 0, z], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.8, 1.4), rand(0.8, 1.4), rand(0.8, 1.4)],
+          collision: true
+        });
+      }
+      return true;
+    }
+    // 生成 3~4 片林地，林内树木按半径高斯散布（更集中）
+    var numForests = randInt(3, 4);
+    for (var fi = 0; fi < numForests; fi++) {
+      var fx = rand(-54, 54), fz = rand(-54, 54);
+      var fr = rand(9, 15);
+      var fcount = randInt(10, 16);
+      var total = 0, tries = 0;
+      while (total < fcount && tries < fcount * 4) {
+        tries++;
+        var ang = rand(0, Math.PI * 2), rad = fr * Math.sqrt(rand(0, 1)) * 0.9;
+        var tx = fx + Math.cos(ang) * rad, tz = fz + Math.sin(ang) * rad;
+        if (tx < -60 || tx > 60 || tz < -60 || tz > 60) continue;
+        var giant = (Math.random() < 0.05);   // 林地内 5% 巨树
+        if (tryTree(tx, tz, giant)) total++;
+      }
+    }
+    // 另保留少量零散树木点缀（不含巨树）
+    for (var sti = 0; sti < randInt(4, 8); sti++) {
+      tryTree(rand(-60, 60), rand(-60, 60), false);
     }
 
     // ---- 油桶 ----
