@@ -1,6 +1,6 @@
 # 🎮 程序化 FPS 射击游戏
 
-一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.9**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
+一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.9.1**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
 
 ![GitHub License](https://img.shields.io/github/license/YFL4K/fps-game)
 
@@ -62,6 +62,10 @@
 | 暂停 | `Esc` |
 
 ## 📋 更新履历
+
+### v11.9.1（2026-09-16）— 🐛 修复启动崩溃（点「开始游戏」无反应 / `reading 'sky'`）
+- 🐞 **根因**：v11.9 的地形贴合特性（`buildEntity` 内 `if (window.TERRAIN && GROUND_PROPS[cfg.model])`）引用了 `GROUND_PROPS`，但该变量直到文件后部才 `var` 声明；而主脚本在**加载阶段**就会遍历 `LAYOUT.entities` 调 `buildEntity` 构建首个实体 `sky`，此时 `GROUND_PROPS` 仍为 `undefined`，触发 `undefined['sky']` 抛错并使整个 IIFE 中断——开始按钮监听因此未挂载，表现为「点了开始游戏没反应」。
+- 🔧 **修复**：将 `var GROUND_PROPS = {...}` 前移到「加载时构建实体」之前；并对两处 `GROUND_PROPS[cfg.model]` 访问加 `&& GROUND_PROPS` 防御性守卫。无头 Chromium 验证：启动不再报错、场景正常构建（DOM 254KB），仅剩无害的 Pointer Lock 需用户手势提示。
 
 ### v11.9（2026-09-16）— 🏞️ 画面鲜艳化 + 起伏地形 + 地图翻倍 + 天空/喷火修复
 - 🎨 **画面去灰更鲜艳（马里奥3D风）**：关闭 ACES 色调映射（它会压灰高饱和色）改线性输出；雾色调提亮为天空蓝并推远（near 90 / far 340），远景不再发灰。
