@@ -623,9 +623,13 @@
       }
 
       // ---- 攻击（先检查视线：被墙/建筑/车辆等挡住则不开枪） ----
+      // v11.20 玩家驾驶直升机时，所有敌人优先攻击（射程 ×1.5，冷却 ×0.6）
+      var heliActive = player.heli && player.heli.active;
+      var effectiveRange = heliActive ? u.shootRange * 1.5 : u.shootRange;
+      var effectiveCd = heliActive ? u.shootCooldown * 0.6 : u.shootCooldown;
       u.shootTimer -= dt;
-      if (u.shootTimer <= 0 && dist < u.shootRange && !player.dead && canSeePlayer(inst, ctx, player)) {
-        u.shootTimer = u.shootCooldown;
+      if (u.shootTimer <= 0 && dist < effectiveRange && !player.dead && canSeePlayer(inst, ctx, player)) {
+        u.shootTimer = effectiveCd;
         if (isMonsterType(u)) {
           fireFireball(u, inst, ctx, player);
         } else if (u.weapon === 'rocket') {

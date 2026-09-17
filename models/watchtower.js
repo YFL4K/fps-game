@@ -71,19 +71,22 @@
       roof.position.set(0, TH + 0.7, 0); roof.rotation.y = Math.PI / 4; g.add(roof);
       rb(woodDark, 3.4, 0.16, 3.4, 0.03, 0, TH + 0.04, 0);
 
-      // v11.19 内部螺旋楼梯：48 级绕中心从地面盘旋到平台（与 scene-layout 的隐形攀登碰撞体对齐），
-      //   楼梯做进塔模型内部，地图上不再有散落的独立台阶
-      var SR = 2.0, N = 48, SD = 4 * Math.PI / (N - 1);
+      // v11.20 内部螺旋楼梯：48 级绕中心柱从地面盘旋到平台（半径 1.0，在塔内四腿之间）
+      //   起点/终点均在 +z 入口侧，玩家可从地面沿楼梯走到平台入口
+      var SR = 1.0, N = 48, stepRise = (PH - 0.15) / (N - 1), SD = 4 * Math.PI / (N - 1);
       for (var st = 0; st < N; st++) {
         var th = st * SD;
-        var sx = SR * Math.sin(th), sz = SR * Math.cos(th);
-        rb(woodDark, 1.2, 0.3, 1.0, 0.06, sx, 0.15 + st * 0.28, sz);
+        var stepMesh = new T.Mesh(R.roundedBox(1.0, 0.25, 0.7, 0.06), woodDark);
+        stepMesh.position.set(SR * Math.sin(th), 0.15 + st * stepRise, SR * Math.cos(th));
+        stepMesh.rotation.y = th;   // 每级台阶沿螺旋切线方向
+        g.add(stepMesh);
       }
-      // 楼梯护栏（随螺旋上升的两条横杆，视觉引导）
+      // 楼梯护栏（沿螺旋外侧上升的连续管状横杆，视觉引导 + 防坠落）
       var railPts = [];
-      for (var rp = 0; rp < N; rp += 4) {
+      var RR = SR + 0.35;   // 护栏半径（台阶外缘 + 0.05 间隙）
+      for (var rp = 0; rp < N; rp += 3) {
         var ra = rp * SD;
-        railPts.push(new T.Vector3((SR + 0.5) * Math.sin(ra), 0.55 + rp * 0.28, (SR + 0.5) * Math.cos(ra)));
+        railPts.push(new T.Vector3(RR * Math.sin(ra), 0.5 + rp * stepRise, RR * Math.cos(ra)));
       }
       if (railPts.length > 1) {
         var railCurve = new T.CatmullRomCurve3(railPts);
@@ -91,6 +94,13 @@
         var rail = new T.Mesh(railGeo, wood);
         g.add(rail);
       }
+      // v11.20 顶层平台围栏 +z 侧缺口旁的小旗（引导玩家找到入口）
+      var flag = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 2.2, 6), woodDark);
+      flag.position.set(0.5, PH + 1.5, L + 0.1);
+      g.add(flag);
+      var banner = new T.Mesh(new T.PlaneGeometry(0.6, 0.4), new window.MARIO.mat({ color: 0xff4444, side: T.DoubleSide }));
+      banner.position.set(0.8, PH + 2.3, L + 0.1);
+      g.add(banner);
 
       g.userData = { kind: 'watchtower' };
       return g;

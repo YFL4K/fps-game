@@ -54,6 +54,36 @@
   #scopeOverlay .sret { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%, -50%); border: 2px solid rgba(0,0,0,0.9); border-radius: 50%; }
   #scopeOverlay .sdot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; transform: translate(-50%, -50%); background: #0f0; border-radius: 50%; box-shadow: 0 0 6px rgba(0,255,0,0.9); }
   #scopeOverlay .stext { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); color: rgba(0,255,0,0.75); font-size: 13px; letter-spacing: 2px; text-shadow: 0 0 6px rgba(0,0,0,0.9); }
+  /* v11.20 直升机座舱 HUD */
+  #heliCockpit { position: fixed; inset: 0; display: none; pointer-events: none; z-index: 19; }
+  #heliCockpit .frame-top { position: absolute; top: 0; left: 0; right: 0; height: 10%; background: linear-gradient(to bottom, rgba(18,20,26,0.95) 0%, rgba(18,20,26,0) 100%); }
+  #heliCockpit .frame-bottom { position: absolute; bottom: 0; left: 0; right: 0; height: 16%; background: linear-gradient(to top, rgba(18,20,26,0.92) 0%, rgba(18,20,26,0) 100%); }
+  #heliCockpit .frame-left { position: absolute; top: 10%; bottom: 16%; left: 0; width: 5%; background: linear-gradient(to right, rgba(18,20,26,0.88) 0%, rgba(18,20,26,0) 100%); }
+  #heliCockpit .frame-right { position: absolute; top: 10%; bottom: 16%; right: 0; width: 5%; background: linear-gradient(to right, rgba(18,20,26,0) 0%, rgba(18,20,26,0.88) 100%); }
+  #heliCockpit .pillar { position: absolute; top: 10%; bottom: 16%; width: 3px; background: rgba(55,60,72,0.65); box-shadow: 0 0 4px rgba(0,0,0,0.4); }
+  #heliCockpit .pillar-l { left: 20%; } #heliCockpit .pillar-r { right: 20%; }
+  #heliCockpit .pillar-ml { left: 38%; } #heliCockpit .pillar-mr { right: 38%; }
+  #heliCockpit .dash { position: absolute; bottom: 0; left: 8%; right: 8%; height: 9%; background: rgba(28,30,38,0.92); border-top: 2px solid rgba(70,75,88,0.5); border-radius: 6px 6px 0 0; }
+  #heliCockpit .dash-light { position: absolute; bottom: 10.5%; left: 50%; transform: translateX(-50%); width: 8px; height: 8px; border-radius: 50%; background: #22cc55; box-shadow: 0 0 6px #22cc55; }
+  #heliCockpit .gun-barrel { position: absolute; bottom: 3%; right: 12%; width: 100px; height: 10px; background: linear-gradient(to right, rgba(45,48,58,0.85), rgba(65,70,82,0.9)); border-radius: 3px; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+  #heliCockpit .gun-tip { position: absolute; bottom: 3.3%; right: 10%; width: 14px; height: 14px; background: radial-gradient(circle, #ff8844 20%, #cc4400 60%, rgba(45,48,58,0.9) 70%); border-radius: 50%; box-shadow: 0 0 8px rgba(255,120,40,0.6); }
+  #heliCockpit .alt-bar { position: absolute; right: 7%; top: 15%; bottom: 20%; width: 4px; background: rgba(40,44,55,0.5); border-radius: 2px; }
+  #heliCockpit .alt-fill { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(80,200,120,0.6); border-radius: 2px; transition: height 0.3s; }
+  #heliCrosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; z-index: 20; }
+  #heliCrosshair .hch { position: absolute; top: 50%; left: -18px; right: -18px; height: 2px; background: #33ff66; box-shadow: 0 0 8px #33ff66; transform: translateY(-50%); }
+  #heliCrosschair .hcv { position: absolute; left: 50%; top: -18px; bottom: -18px; width: 2px; background: #33ff66; box-shadow: 0 0 8px #33ff66; transform: translateX(-50%); }
+  #heliTargetLock { position: fixed; width: 76px; height: 76px; border: 2px solid rgba(255,120,30,0.85); border-radius: 50%; display: none; pointer-events: none; z-index: 20; box-shadow: 0 0 14px rgba(255,80,10,0.35), inset 0 0 10px rgba(255,80,10,0.1); transform: translate(-50%, -50%); }
+  #heliTargetLock .tlh { position: absolute; top: 50%; left: 10px; right: 10px; height: 1px; background: rgba(255,120,30,0.7); transform: translateY(-50%); }
+  #heliTargetLock .tlv { position: absolute; left: 50%; top: 10px; bottom: 10px; width: 1px; background: rgba(255,120,30,0.7); transform: translateX(-50%); }
+  #heliTargetLock .tlcorn { position: absolute; width: 12px; height: 12px; border-color: rgba(255,120,30,0.9); border-style: solid; }
+  #heliTargetLock .tlc-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+  #heliTargetLock .tlc-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+  #heliTargetLock .tlc-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+  #heliTargetLock .tlc-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+  #heliFuel { position: fixed; right: 16px; bottom: 16px; display: none; pointer-events: none; z-index: 20; }
+  #heliFuel .hbar { width: 180px; height: 14px; background: rgba(20,20,30,0.75); border: 1px solid rgba(100,200,100,0.45); border-radius: 7px; overflow: hidden; }
+  #heliFuel .hfill { height: 100%; background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff44); border-radius: 7px; transition: width 0.5s linear; }
+  #heliFuel .hlabel { color: #88cc88; font-size: 12px; text-align: center; margin-top: 3px; text-shadow: 0 1px 2px rgba(0,0,0,0.8); letter-spacing: 1px; }
 
   /* 提示条（宝箱/直升机/BOSS） */
   #toast { position: fixed; left: 50%; top: 26%; transform: translateX(-50%); background: rgba(10,15,25,0.85); border: 1px solid rgba(255,215,100,0.6); color: #ffdd88; font-size: 16px; font-weight: bold; padding: 8px 22px; border-radius: 6px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 14; user-select: none; text-align: center; max-width: 80vw; }
@@ -122,10 +152,23 @@
 <div id="app"></div>
 <div id="crosshair">+</div>
 <div id="scopeOverlay"><div class="sh sline"></div><div class="sv sline"></div><div class="sret"></div><div class="sdot"></div><div class="stext">4X</div></div>
+<!-- v11.20 直升机座舱 HUD -->
+<div id="heliCockpit">
+  <div class="frame-top"></div><div class="frame-bottom"></div>
+  <div class="frame-left"></div><div class="frame-right"></div>
+  <div class="pillar pillar-l"></div><div class="pillar pillar-r"></div>
+  <div class="pillar pillar-ml"></div><div class="pillar pillar-mr"></div>
+  <div class="dash"></div><div class="dash-light"></div>
+  <div class="gun-barrel"></div><div class="gun-tip"></div>
+  <div class="alt-bar"><div class="alt-fill" id="heliAltFill"></div></div>
+</div>
+<div id="heliCrosshair"><div class="hch"></div><div class="hcv" style="position:absolute;left:50%;top:-18px;bottom:-18px;width:2px;background:#33ff66;box-shadow:0 0 8px #33ff66;transform:translateX(-50%)"></div></div>
+<div id="heliTargetLock"><div class="tlh"></div><div class="tlv"></div><div class="tlcorn tlc-tl"></div><div class="tlcorn tlc-tr"></div><div class="tlcorn tlc-bl"></div><div class="tlcorn tlc-br"></div></div>
+<div id="heliFuel"><div class="hbar"><div class="hfill" id="heliFuelFill"></div></div><div class="hlabel">⛽ 燃油</div></div>
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.19</div>
+<div id="versionTag">v11.20</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -264,6 +307,13 @@
   var appEl = document.getElementById('app');
   var crosshairEl = document.getElementById('crosshair');
   var scopeEl = document.getElementById('scopeOverlay');
+  // v11.20 直升机 HUD 元素
+  var heliCockpitEl = document.getElementById('heliCockpit');
+  var heliCrosshairEl = document.getElementById('heliCrosshair');
+  var heliTargetLockEl = document.getElementById('heliTargetLock');
+  var heliFuelEl = document.getElementById('heliFuel');
+  var heliFuelFillEl = document.getElementById('heliFuelFill');
+  var heliAltFillEl = document.getElementById('heliAltFill');
   var hitmarkEl = document.getElementById('hitmark');
   var headshotEl = document.getElementById('headshotTag');
   var critTagEl = document.getElementById('critTag');
@@ -3194,12 +3244,18 @@
     if (!rec || !rec.alive || player.dead || state !== 'playing') return;
     if (player.gatling && player.gatling.active) return;
     if (player.heli && player.heli.active) return;
-    player.heli = { active: true, rec: rec, health: 15000, maxHealth: 15000, cd: 0, posBackup: player.pos.clone() };
+    player.heli = { active: true, rec: rec, health: 15000, maxHealth: 15000, cd: 0, fuel: 60, fuelWarned: false, fuelDepleted: false, fuelExplodeTimer: 0, posBackup: player.pos.clone() };
     var u = rec.inst.userData;
     u.playerPiloting = true; u.landed = false; u.landing = false; u.health = 15000; u.maxHealth = 15000;
     player.yaw = rec.inst.rotation.y; player.pitch = -0.12; aiming = false;
     if (gunInst) gunInst.visible = false;
-    showToast('🚁 已登机！WASD 飞行 · 空格升 · Ctrl 降 · 左键火箭(10000/发,5发每秒) · E 离机', 0x66ffaa);
+    // v11.20 显示直升机座舱 HUD
+    if (heliCockpitEl) heliCockpitEl.style.display = 'block';
+    if (heliCrosshairEl) heliCrosshairEl.style.display = 'block';
+    if (heliTargetLockEl) heliTargetLockEl.style.display = 'block';
+    if (heliFuelEl) heliFuelEl.style.display = 'block';
+    crosshairEl.style.display = 'none';
+    showToast('🚁 已登机！WASD 飞行 · 空格升 · Ctrl 降 · 左键火箭(10000/发,5发每秒) · E 离机  · ⛽ 燃油60秒', 0x66ffaa);
     if (sfx) sfx.playLevelUp();
   }
 
@@ -3212,6 +3268,12 @@
     player.vel.set(0, 0, 0); player.onGround = true;
     if (gunInst) gunInst.visible = true;
     player.heli = null;
+    // v11.20 隐藏直升机 HUD
+    if (heliCockpitEl) heliCockpitEl.style.display = 'none';
+    if (heliCrosshairEl) heliCrosshairEl.style.display = 'none';
+    if (heliTargetLockEl) heliTargetLockEl.style.display = 'none';
+    if (heliFuelEl) heliFuelEl.style.display = 'none';
+    crosshairEl.style.display = 'block';
     showToast('🚁 已离机，直升机停在原地（可再次登机）', 0x99ccff);
   }
 
@@ -3221,6 +3283,12 @@
     var p = (rec && rec.alive) ? rec.inst.position.clone() : player.pos.clone();
     player.heli = null;
     if (gunInst) gunInst.visible = true;
+    // v11.20 隐藏直升机 HUD
+    if (heliCockpitEl) heliCockpitEl.style.display = 'none';
+    if (heliCrosshairEl) heliCrosshairEl.style.display = 'none';
+    if (heliTargetLockEl) heliTargetLockEl.style.display = 'none';
+    if (heliFuelEl) heliFuelEl.style.display = 'none';
+    crosshairEl.style.display = 'block';
     if (rec && rec.alive) {
       if (ctx.explode) ctx.explode(p, 8, 0, { noPlayer: true });
       removeEntity(rec);
@@ -3256,6 +3324,51 @@
     var rec = st.rec;
     if (!rec || !rec.alive) { destroyHeliAndEject(); return; }
     var inst = rec.inst;
+
+    // v11.20 燃油系统：60 秒限时，耗尽→自动迫降→5 秒后爆炸
+    st.fuel -= dt;
+    var fuelPct = Math.max(0, st.fuel / 60);
+    if (heliFuelFillEl) heliFuelFillEl.style.width = (fuelPct * 100) + '%';
+    if (st.fuel <= 15 && st.fuel > 0 && !st.fuelWarned) {
+      st.fuelWarned = true;
+      showToast('⛽ 燃油不足！剩余 ' + Math.ceil(st.fuel) + ' 秒', 0xffaa22);
+    }
+    if (st.fuel <= 0 && !st.fuelDepleted) {
+      st.fuelDepleted = true;
+      st.fuelExplodeTimer = 5;
+      showToast('⛽ 燃油耗尽！直升机自动迫降！5 秒后爆炸，按 E 紧急跳机', 0xff4444);
+    }
+    // 燃油耗尽：强制下降，玩家控制受限
+    if (st.fuelDepleted) {
+      var gy2 = groundY(inst.position.x, inst.position.z);
+      inst.position.y = Math.max(gy2 + 1.05, inst.position.y - 8 * dt);
+      // 允许玩家水平移动但不能升高
+      var hs2 = 10;
+      forward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+      right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+      var mv2 = new THREE.Vector3();
+      if (keys.KeyW) mv2.addScaledVector(forward, 1);
+      if (keys.KeyS) mv2.addScaledVector(forward, -1);
+      if (keys.KeyD) mv2.addScaledVector(right, 1);
+      if (keys.KeyA) mv2.addScaledVector(right, -1);
+      if (mv2.lengthSq() > 0) mv2.normalize().multiplyScalar(hs2 * dt);
+      inst.position.add(mv2);
+      inst.position.x = clamp(inst.position.x, -62, 62);
+      inst.position.z = clamp(inst.position.z, -62, 62);
+      inst.rotation.y = player.yaw;
+      inst.rotation.x = player.pitch * 0.3;
+      player.pos.set(inst.position.x, inst.position.y, inst.position.z);
+      // 按 E 紧急跳机
+      if (keys.KeyE) { destroyHeliAndEject(); return; }
+      // 到达地面后倒计时爆炸
+      if (inst.position.y <= gy2 + 1.15) {
+        st.fuelExplodeTimer -= dt;
+        if (st.fuelExplodeTimer <= 0) { destroyHeliAndEject(); return; }
+        showToast('💥 ' + Math.ceil(st.fuelExplodeTimer) + ' 秒后爆炸！', 0xff2200);
+      }
+      return;   // 耗尽后跳过正常飞行逻辑
+    }
+
     var hs = 15;
     forward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
@@ -3592,12 +3705,29 @@
 
   function collideWorld() {
     var r = playerRadius;
+    // v11.20 建筑使用墙体尺寸计算更紧的碰撞盒（排除屋顶/烟囱/底裙的 AABB 溢出）
+    var _bldHalf = new THREE.Vector3();
+    var _bldCorner = new THREE.Vector3();
     // 第一遍：高碰撞体（顶部高于脚面 + 0.38）→ 水平推挤
     for (var i = 0; i < colliders.length; i++) {
       var rec = colliders[i];
       if (!rec.alive) continue;
       if (rec.cfg.climbOnly) continue; // v11.2 螺旋楼梯：只做踩踏(pass2)，不做水平推挤，避免上层台阶把玩家弹出
-      box.setFromObject(rec.inst);
+      // v11.20 建筑用墙体尺寸（w/d/h）计算碰撞，避免旋转后 AABB 溢出阻塞通道
+      var isBuilding = rec.cfg.w && rec.cfg.d && rec.cfg.model === 'building';
+      if (isBuilding) {
+        var bw2 = rec.cfg.w / 2 + 0.2, bd2 = rec.cfg.d / 2 + 0.2, bh2 = rec.cfg.h || 3.5;
+        var rot = rec.inst.rotation.y;
+        var cos = Math.cos(rot), sin = Math.sin(rot);
+        // 轴对齐包围盒：旋转后的 w/d 四角取 min/max
+        var hw = bw2, hd = bd2;
+        var ax = Math.abs(cos) * hw + Math.abs(sin) * hd;
+        var az = Math.abs(sin) * hw + Math.abs(cos) * hd;
+        box.min.set(rec.inst.position.x - ax, rec.inst.position.y - 0.12, rec.inst.position.z - az);
+        box.max.set(rec.inst.position.x + ax, rec.inst.position.y + bh2, rec.inst.position.z + az);
+      } else {
+        box.setFromObject(rec.inst);
+      }
       var topY = box.max.y;
       if (topY - player.pos.y <= 0.38) continue; // 低台阶：只踩踏不阻挡
 
@@ -3628,7 +3758,16 @@
       for (var j = 0; j < colliders.length; j++) {
         var rec2 = colliders[j];
         if (!rec2.alive) continue;
-        box.setFromObject(rec2.inst);
+        if (rec2.cfg.w && rec2.cfg.d && rec2.cfg.model === 'building') {
+          var bw3 = rec2.cfg.w / 2 + 0.2, bd3 = rec2.cfg.d / 2 + 0.2, bh3 = rec2.cfg.h || 3.5;
+          var rot3 = rec2.inst.rotation.y, co3 = Math.cos(rot3), si3 = Math.sin(rot3);
+          var ax3 = Math.abs(co3) * bw3 + Math.abs(si3) * bd3;
+          var az3 = Math.abs(si3) * bw3 + Math.abs(co3) * bd3;
+          box.min.set(rec2.inst.position.x - ax3, rec2.inst.position.y - 0.12, rec2.inst.position.z - az3);
+          box.max.set(rec2.inst.position.x + ax3, rec2.inst.position.y + bh3, rec2.inst.position.z + az3);
+        } else {
+          box.setFromObject(rec2.inst);
+        }
         var diff = box.max.y - player.pos.y;
         if (diff <= 0 || diff > 0.38) continue;
         if (player.pos.x > box.min.x - r * 0.8 && player.pos.x < box.max.x + r * 0.8 &&
@@ -4073,7 +4212,9 @@
     // v11.18 驾驶直升机：血条 + 操作提示；附近有迫降直升机时提示登机
     if (player.heli && player.heli.active) {
       var _hh = Math.max(0, Math.round(player.heli.health));
-      lines.push('🚁 驾驶直升机  装甲 ' + _hh + '/' + player.heli.maxHealth + '  ·  火箭 ∞(10000/发)  —  WASD飞行 空格升 Ctrl降 左键开火 E离机');
+      var _hf = Math.max(0, Math.ceil(player.heli.fuel));
+      var _hfc = player.heli.fuel <= 10 ? ' ⚠' : '';
+      lines.push('🚁 驾驶直升机  装甲 ' + _hh + '/' + player.heli.maxHealth + '  ⛽ ' + _hf + 's' + _hfc + '  ·  火箭 ∞(10000/发)  —  WASD飞行 空格升 Ctrl降 左键开火 E离机');
     } else if (findNearLandedHeli()) {
       lines.push('🚁 迫降直升机（附近）— 按 E 登机驾驶');
     }
@@ -4130,6 +4271,21 @@
     // v8.3 枪管准星发绿光，狂暴模式发红光
     crosshairEl.style.color = player.berserk ? '#ff3333' : '#33ff66';
     crosshairEl.style.textShadow = player.berserk ? '0 0 10px #ff3333, 0 0 3px rgba(0,0,0,0.8)' : '0 0 10px #33ff66, 0 0 3px rgba(0,0,0,0.8)';
+    // v11.20 直升机 HUD 更新：瞄准圈跟随准星偏移 + 高度指示
+    if (player.heli && player.heli.active && player.heli.rec && player.heli.rec.alive) {
+      var hp2 = player.heli.rec.inst.position;
+      var gy3 = groundY(hp2.x, hp2.z);
+      var altPct = clamp((hp2.y - gy3) / 40, 0, 1);
+      if (heliAltFillEl) heliAltFillEl.style.height = (altPct * 100) + '%';
+      // 燃油低时仪表灯变红
+      var dashLight = heliCockpitEl ? heliCockpitEl.querySelector('.dash-light') : null;
+      if (dashLight) dashLight.style.background = player.heli.fuel <= 10 ? '#ff2222' : '#22cc55';
+      // 瞄准圈随鼠标偏移（偏移量由 pitch/yaw 驱动的准星位置决定）
+      var tx50 = 50 + (player.yaw % (Math.PI * 2)) * 2;
+      var ty50 = 50 + player.pitch * 3;
+      tx50 = clamp(tx50, 20, 80); ty50 = clamp(ty50, 20, 80);
+      if (heliTargetLockEl) { heliTargetLockEl.style.left = tx50 + '%'; heliTargetLockEl.style.top = ty50 + '%'; }
+    }
     // v7.7 修复：加特林碉堡开火时必须显示加特林枪管、隐藏玩家枪（原每帧强制 !scopeOn 会覆盖 enterGatling 的隐藏）
       if (gunInst) gunInst.visible = !scopeOn && !(player.gatling && player.gatling.active) && !(player.heli && player.heli.active);
     if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
