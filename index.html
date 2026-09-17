@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.18</div>
+<div id="versionTag">v11.19</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -718,8 +718,8 @@
       if (player.heli.health <= 0) destroyHeliAndEject();
       return;
     }
-    // v6.7 敌人伤害钳制：单次 5~20，杜绝一击必杀（核弹自伤等特殊来源传 { noClamp: true }）
-    if (!(opts && opts.noClamp)) dmg = Math.min(20, Math.max(5, dmg));
+    // v6.7 敌人伤害钳制：单次 5~15，杜绝一击必杀（核弹自伤等特殊来源传 { noClamp: true }）
+    if (!(opts && opts.noClamp)) dmg = Math.min(15, Math.max(5, dmg));
     // v6.9 金色护盾：减伤 90%（钳制之后应用，最小 1 点）
     if (player.shieldTime > 0 && !(opts && opts.ignoreShield)) {
       dmg = Math.max(1, Math.round(dmg * 0.1));
@@ -856,7 +856,7 @@
    *           + ③ Tail 空间尾音（低通扫频衰减 + 可选回声）
    * 每次开火 playbackRate 随机化 ±8%，避免机械重复感。
    */
-  var _whiteBuf = null;
+  var _whiteBuf = null, _noiseAllocCount = 0;   // v11.19 BGM 移除后此计数保留给 SFX 噪声缓冲诊断
   function getWhiteBuf() {
     if (_whiteBuf) return _whiteBuf;
     _whiteBuf = AC.createBuffer(1, Math.floor(AC.sampleRate * 1.2), AC.sampleRate);
@@ -1050,351 +1050,16 @@
   };
   ctx.sfx = sfx;
 
-  /* ================= 7.6 背景音乐引擎（v6.6 程序化战斗 BGM） =================
-   * 每关一首劲爆战斗曲，WebAudio 实时合成（无需外部音频文件）：
-   *   L1 巷战冲锋 / L2 火力围猎 / L3 机甲降临 / L4 钢铁洪流 / L5 终焉之战 / 无尽鏖战
-   * 每曲 = 鼓(4/4 循环) + 锯齿贝斯 + 合成器主旋律 riff，节奏/调式/音色各不相同。
-   */
-  // v11.18 经典蓝调(Blues)BGM：吉他 + 钢琴为主音，**完全无鼓点**。
-  //   慢速 shuffle、12 小节蓝调压缩成 4 小节循环(I–IV–I–V)、属七/大七和弦色彩。
-  //   字段：prog=4小节根音; gtr=16步吉他音符(null休止,数组=同时拨的琶音和弦);
-  //         piano=16步钢琴音符(单音=旋律,数组=和弦); bass=4小节低音根音偏移; 索引6=BOSS 小调蓝调。
-  var BGM_TRACKS = [
-    { name: '蓝调·黄昏酒馆', tempo: 78, key: 45, prog: [0, 5, 0, 7],
-      gtr: [[0,4,7],null,null,[0,4,7], null,[3,7,10],null,[0,4,7], null,null,[0,3,7],null, [7,11,14],null,null,null],
-      piano: [null,null,12,null, null,null,15,null, 16,null,null,15, 12,null,10,7],
-      bass: [0,5,0,7] },
-    { name: '蓝调·密西西比', tempo: 82, key: 41, prog: [0, 0, 5, 7],
-      gtr: [[0,4,7],null,[0,3,7],null, [0,4,7],null,null,[2,5,9], null,[0,4,7],null,null, [7,10,14],null,[5,9,12],null],
-      piano: [null,12,null,14, null,null,15,null, null,17,null,15, 12,null,null,null],
-      bass: [0,0,5,7] },
-    { name: '蓝调·雨夜', tempo: 72, key: 43, prog: [0, -2, 0, 5],
-      gtr: [[0,3,7],null,null,null, [0,4,7],null,[-2,2,5],null, [0,3,7],null,null,[3,7,10], null,null,null,null],
-      piano: [null,null,15,null, null,12,null,null, null,null,10,null, 12,null,14,null],
-      bass: [0,-2,0,5] },
-    { name: '蓝调·公路', tempo: 90, key: 40, prog: [0, 5, 7, 5],
-      gtr: [[0,4,7],null,[0,4,7],null, [5,9,12],null,[5,9,12],null, [7,11,14],null,[7,11,14],null, [5,9,12],null,[0,4,7],null],
-      piano: [null,12,null,15, null,17,null,15, 12,null,10,null, null,7,null,5],
-      bass: [0,5,7,5] },
-    { name: '蓝调·深夜', tempo: 74, key: 38, prog: [0, 0, -3, -5],
-      gtr: [[0,3,7],null,null,[0,3,7], null,null,5,null, [0,3,7],null,null,null, [-2,2,5],null,null,null],
-      piano: [null,null,12,null, 15,null,null,14, 12,null,null,null, null,10,null,7],
-      bass: [0,0,-3,-5] },
-    { name: '蓝调·无尽', tempo: 84, key: 42, prog: [0, 5, 3, 7],
-      gtr: [[0,4,7],null,[0,4,7],null, [5,8,12],null,null,[3,7,10], [0,4,7],null,[0,4,7],null, [7,10,14],null,[5,9,12],null],
-      piano: [12,null,15,null, null,17,null,null, 15,null,12,null, 10,null,7,null],
-      bass: [0,5,3,7] },
-    { name: 'BOSS·小调蓝调', tempo: 96, key: 36, prog: [0, 0, 6, 5],
-      gtr: [[0,3,7],null,[0,3,7],[0,3,7], [0,3,7],null,[6,9,13],null, [0,3,7],null,[0,3,7],[0,3,7], [5,8,12],null,[7,10,14],null],
-      piano: [null,12,null,15, 18,null,15,null, null,12,null,11, 12,null,15,null],
-      bass: [0,0,6,5] }
-  ];
-  function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
-  // v11.13 音频性能：原实现每次鼓点都 createBuffer + 逐样本 Math.random() 填充 + 新建 BiquadFilter，
-  // 16 分音符 hi-hat 在 176BPM 下≈12 次/秒 → 主线程持续分配（GC 抖动）+ 音频线程反复建滤波器
-  // → BGM 卡顿。现改为：复用一条预生成白噪缓冲 + 复用（按 type:freq 缓存的）滤波器节点。
-  var _fltCache = {};
-  var _noiseAllocCount = 0, _bgmNodeCount = 0, _bgmLookahead = 0.5;
-  function noiseFilter(type, freq) {
-    var k = type + ':' + freq;
-    var f = _fltCache[k];
-    if (!f) { f = AC.createBiquadFilter(); f.type = type; f.frequency.value = freq; _fltCache[k] = f; }
-    return f;
-  }
-  function bgmNoise(t, dur, vol, cutoff, type) {
-    if (!AC) return;
-    var buf = getWhiteBuf();                       // 共享噪声缓冲（只生成一次）
-    var src = AC.createBufferSource(); src.buffer = buf;
-    var f = noiseFilter(type || 'highpass', cutoff);
-    var g = AC.createGain();
-    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f); f.connect(g); g.connect(bgm.master);
-    // 随机起播位置：避免每次同一小节噪声完全一致，听感与原实现相同
-    src.start(t, Math.random() * 0.9); src.stop(t + dur + 0.02);
-    _bgmNodeCount += 2;
-  }
-  // v11.17 无主之地声部：失真吉他闷音(palm-mute chug) + 蓝调滑音主音 + trip-hop 鼓
-  //   + big-band 铜管 stab + blurp 贝斯 + 低频张力 drone。全部经柔和母带链，去刺耳高频。
-  var _bluesCurve = null;
-  function bluesCurve() {                 // 温和软削波（电子管过载感，不炸耳）
-    if (_bluesCurve) return _bluesCurve;
-    var n = 1024, c = new Float32Array(n);
-    for (var i = 0; i < n; i++) { var x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(x * 3.2) * 0.9; }
-    _bluesCurve = c; return c;
-  }
-  function bgmKick(t, hard) {             // trip-hop 闷底鼓：正弦下滑 + 轻点击
-    if (!AC) return;
-    var o = AC.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(hard ? 150 : 128, t);
-    o.frequency.exponentialRampToValueAtTime(44, t + 0.11);
-    var g = AC.createGain(); g.gain.setValueAtTime(hard ? 0.72 : 0.6, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
-    o.connect(g); g.connect(bgm.master); o.start(t); o.stop(t + 0.17);
-    bgmNoise(t, 0.016, 0.05, 1800, 'bandpass');
-  }
-  function bgmSnareD(t) {                 // 干脆小军鼓：带通噪声 + 一点点体音
-    if (!AC) return;
-    var o = AC.createOscillator(); o.type = 'triangle';
-    o.frequency.setValueAtTime(185, t); o.frequency.exponentialRampToValueAtTime(150, t + 0.05);
-    var g = AC.createGain(); g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
-    o.connect(g); g.connect(bgm.master); o.start(t); o.stop(t + 0.1);
-    bgmNoise(t, 0.085, 0.16, 2100, 'bandpass');
-  }
-  function bgmClap(t) {                   // 拍手（轻）
-    for (var i = 0; i < 2; i++) bgmNoise(t + i * 0.012, 0.05, 0.10 - i * 0.03, 1600 + i * 300, 'bandpass');
-  }
-  function bgmHatOff(t) { bgmNoise(t, 0.055, 0.05, 6800, 'highpass'); }
-  function bgmHat16(t) { bgmNoise(t, 0.02, 0.032, 7600, 'highpass'); }
-  function bgmTom(t, midi) {              // 通鼓（BOSS/加花）
-    if (!AC) return;
-    var o = AC.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(midiHz(midi), t); o.frequency.exponentialRampToValueAtTime(midiHz(midi) * 0.6, t + 0.14);
-    var g = AC.createGain(); g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-    o.connect(g); g.connect(bgm.master); o.start(t); o.stop(t + 0.2);
-  }
-  function bgmBlurp(t, midi, dur, vol) {  // blurp 贝斯：正弦快速下滑，指弹感
-    if (!AC) return;
-    var f = midiHz(midi);
-    var o = AC.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(f * 1.5, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.045);
-    var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    var lp = noiseFilter('lowpass', 620);
-    o.connect(lp); lp.connect(g); g.connect(bgm.master);
-    o.start(t); o.stop(t + dur + 0.02);
-  }
-  function bgmChug(t, midi, dur, vol) {   // palm-mute 吉他闷音：双失谐锯齿→带通(中频)→快衰减 + 拨片噪声
-    if (!AC) return;
-    var f = midiHz(midi);
-    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.9;
-    var ws = AC.createWaveShaper(); ws.curve = bluesCurve(); ws.oversample = '2x';
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.004);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    ws.connect(bp); bp.connect(g); g.connect(bgm.master);
-    var det = [-6, 6];
-    for (var i = 0; i < 2; i++) {
-      var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det[i];
-      var og = AC.createGain(); og.gain.value = 0.5;
-      o.connect(og); og.connect(ws); o.start(t); o.stop(t + dur + 0.02);
-    }
-    bgmNoise(t, 0.012, vol * 0.35, 2600, 'bandpass');   // 拨片攻击
-  }
-  function bgmSlide(t, midi, midiTo, dur, vol) {  // 蓝调滑音主音：锯齿经低通 + 频率滑移 + 颤音 + 过载
-    if (!AC) return;
-    var ws = AC.createWaveShaper(); ws.curve = bluesCurve(); ws.oversample = '2x';
-    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.Q.value = 1.2;
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.02);
-    g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    ws.connect(lp); lp.connect(g); g.connect(bgm.master); if (bgm.delaySend) g.connect(bgm.delaySend);
-    var o = AC.createOscillator(); o.type = 'sawtooth';
-    o.frequency.setValueAtTime(midiHz(midi), t);
-    if (midiTo != null) o.frequency.exponentialRampToValueAtTime(midiHz(midiTo), t + dur * 0.6);
-    var vib = AC.createOscillator(); vib.type = 'sine'; vib.frequency.value = 5.5;
-    var vg = AC.createGain(); vg.gain.value = 5; vib.connect(vg); vg.connect(o.detune);
-    o.connect(ws); o.start(t); vib.start(t); o.stop(t + dur + 0.02); vib.stop(t + dur + 0.02);
-  }
-  function bgmBrass(t, midi, offs, dur, vol) {    // big-band 铜管 stab：短促失谐锯齿+高通，有冲劲不炸
-    if (!AC) return;
-    var f = midiHz(midi);
-    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.7;
-    var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 220;
-    var ws = AC.createWaveShaper(); ws.curve = bluesCurve(); ws.oversample = '2x';
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    ws.connect(bp); bp.connect(hp); hp.connect(g); g.connect(bgm.master);
-    var ch = offs || [0, 4, 7];
-    for (var i = 0; i < ch.length; i++) {
-      var base = f * Math.pow(2, ch[i] / 12);
-      var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = base; o.detune.value = (i - 1) * 5;
-      var og = AC.createGain(); og.gain.value = 0.34 / ch.length;
-      o.connect(og); og.connect(ws); o.start(t); o.stop(t + dur + 0.02);
-    }
-  }
-  function bgmDrone(t, midi, dur, vol) {  // 低频张力 drone（铺底，很轻）
-    if (!AC) return;
-    var f = midiHz(midi);
-    var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
-    var o2 = AC.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = f; o2.detune.value = 11;
-    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
-    var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.4); g.gain.linearRampToValueAtTime(0.0001, t + dur);
-    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(bgm.master);
-    o.start(t); o2.start(t); o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
-  }
-  function bgmRiser(t, dur) {             // 噪声上升（乐句推进，轻）
-    if (!AC) return;
-    var buf = getWhiteBuf();
-    var src = AC.createBufferSource(); src.buffer = buf; src.loop = true;
-    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
-    bp.frequency.setValueAtTime(400, t); bp.frequency.exponentialRampToValueAtTime(3200, t + dur);
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.045, t + dur * 0.85); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(bp); bp.connect(g); g.connect(bgm.master);
-    src.start(t); src.stop(t + dur + 0.03);
-  }
-  // v11.18 蓝调声部：钢琴（正弦+三角泛音，快起快落，温暖）+ 吉他扫弦/拨弦（柔和 pluck）
-  function bgmPiano(t, midi, dur, vol) {
-    if (!AC) return;
-    var f = midiHz(midi);
-    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200; lp.Q.value = 0.5;
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    lp.connect(g); g.connect(bgm.master); if (bgm.delaySend) g.connect(bgm.delaySend);
-    // 基音 + 二次/三次泛音 + 轻微失谐 = 钢琴音色
-    var parts = [[1, 1.0, 'sine'], [2, 0.35, 'sine'], [3, 0.12, 'sine'], [1, 0.5, 'triangle']];
-    for (var i = 0; i < parts.length; i++) {
-      var o = AC.createOscillator(); o.type = parts[i][2];
-      o.frequency.value = f * parts[i][0]; o.detune.value = (i - 1) * 3;
-      var og = AC.createGain(); og.gain.value = parts[i][1];
-      o.connect(og); og.connect(lp); o.start(t); o.stop(t + dur + 0.02);
-    }
-  }
-  function bgmGtrPluck(t, midi, dur, vol) {   // 单音拨弦（蓝调吉他，比 chug 柔和）
-    if (!AC) return;
-    var f = midiHz(midi);
-    var ws = AC.createWaveShaper(); ws.curve = bluesCurve(); ws.oversample = '2x';
-    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(2400, t);
-    lp.frequency.exponentialRampToValueAtTime(900, t + dur);
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    ws.connect(lp); lp.connect(g); g.connect(bgm.master);
-    var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
-    var o2 = AC.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = f; o2.detune.value = 6;
-    var og = AC.createGain(); og.gain.value = 0.45;
-    o.connect(og); o2.connect(og); og.connect(ws); o.start(t); o2.start(t);
-    o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
-  }
-  function bgmGtrChord(t, offs, baseMidi, dur, vol) {  // 琶音扫弦：和弦内音快速错开拨
-    if (!AC || !offs) return;
-    for (var i = 0; i < offs.length; i++) {
-      bgmGtrPluck(t + i * 0.018, baseMidi + offs[i], dur, vol);
-    }
-  }
-  function bgmCrash(t) { bgmNoise(t, 0.5, 0.09, 4200, 'highpass'); }
+  /* ================= 7.6 背景音乐：v11.19 按需求已全部移除（保留空 API 供调用点） ================= */
   var bgm = {
-    idx: -1, track: null, playing: false, muted: false,
-    master: null, timer: null, nextT: 0, step: 0,
-    // v11.17 无主之地混音：整体再降(0.16→0.115)，靠音色而非音量取狠，去除刺耳音墙
-    masterVol: 0.115,
-    init: function () {
-      if (!AC || this.master) return;
-      this.master = AC.createGain();
-      this.master.gain.value = this.masterVol;
-      // 柔化总线：低通削掉刺耳高频（无主之地偏暖偏脏，压高频）
-      var tame = AC.createBiquadFilter(); tame.type = 'lowpass'; tame.frequency.value = 6200; tame.Q.value = 0.3;
-      this.master.connect(tame); tame.connect(sfxOut());
-      // 延迟总线（琶音空间感；单条链路，开销恒定）
-      var dly = AC.createDelay(0.6); dly.delayTime.value = 0.36;
-      var fb = AC.createGain(); fb.gain.value = 0.25;
-      var wet = AC.createGain(); wet.gain.value = 0.22;
-      var dlp = AC.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2600;
-      this.delaySend = AC.createGain(); this.delaySend.gain.value = 0.45;
-      this.delaySend.connect(dly);
-      dly.connect(fb); fb.connect(dlp); dlp.connect(dly);
-      dly.connect(wet); wet.connect(this.master);
-      this.delay = dly;
-    },
-    playTrack: function (i) {
-      if (!AC) return;
-      this.init();
-      this.stop();
-      this.idx = Math.max(0, Math.min(i, BGM_TRACKS.length - 1));
-      this.track = BGM_TRACKS[this.idx];
-      if (this.delay) this.delay.delayTime.value = (60 / this.track.tempo / 4) * 3;
-      this.step = 0;
-      this.nextT = AC.currentTime + 0.08;
-      this.playing = true;
-      var self = this;
-      this.timer = setInterval(function () { self.schedule(); }, 25);
-    },
-    stop: function () {
-      this.playing = false;
-      if (this.timer) { clearInterval(this.timer); this.timer = null; }
-    },
-    pause: function () {
-      this.playing = false;
-      if (this.timer) { clearInterval(this.timer); this.timer = null; }
-    },
-    resume: function () {
-      if (!AC || !this.track || this.playing) return;
-      this.playing = true;
-      this.nextT = AC.currentTime + 0.05;
-      var self = this;
-      this.timer = setInterval(function () { self.schedule(); }, 25);
-    },
-    setMuted: function (m) {
-      this.muted = m;
-      if (this.master) this.master.gain.setTargetAtTime(m ? 0.0001 : this.masterVol, AC.currentTime, 0.02);
-    },
-    toggleMute: function () { this.setMuted(!this.muted); return this.muted; },
-    schedule: function () {
-      if (!this.playing || !AC || !this.track) return;
-      if (AC.state === 'suspended') { AC.resume(); return; }
-      // v11.13 BGM 卡顿修复①：预调度余量 0.15s → 0.5s。setInterval 会被掉帧的主线程推迟，
-      // 余量太小时鼓点会"追不上"当前时间而漏排/挤成一团 → 听感就是一卡一卡。
-      // v11.13 BGM 卡顿修复②：被长时间挂起（切后台/大卡顿）后重新对齐时间轴，
-      // 否则 while 会一次性补排几十步，所有音符挤在同一瞬间触发（机关枪式爆音）。
-      if (this.nextT < AC.currentTime) this.nextT = AC.currentTime + 0.03;
-      var spb = 60 / this.track.tempo / 4;   // 一个 16 分音符的秒数
-      while (this.nextT < AC.currentTime + _bgmLookahead) {
-        this.playStep(this.step, this.nextT);
-        this.nextT += spb;
-        this.step = (this.step + 1) % 64;    // 4 小节循环
-      }
-    },
-    playStep: function (s, t) {
-      var tr = this.track;
-      var spb = 60 / tr.tempo / 4;
-      var bar = (s >> 4) & 3;
-      var beat = s & 15;
-      var chord = tr.key + (tr.prog ? tr.prog[bar] : 0);
-      // v11.18 经典蓝调：**无鼓**。吉他 + 钢琴主音 + 轻低音。shuffle：奇数后半拍稍延后
-      var sw = (beat % 2 === 1) ? spb * 0.16 : 0;
-      // ---- 低音（walking bass，轻柔，落每拍四分）----
-      if (beat % 4 === 0) {
-        var bo = (tr.bass ? tr.bass[bar] : 0);
-        bgmBlurp(t, tr.key + bo - 24, spb * 3.4, 0.13);
-      }
-      // ---- 吉他（和弦扫弦 / 单音 riff）----
-      if (tr.gtr) {
-        var gn = tr.gtr[beat];
-        if (gn !== null && gn !== undefined) {
-          if (Object.prototype.toString.call(gn) === '[object Array]') bgmGtrChord(t + sw, gn, chord, spb * 2.2, 0.085);
-          else bgmGtrPluck(t + sw, chord + gn, spb * 1.6, 0.10);
-        }
-      }
-      // ---- 钢琴（旋律 / 和弦点缀，走延迟做空间感）----
-      if (tr.piano) {
-        var pn = tr.piano[beat];
-        if (pn !== null && pn !== undefined) {
-          if (Object.prototype.toString.call(pn) === '[object Array]') {
-            for (var pi = 0; pi < pn.length; pi++) bgmPiano(t + sw + pi * 0.012, chord + 12 + pn[pi], spb * 2.4, 0.075);
-          } else {
-            bgmPiano(t + sw, chord + 12 + pn, spb * 2.6, 0.09);
-          }
-        }
-      }
-    }
+    idx: -1, track: null, playing: false, muted: false, master: null, masterVol: 0,
+    init: function () {}, playTrack: function () {}, stop: function () {},
+    pause: function () {}, resume: function () {},
+    setMuted: function (m) { this.muted = !!m; },
+    toggleMute: function () { this.muted = !this.muted; return this.muted; }
   };
-  function bgmPlayForCurrent() {
-    if (gameMode === 'endless') bgm.playTrack(5);
-    else bgm.playTrack(Math.min(levelIndex, 4));
-  }
-  // v11.7 BOSS/猪头佳在场时切到狂暴摇滚轨(6)，离场后恢复关卡曲（仅在切换时触发，逐帧调用开销极小）
-  function updateBossMusic() {
-    if (!bgm.track) return;
-    var boss = pigAlive || bossAlive;
-    if (boss) { if (bgm.idx !== 6) bgm.playTrack(6); }
-    else if (bgm.idx === 6) bgmPlayForCurrent();
-  }
-  bgm.setMuted(false);
+  function bgmPlayForCurrent() {}
+  function updateBossMusic() {}
   ctx.bgm = bgm;
 
   /* ================= 8. 输入：指针锁定 / 键盘 / 鼠标 ================= */
@@ -1693,8 +1358,10 @@
           }
           if (hs) headshot = true;
         } catch (e) { showError('onHit 失败 (' + hit.rec.cfg.id + '): ' + e.message); }
-        score += hit.rec.cfg.score || 0;
+        // v11.19 修复：不再每次命中都加 cfg.score（BOSS/多命中敌人会连续乱加分）；
+        //   一次性可破坏物（靶子等）改为"被本次命中摧毁时"才加，敌人/BOSS 分统一在 onEnemyKilled 结算。
         if (hit.rec.inst.userData && hit.rec.inst.userData.destroyed) {
+          score += hit.rec.cfg.score || 0;
           spawnDebris(hit.rec);
           destroyEntity(hit.rec);
         } else if (hit.rec.inst.userData && hit.rec.inst.userData.respawnReady) {
@@ -2930,8 +2597,7 @@
   function showLevelBanner() {
     var L = getLevel();
     levelBannerTitle.textContent = L.name + ' 「' + L.title + '」';
-    levelBannerSub.textContent = L.mission + (L.boss ? '（BOSS 触发: 击杀 ' + L.boss.trigger + ' 名敌人）' : '') +
-      (bgm.idx >= 0 ? '  ♪ ' + BGM_TRACKS[bgm.idx].name : '');
+    levelBannerSub.textContent = L.mission + (L.boss ? '（BOSS 触发: 击杀 ' + L.boss.trigger + ' 名敌人）' : '');
     levelBannerEl.style.opacity = '1';
     setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 2800);
   }
@@ -3399,8 +3065,8 @@
       }
     }
     levelKills++;
-    // v7.1 击杀分：boss 2000 / monster 150 / spider 150 / human 100
-    score += (type === 'boss' ? 2000 : (type === 'monster' || type === 'spider' ? 150 : 100));
+    // v7.1 击杀分：boss 10000 / monster 150 / spider 150 / human 100
+    score += (type === 'boss' ? 10000 : (type === 'monster' || type === 'spider' ? 150 : 100));
     // v7.3 5000 分里程碑奖励检查
     checkScoreMilestone();
     // v6.8 狂暴模式击杀回血：狂暴期间每击杀 1 敌人恢复 10 HP（直到狂暴结束）
@@ -3504,8 +3170,8 @@
     sm.position.copy(point); sm.scale.setScalar(0.6 + Math.random() * 0.4); scene.add(sm);
     fx.push({ type: 'smoke', obj: sm, vel: new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 2 + 0.6, (Math.random() - 0.5) * 2), life: 1.4, maxLife: 1.4, growTo: 2.2 });
   };
-  // 杀满 3 只猪头佳后，玩家击毁直升机 30% 概率改为迫降
-  ctx.heliShouldLand = function () { return killCounts.pig >= 3 && Math.random() < 0.30; };
+  // v11.19 积分达 20000 后，玩家击毁直升机 30% 概率改为迫降
+  ctx.heliShouldLand = function () { return score >= 20000 && Math.random() < 0.30; };
   ctx.onHelicopterLanding = function () { showToast('🚁 直升机中弹迫降！冲向坠地点按 E 登机', 0xffcc44); };
   ctx.onHelicopterLanded = function (inst) {
     showToast('🚁 直升机已迫降！走近按 E 驾驶（火箭对敌 10000 伤害 · 5 发/秒）', 0x66ffaa);
@@ -4576,7 +4242,7 @@
               scale: pig ? pig.inst.scale.x : null
             };
           })(),
-          bgm: { idx: bgm.idx, name: bgm.idx >= 0 ? BGM_TRACKS[bgm.idx].name : null, playing: bgm.playing, muted: bgm.muted },
+          bgm: { idx: bgm.idx, name: null, playing: bgm.playing, muted: bgm.muted },
           enemyCount: entities.filter(function (e) { return e.cfg && e.cfg.enemyType; }).length, killTarget: getLevel().killTarget,
           chest: { levelHasChest: levelHasChest, spawned: chestSpawnedThisLevel, count: chestSpawnedCount,
                    chests: entities.filter(function (e) { return e.cfg && e.cfg.kind === 'chest'; }).length },
@@ -5572,7 +5238,8 @@
       return { n: a.length, avgMs: Math.round(sum / a.length * 100) / 100, maxMs: Math.round(s[s.length - 1] * 100) / 100, p95Ms: Math.round(s[Math.floor(s.length * 0.95)] * 100) / 100, avgFps: Math.round(1000 / (sum / a.length)) };
     };
     window.__fpsTest.audioStats = function () {
-      var o = { bgmNodes: _bgmNodeCount, noiseAllocs: _noiseAllocCount, sharedNoise: !!_whiteBuf, lookahead: _bgmLookahead, state: state, tick: !!bgm.timer };
+      // v11.19 BGM 已移除：诊断只保留仍存活的 SFX 噪声缓冲 / AC 状态
+      var o = { bgmNodes: 0, noiseAllocs: _noiseAllocCount, sharedNoise: !!_whiteBuf, lookahead: 0, state: state, tick: !!bgm.timer };
       return o;
     };
     // v7.9 需求3：玩家武器数值检查（火箭筒伤害 +50%）

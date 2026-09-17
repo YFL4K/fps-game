@@ -22,6 +22,28 @@
     var flattens = [];
     function pad(x, z, r) { flattens.push({ x: x, z: z, r: r }); }
 
+    // v11.19 水面判定：某点（含半径余量）是否落在水线以下 → 用于禁止建筑/车辆/油桶等入水
+    function inWater(x, z, margin) {
+      if (!window.TERRAIN || window.TERRAIN.waterLevel == null || !window.TERRAIN.heightAt) return false;
+      var wl = window.TERRAIN.waterLevel;
+      margin = margin || 0;
+      if (window.TERRAIN.heightAt(x, z) < wl + 0.15 + margin * 0.15) return true;
+      // 采样四角，避免大件边缘压水
+      if (margin > 0) {
+        var pts = [[x - margin, z], [x + margin, z], [x, z - margin], [x, z + margin]];
+        for (var i = 0; i < pts.length; i++) if (window.TERRAIN.heightAt(pts[i][0], pts[i][1]) < wl + 0.1) return true;
+      }
+      return false;
+    }
+    // 在 [lo,hi] 随机找一处不沾水的位置（最多 tries 次）；失败返回 null
+    function dryRand(lo, hi, margin, tries) {
+      for (var t = 0; t < (tries || 12); t++) {
+        var x = rand(lo, hi), z = rand(lo, hi);
+        if (!inWater(x, z, margin)) return [x, z];
+      }
+      return null;
+    }
+
     // ---- 基础环境 ----
     entities.push({ id: nextId('sky'), model: 'sky', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
     entities.push({ id: nextId('floor'), model: 'floor', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
@@ -57,6 +79,7 @@
       var bz = rand(-58, 58);
       // 避免与出生点太近
       if (Math.sqrt(bx * bx + bz * bz) < 12) continue;
+      if (inWater(bx, bz, 5)) continue;   // v11.19 房子不能建在水里
       var bw = rand(4, 8);
       var bd = rand(4, 8);
       var bh = rand(3, 4.5);
@@ -123,6 +146,7 @@
     }
     var largeProps = [];
     function largePropBlocked(x, z, r) {
+      if (inWater(x, z, r)) return true;   // v11.19 车辆/货车/集装箱/飞机不入水
       if (insideBuilding(x, z, r)) return true;
       for (var i = 0; i < largeProps.length; i++) {
         var p = largeProps[i];
@@ -137,7 +161,8 @@
         var x = rand(-50, 50), z = rand(-50, 50);
         if (!largePropBlocked(x, z, r)) { largeProps.push({ x: x, z: z, r: r }); place(x, z); return; }
       }
-      place(rand(-50, 50), rand(-50, 50));   // 实在找不到空位则兜底放置
+      var dry = dryRand(-50, 50, r, 1) || [rand(-50, 50), rand(-50, 50)];   // 兜底尽量找干地
+      place(dry[0], dry[1]);
     }
 
     // ---- v10.1 墙体掩体结构：走廊/胡同/L形拐角/直墙（利用现有 wall 模型拼接）----
@@ -270,9 +295,10 @@
     }
     // 花盆
     for (var pi = 0; pi < randInt(4, 8); pi++) {
+      var pp = dryRand(-35, 35, 1); if (!pp) continue;
       entities.push({
         id: nextId('pot'), model: 'pot',
-        position: [rand(-35, 35), 0, rand(-35, 35)], rotation: [0, 0, 0], scale: [1, 1, 1],
+        position: [pp[0], 0, pp[1]], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: false, size: randChoice(['small', 'large'])
       });
     }
@@ -298,41 +324,47 @@
 
     // ---- v6.7 场景美化：大树 / 高墙 / 摩天轮 / 草地 / 巨石（随机分布）----
     for (var bti = 0; bti < randInt(2, 4); bti++) {
+      var btp = dryRand(-58, 58, 2); if (!btp) continue;
       entities.push({
         id: nextId('bigtree'), model: 'bigtree',
-        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.9, 1.3), rand(0.9, 1.3), rand(0.9, 1.3)],
+        position: [btp[0], 0, btp[1]], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.9, 1.3), rand(0.9, 1.3), rand(0.9, 1.3)],
         collision: true
       });
     }
     for (var hwi = 0; hwi < randInt(2, 3); hwi++) {
+      var hwp = dryRand(-58, 58, 2); if (!hwp) continue;
       entities.push({
         id: nextId('highwall'), model: 'highwall',
-        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, rand(0.85, 1.2), 1],
+        position: [hwp[0], 0, hwp[1]], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, rand(0.85, 1.2), 1],
         collision: true
       });
     }
-    for (var fwi = 0; fwi < randInt(1, 2); fwi++) {
-      // 摩天轮：体型大，放地图边缘避免挡路；不参与碰撞
+    // v11.19 摩天轮：每图固定 1 座（不再 1-2），尺寸翻倍(0.65~0.85 → 1.3~1.7)，
+    //   经 placeLargeProp 避让建筑与其它大型道具（货车/飞机/集装箱/车辆），不再穿模重叠。
+    var fs = rand(1.3, 1.7);
+    placeLargeProp(13 * fs, function (x, z) {
       entities.push({
         id: nextId('ferris'), model: 'ferriswheel',
-        position: [randChoice([-1, 1]) * rand(32, 40), 0, randChoice([-1, 1]) * rand(32, 40)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.65, 0.85), rand(0.65, 0.85), rand(0.65, 0.85)],
+        position: [x, 0, z], rotation: [0, rand(0, Math.PI * 2), 0], scale: [fs, fs, fs],
         collision: false
       });
-    }
+    });
     for (var gsi = 0; gsi < randInt(5, 9); gsi++) {
+      var gsp = dryRand(-58, 58, 1); if (!gsp) continue;
       entities.push({
         id: nextId('grass'), model: 'grass',
-        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.7, 1.4), rand(0.7, 1.4), rand(0.7, 1.4)],
+        position: [gsp[0], 0, gsp[1]], rotation: [0, rand(0, Math.PI * 2), 0], scale: [rand(0.7, 1.4), rand(0.7, 1.4), rand(0.7, 1.4)],
         collision: false
       });
     }
     // v10.2 椰子树已删除
     // v8.0 蘑菇装饰：不同尺寸/颜色随机分布，提升画面美感（不参与碰撞）
     for (var msi = 0; msi < randInt(6, 12); msi++) {
+      var msp = dryRand(-56, 56, 1); if (!msp) continue;
       var ms = rand(0.4, 1.6);
       entities.push({
         id: nextId('mushroom'), model: 'mushroom',
-        position: [rand(-56, 56), 0, rand(-56, 56)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [ms, ms, ms],
+        position: [msp[0], 0, msp[1]], rotation: [0, rand(0, Math.PI * 2), 0], scale: [ms, ms, ms],
         collision: false,
         variant: randChoice(['red', 'flyagaric', 'brown', 'orange', 'purple', 'teal', 'yellow', 'pink', 'white'])
       });
@@ -349,13 +381,15 @@
       });
     }
 
-    // v6.8 加特林机枪碉堡：每关随机位置固定 1 座（站桩火力点）
-    entities.push({
-      id: nextId('gatling'), model: 'gatling',
-      position: [rand(-54, 54), 0, rand(-54, 54)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
-      collision: true,
-      kind: 'gatling'
-    });
+    // v6.8 加特林机枪碉堡：每关随机位置固定 1 座（站桩火力点），避开水面
+    var gtp = dryRand(-54, 54, 3); if (gtp) {
+      entities.push({
+        id: nextId('gatling'), model: 'gatling',
+        position: [gtp[0], 0, gtp[1]], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+        collision: true,
+        kind: 'gatling'
+      });
+    }
 
     // ---- v11.1 瞭望塔：每关 / 无尽随机 1 座，可攀爬（台阶碰撞体）+ 不可破坏 ----
     var towerPos = null;
@@ -364,6 +398,7 @@
       for (var t = 0; t < 40; t++) {
         tx = rand(-54, 54); tz = rand(-54, 54);
         if (Math.sqrt(tx * tx + (tz - 14) * (tz - 14)) < 12) continue;   // 远离出生点
+        if (inWater(tx, tz, 6)) continue;   // v11.19 塔不能建在水里
         var clash = false;
         for (var bi = 0; bi < buildings.length; bi++) {
           var b = buildings[bi];
@@ -375,17 +410,32 @@
       if (!ok) return;
       var PH = 13.44;   // 平台顶面高度（v11.5 再高 1 倍），需与 watchtower.js 一致
       towerPos = { x: tx, z: tz };
-      // v11.12 瞭望塔脚下平整台地由下方 autoPads() 统一登记（螺旋台阶/平台改为相对本地地面抬升）
+      // v11.12 瞭望塔脚下平整台地由下方 autoPads() 统一登记
       entities.push({ id: nextId('tower'), model: 'watchtower',
         position: [tx, 0, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, destructible: false });
-      // v11.18 按需求删除全部台阶：瞭望塔不再放螺旋台阶/平台碰撞体（改为纯景观地标）。
-      //   塔基四周点缀花池，替代旧台阶观感。
+      // v11.19 塔基四周花池点缀
       for (var ts = 0; ts < 4; ts++) {
         var ta = ts * Math.PI / 2 + Math.PI / 4;
         entities.push({ id: nextId('towerbed'), model: 'flowerbed',
           position: [tx + Math.sin(ta) * 4.2, 0, tz + Math.cos(ta) * 4.2],
           rotation: [0, ta, 0], scale: [1, 1, 1], collision: false });
       }
+      // v11.19 塔顶加特林：平台高度放置（配合塔内攀爬楼梯，登顶即可用）
+      entities.push({ id: nextId('towergatling'), model: 'gatling',
+        position: [tx, PH, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: true, kind: 'gatling' });
+      // v11.19 隐形攀登碰撞体：螺旋楼梯 48 级（视觉在 watchtower.js 模型内部），供玩家登顶
+      var N = 48, SR = 2.0, SD = 4 * Math.PI / (N - 1);
+      for (var s = 0; s < N; s++) {
+        var th = s * SD;
+        entities.push({ id: nextId('towerstep'), model: 'step',
+          position: [tx + SR * Math.sin(th), 0.14 + s * 0.28, tz + SR * Math.cos(th)],
+          rotation: [0, th, 0], scale: [1.2, 1, 1.0],
+          collision: true, destructible: false, climbOnly: true, hidden: true, color: 0x7a5230 });
+      }
+      // 塔顶平台碰撞体（登顶后可站立行走）
+      entities.push({ id: nextId('towerplat'), model: 'step',
+        position: [tx, PH - 0.14, tz], rotation: [0, 0, 0], scale: [3.2, 1, 2.0],
+        collision: true, destructible: false, climbOnly: true, hidden: true, color: 0x6b4a2f });
     })();
 
     // ---- 车辆 ----
@@ -466,72 +516,73 @@
 
     // ---- 油桶 ----
     for (var bi = 0; bi < randInt(6, 12); bi++) {
+      var bp = dryRand(-58, 58, 1); if (!bp) continue;
       entities.push({
         id: nextId('barrel'), model: 'barrel',
-        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, 0, 0], scale: [1, 1, 1],
+        position: [bp[0], 0, bp[1]], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: true
       });
     }
 
     // ---- TNT ----
     for (var tni = 0; tni < randInt(3, 6); tni++) {
+      var tp = dryRand(-58, 58, 1); if (!tp) continue;
       entities.push({
         id: nextId('tnt'), model: 'tnt',
-        position: [rand(-58, 58), 0, rand(-58, 58)], rotation: [0, rand(0, Math.PI), 0], scale: [1, 1, 1],
+        position: [tp[0], 0, tp[1]], rotation: [0, rand(0, Math.PI), 0], scale: [1, 1, 1],
         collision: true
       });
     }
 
     // ---- 灯柱 ----
     for (var li = 0; li < randInt(6, 10); li++) {
+      var lp = dryRand(-35, 35, 1); if (!lp) continue;
       entities.push({
         id: nextId('lamp'), model: 'lamp',
-        position: [rand(-35, 35), 0, rand(-35, 35)], rotation: [0, 0, 0], scale: [1, 1, 1],
+        position: [lp[0], 0, lp[1]], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: true
       });
     }
 
     // ---- 射击靶 ----
     for (var targi = 0; targi < randInt(2, 4); targi++) {
+      var tg = dryRand(-45, 45, 1); if (!tg) continue;
       entities.push({
         id: nextId('target'), model: 'target',
-        position: [rand(-45, 45), 0, rand(-45, 45)], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
+        position: [tg[0], 0, tg[1]], rotation: [0, rand(0, Math.PI * 2), 0], scale: [1, 1, 1],
         collision: false, score: 50
       });
     }
 
     // ---- 拾取物 ----
     for (var hi = 0; hi < randInt(2, 4); hi++) {
+      var hp = dryRand(-50, 50, 1); if (!hp) continue;
       entities.push({
         id: nextId('pickup-h'), model: 'pickup',
-        position: [rand(-50, 50), 0.8, rand(-50, 50)], rotation: [0, 0, 0], scale: [1, 1, 1],
+        position: [hp[0], 0.8, hp[1]], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: false, kind: 'health', respawn: 15
       });
     }
     for (var ai = 0; ai < randInt(3, 5); ai++) {
+      var ap = dryRand(-50, 50, 1); if (!ap) continue;
       entities.push({
         id: nextId('pickup-a'), model: 'pickup',
-        position: [rand(-50, 50), 0.8, rand(-50, 50)], rotation: [0, 0, 0], scale: [1, 1, 1],
+        position: [ap[0], 0.8, ap[1]], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: false, kind: 'ammo', respawn: 15
       });
     }
 
     // ---- 武器掉落 ----
-    entities.push({
-      id: nextId('wpn-r'), model: 'weapon',
-      position: [rand(-45, 45), 0.8, rand(-45, 45)], rotation: [0, 0, 0], scale: [1, 1, 1],
-      collision: false, kind: 'weapon', type: 'rifle', respawn: 25
-    });
-    entities.push({
-      id: nextId('wpn-f'), model: 'weapon',
-      position: [rand(-45, 45), 0.8, rand(-45, 45)], rotation: [0, 0, 0], scale: [1, 1, 1],
-      collision: false, kind: 'weapon', type: 'flamethrower', respawn: 25
-    });
-    entities.push({
-      id: nextId('wpn-s'), model: 'weapon',
-      position: [rand(-45, 45), 0.8, rand(-45, 45)], rotation: [0, 0, 0], scale: [1, 1, 1],
-      collision: false, kind: 'weapon', type: 'sniper', respawn: 25
-    });
+    var wpnSpots = [dryRand(-45, 45, 1), dryRand(-45, 45, 1), dryRand(-45, 45, 1)];
+    var wpnTypes = ['rifle', 'flamethrower', 'sniper'];
+    for (var wi = 0; wi < 3; wi++) {
+      if (!wpnSpots[wi]) continue;
+      entities.push({
+        id: nextId('wpn-' + wi), model: 'weapon',
+        position: [wpnSpots[wi][0], 0.8, wpnSpots[wi][1]], rotation: [0, 0, 0], scale: [1, 1, 1],
+        collision: false, kind: 'weapon', type: wpnTypes[wi], respawn: 25
+      });
+    }
 
     // ---- 刷怪点 ----
     entities.push({

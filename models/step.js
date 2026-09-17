@@ -19,6 +19,13 @@
       box.receiveShadow = true;
       g.add(box);
 
+      // v11.19 隐形碰撞台阶（config.hidden）：网格保留给 Box3 碰撞，但不渲染 ——
+      // 用于瞭望塔内部楼梯（视觉在 watchtower.js 里），地图上不再出现散落台阶
+      if (config && config.hidden) {
+        box.visible = false;
+        return g;
+      }
+
       // 混凝土边框
       const edges = new T.LineSegments(
         new T.EdgesGeometry(box.geometry),

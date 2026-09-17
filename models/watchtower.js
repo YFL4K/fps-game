@@ -71,6 +71,27 @@
       roof.position.set(0, TH + 0.7, 0); roof.rotation.y = Math.PI / 4; g.add(roof);
       rb(woodDark, 3.4, 0.16, 3.4, 0.03, 0, TH + 0.04, 0);
 
+      // v11.19 内部螺旋楼梯：48 级绕中心从地面盘旋到平台（与 scene-layout 的隐形攀登碰撞体对齐），
+      //   楼梯做进塔模型内部，地图上不再有散落的独立台阶
+      var SR = 2.0, N = 48, SD = 4 * Math.PI / (N - 1);
+      for (var st = 0; st < N; st++) {
+        var th = st * SD;
+        var sx = SR * Math.sin(th), sz = SR * Math.cos(th);
+        rb(woodDark, 1.2, 0.3, 1.0, 0.06, sx, 0.15 + st * 0.28, sz);
+      }
+      // 楼梯护栏（随螺旋上升的两条横杆，视觉引导）
+      var railPts = [];
+      for (var rp = 0; rp < N; rp += 4) {
+        var ra = rp * SD;
+        railPts.push(new T.Vector3((SR + 0.5) * Math.sin(ra), 0.55 + rp * 0.28, (SR + 0.5) * Math.cos(ra)));
+      }
+      if (railPts.length > 1) {
+        var railCurve = new T.CatmullRomCurve3(railPts);
+        var railGeo = new T.TubeGeometry(railCurve, railPts.length * 4, 0.04, 6, false);
+        var rail = new T.Mesh(railGeo, wood);
+        g.add(rail);
+      }
+
       g.userData = { kind: 'watchtower' };
       return g;
     }
