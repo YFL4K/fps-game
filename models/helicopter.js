@@ -219,14 +219,17 @@
       }
 
       // ---- v11.18 玩家驾驶中：AI 全权由主程序接管，这里只维持旋翼视觉旋转 ----
+      // v11.21 驾驶时隐藏旋翼（螺旋桨严重遮挡第一人称视野）
       if (u.playerPiloting) {
-        u.mainRotor.rotation.y += dt * 30;
-        u.tailRotor.rotation.x += dt * 38;
+        if (u.mainRotor) u.mainRotor.visible = false;
+        if (u.tailRotor) u.tailRotor.visible = false;
         return;
       }
 
       // ---- v11.18 迫降：冒烟下坠、旋翼减速，触地后转为可登机的落地态 ----
       if (u.landing) {
+        if (u.mainRotor) u.mainRotor.visible = true;
+        if (u.tailRotor) u.tailRotor.visible = true;
         const gy = (ctx.groundY ? ctx.groundY(inst.position.x, inst.position.z) : 0) + 1.05;
         inst.position.y -= dt * 9;
         inst.rotation.z += dt * 1.4;
@@ -247,6 +250,8 @@
 
       // ---- v11.18 落地待登机：静止、旋翼缓停、不攻击 ----
       if (u.landed) {
+        if (u.mainRotor) u.mainRotor.visible = true;
+        if (u.tailRotor) u.tailRotor.visible = true;
         u.mainRotor.rotation.y += dt * 2.5;
         u.tailRotor.rotation.x += dt * 3;
         return;
