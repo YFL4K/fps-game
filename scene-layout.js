@@ -69,7 +69,8 @@
       entities.push({
         id: nextId('build'), model: 'building',
         position: [bx, 0, bz], rotation: [0, brot, 0], scale: [1, 1, 1],
-        collision: true, w: bw, d: bd, h: bh, color: bcolor, roofColor: broof
+        collision: true, w: bw, d: bd, h: bh,
+        variant: randInt(0, 4)   // v11.17 多样造型：人字顶/两层/L形/圆塔/平房带门廊，配色在模型内随机鲜艳调色板
       });
 
       // 问题7：建筑物旁自动添加箱子或台阶
@@ -99,18 +100,14 @@
         }
       }
 
-      // 放置台阶（通往屋顶）
-      if (Math.random() > 0.4) {
-        var stepCount = randInt(2, 4);
-        var stepDirX = side.rot === 0 ? 0 : (side.rot === Math.PI ? 0 : -0.8);
-        var stepDirZ = side.rot === 0 ? -0.8 : (side.rot === Math.PI ? 0.8 : 0);
-        for (var s = 0; s < stepCount; s++) {
-          entities.push({
-            id: nextId('step'), model: 'step',
-            position: [ex + stepDirX * s, 0.14 + s * 0.28, ez + stepDirZ * s],
-            rotation: [0, side.rot, 0], scale: [2, 1, 1], collision: true
-          });
-        }
+      // v11.17 建筑旁花池（替代旧「通往屋顶」装饰台阶；台阶模型仅保留瞭望塔攀爬用途）
+      if (Math.random() > 0.35) {
+        var fbs = rand(0.85, 1.15);
+        entities.push({
+          id: nextId('flowerbed'), model: 'flowerbed',
+          position: [ex, 0, ez], rotation: [0, side.rot, 0], scale: [fbs, 1, fbs],
+          collision: false
+        });
       }
     }
 
@@ -277,6 +274,25 @@
         id: nextId('pot'), model: 'pot',
         position: [rand(-35, 35), 0, rand(-35, 35)], rotation: [0, 0, 0], scale: [1, 1, 1],
         collision: false, size: randChoice(['small', 'large'])
+      });
+    }
+
+    // v11.17 散布花池美化：避开建筑/水面随机放若干长方形花池（出生点附近点缀）
+    for (var fbi = 0; fbi < randInt(5, 9); fbi++) {
+      var fbx = 0, fbz = 0, fbok = false;
+      for (var ft = 0; ft < 10; ft++) {
+        fbx = rand(-56, 56); fbz = rand(-56, 56);
+        if (insideBuilding(fbx, fbz, 2.2)) continue;
+        if (TERR && fbx * fbx + (fbz - 14) * (fbz - 14) < 100) continue;   // 别堵住生区
+        if (window.TERRAIN && window.TERRAIN.heightAt && window.TERRAIN.heightAt(fbx, fbz) < window.TERRAIN.waterLevel) continue;  // 不放在水里
+        fbok = true; break;
+      }
+      if (!fbok) continue;
+      var fbs2 = rand(0.9, 1.3);
+      entities.push({
+        id: nextId('flowerbed'), model: 'flowerbed',
+        position: [fbx, 0, fbz], rotation: [0, rand(0, Math.PI * 2), 0], scale: [fbs2, 1, fbs2],
+        collision: false
       });
     }
 

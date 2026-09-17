@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.16</div>
+<div id="versionTag">v11.17</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -185,6 +185,7 @@
 <script src="models/sky.js?v=113" onerror="window.__modErr('models/sky.js')"></script>
 <script src="models/spawner.js?v=113" onerror="window.__modErr('models/spawner.js')"></script>
 <script src="models/step.js?v=113" onerror="window.__modErr('models/step.js')"></script>
+<script src="models/flowerbed.js?v=113" onerror="window.__modErr('models/flowerbed.js')"></script>
 <script src="models/vehicle.js?v=113" onerror="window.__modErr('models/vehicle.js')"></script>
 <script src="models/barrel.js?v=113" onerror="window.__modErr('models/barrel.js')"></script>
 <script src="models/tnt.js?v=113" onerror="window.__modErr('models/tnt.js')"></script>
@@ -603,7 +604,7 @@
   // 否则 buildEntity 在遍历首个实体(sky)时引用 GROUND_PROPS 会读到 undefined 而崩溃。
   // v11.10: 武器/拾取物也登记，使其贴合地形高度（否则起伏地形会埋进山坡，导致"掉落物看不见/捡不到"）
   // v11.12: 追加 step（楼旁台阶 / 瞭望塔螺旋踏板与平台）—— 旧版台阶按绝对 y 放置，在起伏地形上被整段埋进地下
-  var GROUND_PROPS = { building: 1, wall: 1, tree: 1, bigtree: 1, highwall: 1, crate: 1, barrel: 1, tnt: 1, obstacle: 1, container: 1, truck: 1, plane: 1, vehicle: 1, lamp: 1, target: 1, gatling: 1, watchtower: 1, ferriswheel: 1, mushroom: 1, grass: 1, pot: 1, chest: 1, enemy: 1, pig: 1, spider: 1, weapon: 1, pickup: 1, step: 1, walkie: 1, shield: 1 };
+  var GROUND_PROPS = { building: 1, wall: 1, tree: 1, bigtree: 1, highwall: 1, crate: 1, barrel: 1, tnt: 1, obstacle: 1, container: 1, truck: 1, plane: 1, vehicle: 1, lamp: 1, target: 1, gatling: 1, watchtower: 1, ferriswheel: 1, mushroom: 1, grass: 1, pot: 1, chest: 1, enemy: 1, pig: 1, spider: 1, weapon: 1, pickup: 1, step: 1, walkie: 1, shield: 1, flowerbed: 1 };
 
   // v11.12 首屏构建实体前必须先把本关压平点写入地形场（顺序：压平 → 建地形网格 → 按网格面落地）
   applyFlattens(LAYOUT);
@@ -643,6 +644,8 @@
     walkieBonus: 0,     // v7.3 每 5000 分奖励的空中支援次数（可累积，优先消耗）
     gatling: null,      // v6.8 加特林碉堡状态 {active,heat,cooldown,posBackup}
     shieldTime: 0,      // v6.9 金色护盾剩余秒数（v7.9 初始 15 秒，击杀 +0.5 秒，上限 15）
+    breath: 10,         // v11.17 溺水：深水(>0.5m)可用气秒数，出水回满 10
+    drownAcc: 0,        // v11.17 溺水每秒扣血累计器
     jetpack: { count: 0, active: false, time: 0 }   // v8.4 喷气飞行器：count 上限 1，active 飞行中，time 剩余秒数
   };
   var score = 0;
@@ -1028,29 +1031,34 @@
    */
   // v11.7 硬摇滚 BGM：失真强力和弦吉他 riff + 摇滚鼓组(底/军/踩镲/吊镲) + 锯齿贝斯。
   //   key=根音MIDI，prog=4小节和弦根音偏移，riff=8个八分强力和弦偏移，lead=16分主音hook，
-  // v11.15 电子DJ风格BGM：4/4底鼓 + 反拍开镲 + 侧链sub贝斯 + 超锯齿和弦stab + 延迟琶音
+  // v11.17 BGM 无主之地(Borderlands)风格：暗色工业沙漠蓝调——palm-muted 失真吉他 riff
+  //   + trip-hop 鼓(带 swing) + 蓝调滑音主音 + big-band 铜管 stab + .blurp 贝斯。
+  //   中速 swagger(86~112 BPM)，小调为主；音量克制、高频柔化，去掉刺耳音墙。
+  //   字段：prog=4小节和弦根音; riff=16步吉他闷音偏移(null=休止,负=低八度重音);
+  //         lead=乐句尾蓝调lick滑音[{m,d,slide}]; brass=铜管重音(16步中哪些下和弦);
+  //         hat=镲风格; swing=奇数16分延迟比例; 索引6=BOSS 狂暴工业。
   var BGM_TRACKS = [
-    { name: '电子·霓虹推进', tempo: 124, key: 45, prog: [0, -4, -7, -2], stab: [0, 7, 12, 16],
-      arp: [12, null, 19, 15, null, 22, 19, null, 15, null, 12, 17, null, 19, 22, null],
-      kick: 'four', hat: 'off', subVol: 0.18, stabVol: 0.11, arpVol: 0.065, cut: 2600 },
-    { name: '电子·夜色围猎', tempo: 126, key: 43, prog: [0, 5, 3, -2], stab: [0, 4, 7, 11],
-      arp: [12, 15, null, 19, 17, null, 15, 12, null, 19, 22, null, 20, 17, null, 15],
-      kick: 'four', hat: 'off', subVol: 0.18, stabVol: 0.10, arpVol: 0.06, cut: 2400 },
-    { name: '电子·机械洪流', tempo: 128, key: 40, prog: [0, 0, 3, 5], stab: [0, 7, 10, 14],
-      arp: [12, null, 24, 19, 17, null, 19, 22, 24, null, 19, 17, 15, null, 12, 15],
-      kick: 'off', hat: 'sixteenth', subVol: 0.20, stabVol: 0.10, arpVol: 0.055, cut: 2100 },
-    { name: '电子·钢蓝律动', tempo: 124, key: 42, prog: [0, -5, -2, 3], stab: [0, 3, 7, 10],
-      arp: [15, 12, null, 17, 19, null, 15, 12, 10, null, 12, 15, 17, null, 19, 22],
-      kick: 'four', hat: 'off', subVol: 0.18, stabVol: 0.10, arpVol: 0.06, cut: 2500 },
-    { name: '电子·终焉脉冲', tempo: 130, key: 38, prog: [0, 8, 5, 3], stab: [0, 7, 12, 15],
-      arp: [12, 17, 19, 22, 19, 17, 12, 15, 17, 19, 22, 24, 22, 19, 17, 15],
-      kick: 'drive', hat: 'sixteenth', subVol: 0.21, stabVol: 0.11, arpVol: 0.065, cut: 2000 },
-    { name: '电子·无尽巡航', tempo: 126, key: 41, prog: [0, 7, 5, 3], stab: [0, 4, 9, 12],
-      arp: [12, null, 16, 19, null, 21, 19, 16, 14, null, 17, 21, null, 24, 21, 17],
-      kick: 'four', hat: 'off', subVol: 0.19, stabVol: 0.10, arpVol: 0.06, cut: 2300 },
-    { name: 'BOSS·高频警报', tempo: 138, key: 36, prog: [0, 0, 8, 7], stab: [0, 6, 11, 18],
-      arp: [12, 15, 19, 24, 22, 19, 15, 12, 13, 17, 20, 25, 24, 20, 17, 13],
-      kick: 'double', hat: 'sixteenth', subVol: 0.22, stabVol: 0.12, arpVol: 0.07, cut: 1900 }
+    { name: '沙漠·推进', tempo: 92, key: 41, prog: [0, 0, -3, -5],
+      riff: [0,null,0,null, 0,null,-5,null, 0,null,0,3, 0,null,-2,null],
+      lead: [{m:12,d:1},{m:15,d:1,slide:17}], brass: [12], hat: 'swing', swing: 0.16, gtr: 0.16, bassV: 0.20 },
+    { name: '废土·围猎', tempo: 100, key: 38, prog: [0, 3, 5, 3],
+      riff: [0,null,0,0, null,0,null,0, 5,null,5,null, 3,null,3,3],
+      lead: [{m:10,d:1},{m:12,d:1,slide:15}], brass: [8,12], hat: 'swing', swing: 0.14, gtr: 0.15, bassV: 0.20 },
+    { name: '锈镇·机甲', tempo: 88, key: 36, prog: [0, 0, -4, -2],
+      riff: [0,null,null,0, 0,null,-3,null, 0,null,null,0, 4,null,2,null],
+      lead: [{m:12,d:2,slide:11}], brass: [14], hat: 'off', swing: 0.12, gtr: 0.155, bassV: 0.22 },
+    { name: '荒原·洪流', tempo: 104, key: 40, prog: [0, 5, 0, 7],
+      riff: [0,null,0,null, 7,null,0,null, 0,0,null,0, 5,null,3,null],
+      lead: [{m:15,d:1,slide:12}], brass: [12], hat: 'swing', swing: 0.15, gtr: 0.15, bassV: 0.20 },
+    { name: '深渊·终焉', tempo: 108, key: 35, prog: [0, -2, 3, 5],
+      riff: [0,null,0,0, null,0,null,0, 0,null,-4,null, 0,null,-1,0],
+      lead: [{m:12,d:1,slide:14},{m:17,d:1}], brass: [8,12], hat: 'sixteenth', swing: 0.10, gtr: 0.16, bassV: 0.21 },
+    { name: '无尽·巡航', tempo: 96, key: 43, prog: [0, 7, 5, 3],
+      riff: [0,null,0,null, 3,null,0,null, 5,null,5,null, 3,null,0,0],
+      lead: [{m:12,d:1,slide:15}], brass: [14], hat: 'swing', swing: 0.15, gtr: 0.15, bassV: 0.20 },
+    { name: 'BOSS·工业狂暴', tempo: 112, key: 33, prog: [0, 0, 6, 5],
+      riff: [0,0,null,0, 0,0,null,-2, 0,0,null,0, 7,5,3,0],
+      lead: [{m:12,d:1,slide:11},{m:18,d:1}], brass: [4,8,12,14], hat: 'sixteenth', swing: 0.08, gtr: 0.175, bassV: 0.24 }
   ];
   function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
   // v11.13 音频性能：原实现每次鼓点都 createBuffer + 逐样本 Math.random() 填充 + 新建 BiquadFilter，
@@ -1076,82 +1084,126 @@
     src.start(t, Math.random() * 0.9); src.stop(t + dur + 0.02);
     _bgmNodeCount += 2;
   }
-  // v11.15 电子DJ声部：干净四拍底鼓 + clap + 开/闭镲 + 侧链sub + 超锯齿stab + 琶音pluck + 上升噪声
-  function bgmKick(t, hard) {
+  // v11.17 无主之地声部：失真吉他闷音(palm-mute chug) + 蓝调滑音主音 + trip-hop 鼓
+  //   + big-band 铜管 stab + blurp 贝斯 + 低频张力 drone。全部经柔和母带链，去刺耳高频。
+  var _bluesCurve = null;
+  function bluesCurve() {                 // 温和软削波（电子管过载感，不炸耳）
+    if (_bluesCurve) return _bluesCurve;
+    var n = 1024, c = new Float32Array(n);
+    for (var i = 0; i < n; i++) { var x = i / (n - 1) * 2 - 1; c[i] = Math.tanh(x * 3.2) * 0.9; }
+    _bluesCurve = c; return c;
+  }
+  function bgmKick(t, hard) {             // trip-hop 闷底鼓：正弦下滑 + 轻点击
     if (!AC) return;
     var o = AC.createOscillator(); o.type = 'sine';
-    o.frequency.setValueAtTime(hard ? 155 : 135, t);
-    o.frequency.exponentialRampToValueAtTime(46, t + 0.085);
-    var g = AC.createGain();
-    g.gain.setValueAtTime(hard ? 0.80 : 0.65, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.1);
-    o.connect(g); g.connect(bgm.master); o.start(t); o.stop(t + 0.13);
-    bgmNoise(t, 0.022, 0.08, 2400, 'bandpass');
+    o.frequency.setValueAtTime(hard ? 150 : 128, t);
+    o.frequency.exponentialRampToValueAtTime(44, t + 0.11);
+    var g = AC.createGain(); g.gain.setValueAtTime(hard ? 0.72 : 0.6, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    o.connect(g); g.connect(bgm.master); o.start(t); o.stop(t + 0.17);
+    bgmNoise(t, 0.016, 0.05, 1800, 'bandpass');
   }
-  function bgmClap(t) {
-    for (var i = 0; i < 3; i++) bgmNoise(t + i * 0.011, 0.06, 0.11 - i * 0.025, 1500 + i * 260, 'bandpass');
+  function bgmSnareD(t) {                 // 干脆小军鼓：带通噪声 + 一点点体音
+    if (!AC) return;
+    var o = AC.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(185, t); o.frequency.exponentialRampToValueAtTime(150, t + 0.05);
+    var g = AC.createGain(); g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    o.connect(g); g.connect(bgm.master); o.start(t); o.stop(t + 0.1);
+    bgmNoise(t, 0.085, 0.16, 2100, 'bandpass');
   }
-  function bgmHatOff(t) { bgmNoise(t, 0.06, 0.075, 7200, 'highpass'); }
-  function bgmHat16(t) { bgmNoise(t, 0.022, 0.045, 8200, 'highpass'); }
-  function bgmSub(t, midi, dur, vol) {
+  function bgmClap(t) {                   // 拍手（轻）
+    for (var i = 0; i < 2; i++) bgmNoise(t + i * 0.012, 0.05, 0.10 - i * 0.03, 1600 + i * 300, 'bandpass');
+  }
+  function bgmHatOff(t) { bgmNoise(t, 0.055, 0.05, 6800, 'highpass'); }
+  function bgmHat16(t) { bgmNoise(t, 0.02, 0.032, 7600, 'highpass'); }
+  function bgmTom(t, midi) {              // 通鼓（BOSS/加花）
+    if (!AC) return;
+    var o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(midiHz(midi), t); o.frequency.exponentialRampToValueAtTime(midiHz(midi) * 0.6, t + 0.14);
+    var g = AC.createGain(); g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    o.connect(g); g.connect(bgm.master); o.start(t); o.stop(t + 0.2);
+  }
+  function bgmBlurp(t, midi, dur, vol) {  // blurp 贝斯：正弦快速下滑，指弹感
     if (!AC) return;
     var f = midiHz(midi);
-    var o = AC.createOscillator(); o.type = 'sine'; o.frequency.value = f;
-    var lp = noiseFilter('lowpass', 190);
-    var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.012);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var o = AC.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f * 1.5, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.045);
+    var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var lp = noiseFilter('lowpass', 620);
     o.connect(lp); lp.connect(g); g.connect(bgm.master);
     o.start(t); o.stop(t + dur + 0.02);
   }
-  function bgmStab(t, midi, offs, dur, vol, cut) {
+  function bgmChug(t, midi, dur, vol) {   // palm-mute 吉他闷音：双失谐锯齿→带通(中频)→快衰减 + 拨片噪声
     if (!AC) return;
     var f = midiHz(midi);
-    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.8;
-    lp.frequency.setValueAtTime(Math.max(600, cut), t);
-    lp.frequency.exponentialRampToValueAtTime(700, t + dur);
+    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 0.9;
+    var ws = AC.createWaveShaper(); ws.curve = bluesCurve(); ws.oversample = '2x';
     var g = AC.createGain();
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.006);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    lp.connect(g); g.connect(bgm.master);
-    for (var i = 0; i < offs.length; i++) {
-      var base = f * Math.pow(2, offs[i] / 12);
-      for (var d = -1; d <= 1; d++) {
-        var o = AC.createOscillator(); o.type = 'sawtooth';
-        o.frequency.value = base; o.detune.value = d * 7;
-        var og = AC.createGain(); og.gain.value = 0.25 / offs.length;
-        o.connect(og); og.connect(lp); o.start(t); o.stop(t + dur + 0.02);
-      }
+    ws.connect(bp); bp.connect(g); g.connect(bgm.master);
+    var det = [-6, 6];
+    for (var i = 0; i < 2; i++) {
+      var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = det[i];
+      var og = AC.createGain(); og.gain.value = 0.5;
+      o.connect(og); og.connect(ws); o.start(t); o.stop(t + dur + 0.02);
+    }
+    bgmNoise(t, 0.012, vol * 0.35, 2600, 'bandpass');   // 拨片攻击
+  }
+  function bgmSlide(t, midi, midiTo, dur, vol) {  // 蓝调滑音主音：锯齿经低通 + 频率滑移 + 颤音 + 过载
+    if (!AC) return;
+    var ws = AC.createWaveShaper(); ws.curve = bluesCurve(); ws.oversample = '2x';
+    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.Q.value = 1.2;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    ws.connect(lp); lp.connect(g); g.connect(bgm.master); if (bgm.delaySend) g.connect(bgm.delaySend);
+    var o = AC.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(midiHz(midi), t);
+    if (midiTo != null) o.frequency.exponentialRampToValueAtTime(midiHz(midiTo), t + dur * 0.6);
+    var vib = AC.createOscillator(); vib.type = 'sine'; vib.frequency.value = 5.5;
+    var vg = AC.createGain(); vg.gain.value = 5; vib.connect(vg); vg.connect(o.detune);
+    o.connect(ws); o.start(t); vib.start(t); o.stop(t + dur + 0.02); vib.stop(t + dur + 0.02);
+  }
+  function bgmBrass(t, midi, offs, dur, vol) {    // big-band 铜管 stab：短促失谐锯齿+高通，有冲劲不炸
+    if (!AC) return;
+    var f = midiHz(midi);
+    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = 0.7;
+    var hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 220;
+    var ws = AC.createWaveShaper(); ws.curve = bluesCurve(); ws.oversample = '2x';
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    ws.connect(bp); bp.connect(hp); hp.connect(g); g.connect(bgm.master);
+    var ch = offs || [0, 4, 7];
+    for (var i = 0; i < ch.length; i++) {
+      var base = f * Math.pow(2, ch[i] / 12);
+      var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = base; o.detune.value = (i - 1) * 5;
+      var og = AC.createGain(); og.gain.value = 0.34 / ch.length;
+      o.connect(og); og.connect(ws); o.start(t); o.stop(t + dur + 0.02);
     }
   }
-  function bgmPluck(t, midi, dur, vol, cut) {
+  function bgmDrone(t, midi, dur, vol) {  // 低频张力 drone（铺底，很轻）
     if (!AC) return;
-    var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = midiHz(midi);
-    var o2 = AC.createOscillator(); o2.type = 'triangle'; o2.frequency.value = midiHz(midi + 12);
-    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 3;
-    lp.frequency.setValueAtTime(cut, t);
-    lp.frequency.exponentialRampToValueAtTime(800, t + dur * 1.6);
-    var g = AC.createGain();
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    var og = AC.createGain(); og.gain.value = 0.3;
-    o.connect(lp); o2.connect(og); og.connect(lp);
-    lp.connect(g); g.connect(bgm.master); if (bgm.delaySend) g.connect(bgm.delaySend);
+    var f = midiHz(midi);
+    var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    var o2 = AC.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = f; o2.detune.value = 11;
+    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 320;
+    var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.4); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(bgm.master);
     o.start(t); o2.start(t); o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
   }
-  function bgmRiser(t, dur) {
+  function bgmRiser(t, dur) {             // 噪声上升（乐句推进，轻）
     if (!AC) return;
     var buf = getWhiteBuf();
     var src = AC.createBufferSource(); src.buffer = buf; src.loop = true;
-    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.2;
-    bp.frequency.setValueAtTime(500, t);
-    bp.frequency.exponentialRampToValueAtTime(4200, t + dur);
+    var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
+    bp.frequency.setValueAtTime(400, t); bp.frequency.exponentialRampToValueAtTime(3200, t + dur);
     var g = AC.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.065, t + dur * 0.85);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.gain.linearRampToValueAtTime(0.045, t + dur * 0.85); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(bp); bp.connect(g); g.connect(bgm.master);
     src.start(t); src.stop(t + dur + 0.03);
   }
@@ -1159,14 +1211,14 @@
   var bgm = {
     idx: -1, track: null, playing: false, muted: false,
     master: null, timer: null, nextT: 0, step: 0,
-    // v11.15 电子DJ混音：整体音量降低(去掉失真吉他后高频能量主要在镲与stab上)
-    masterVol: 0.16,
+    // v11.17 无主之地混音：整体再降(0.16→0.115)，靠音色而非音量取狠，去除刺耳音墙
+    masterVol: 0.115,
     init: function () {
       if (!AC || this.master) return;
       this.master = AC.createGain();
       this.master.gain.value = this.masterVol;
-      // 柔化总线：低通削掉刺耳高频
-      var tame = AC.createBiquadFilter(); tame.type = 'lowpass'; tame.frequency.value = 7400; tame.Q.value = 0.35;
+      // 柔化总线：低通削掉刺耳高频（无主之地偏暖偏脏，压高频）
+      var tame = AC.createBiquadFilter(); tame.type = 'lowpass'; tame.frequency.value = 6200; tame.Q.value = 0.3;
       this.master.connect(tame); tame.connect(AC.destination);
       // 延迟总线（琶音空间感；单条链路，开销恒定）
       var dly = AC.createDelay(0.6); dly.delayTime.value = 0.36;
@@ -1233,31 +1285,34 @@
       var bar = (s >> 4) & 3;
       var beat = s & 15;
       var chord = tr.key + (tr.prog ? tr.prog[bar] : 0);
-      var cut = tr.cut || 2400;
-      // ---- 鼓组：four-on-the-floor（电子乐骨架）----
-      if (tr.kick === 'double') { if (beat % 2 === 0) bgmKick(t, beat % 4 === 0); }
-      else if (tr.kick === 'off') { if (beat === 0 || beat === 4 || beat === 7 || beat === 8 || beat === 12) bgmKick(t, beat === 0 || beat === 8); }
-      else if (tr.kick === 'drive') { if (beat % 4 === 0) bgmKick(t, beat === 0 || beat === 8); if (beat === 14) bgmKick(t, false); }
-      else { if (beat % 4 === 0) bgmKick(t, beat === 0 || beat === 8); }
-      if (beat === 4 || beat === 12) bgmClap(t);
-      if (tr.hat === 'off') { if (beat % 4 === 2) bgmHatOff(t); else if (beat % 2 === 1) bgmHat16(t); }
-      else { if (beat % 2 === 0) bgmHat16(t); if (beat === 6 || beat === 14) bgmHatOff(t); }
+      var isBoss = (this.idx === 6);
+      var sw = (beat % 2 === 1) ? spb * (tr.swing || 0.12) : 0;   // trip-hop swing：后半拍延后
+      // ---- 鼓组：trip-hop（底鼓 0/8 重，6/10 轻；军鼓 4/12；swing 镲）----
+      if (beat === 0 || beat === 8) bgmKick(t, true);
+      else if (beat === 6 || beat === 10) bgmKick(t, false);
+      else if (isBoss && beat === 14) bgmKick(t, false);
+      if (beat === 4 || beat === 12) bgmSnareD(t);
+      if (isBoss && bar === 3 && beat >= 8 && beat % 2 === 0) bgmTom(t, 43 - (beat - 8));   // BOSS 鼓手过门
+      if (tr.hat === 'sixteenth') { if (beat % 2 === 0) bgmHat16(t); else bgmHat16(t + sw); if (beat === 6 || beat === 14) bgmHatOff(t); }
+      else if (tr.hat === 'off') { if (beat % 4 === 2) bgmHatOff(t); else if (beat % 2 === 1) bgmHat16(t + sw); }
+      else { if (beat % 2 === 0) bgmHat16(t); if (beat === 2 || beat === 10) bgmHatOff(t); }
       if (beat === 0 && bar === 0) bgmCrash(t);
-      if (bar === 3 && beat === 8) bgmRiser(t, spb * 8);
-      // ---- 侧链sub贝斯：反拍入，形成pumping呼吸感 ----
-      if (beat % 2 === 0) {
-        var bn = chord - 12 + (beat === 14 ? 7 : 0);
-        bgmSub(t, bn, spb * 1.6, tr.subVol || 0.18);
+      // ---- blurp 贝斯：根音落 1、3 拍 ----
+      if (beat === 0 || beat === 8 || (isBoss && beat === 6)) bgmBlurp(t, chord - 24, spb * 3, tr.bassV || 0.20);
+      // ---- 失真吉他闷音 riff（核心节奏层）----
+      if (tr.riff) { var off = tr.riff[beat]; if (off !== null && off !== undefined) bgmChug(t + sw, chord + off, spb * 1.15, tr.gtr || 0.15); }
+      // ---- big-band 铜管 stab（隔小节重音；BOSS 每小节）----
+      if (tr.brass && (isBoss || (bar & 1) === 1)) { if (tr.brass.indexOf(beat) >= 0) bgmBrass(t, chord + 12, [0, 4, 7], spb * 2.2, 0.085); }
+      // ---- 蓝调滑音主音（乐句末 turn-around）----
+      if (bar === 3 && tr.lead) {
+        for (var j = 0; j < tr.lead.length; j++) {
+          if (beat === 8 + j * 2) { var L = tr.lead[j]; bgmSlide(t, chord + L.m, (L.slide != null) ? chord + L.slide : null, spb * (L.d || 1) * 1.8, 0.10); }
+        }
       }
-      // ---- 和弦stab：2/4拍 + 反拍推进（house经典）----
-      if (tr.stab && (beat === 4 || beat === 12 || beat === 7)) {
-        bgmStab(t, chord + 12, tr.stab, spb * (beat === 7 ? 1.1 : 2.2), tr.stabVol || 0.10, cut);
-      }
-      // ---- 琶音（16分，走延迟总线）----
-      if (tr.arp) {
-        var an = tr.arp[beat];
-        if (an !== null && an !== undefined) bgmPluck(t, chord + 12 + an, spb * 1.3, tr.arpVol || 0.06, cut * 0.8);
-      }
+      // ---- 低频张力 drone 铺底（乐句头，很轻）----
+      if (bar === 0 && beat === 0) bgmDrone(t, tr.key - 24, spb * 24, isBoss ? 0.06 : 0.04);
+      // ---- 乐句末噪声上升推进 ----
+      if (bar === 3 && beat === 8 && !isBoss) bgmRiser(t, spb * 8);
     }
   };
   function bgmPlayForCurrent() {
@@ -3207,6 +3262,7 @@
     player.walkieBonus = 0;  // v7.3 5000 分奖励次数重开归零
     player.gatling = null;   // v6.8 加特林状态重开归零
     player.shieldTime = 0;   // v6.9 护盾重开归零
+    player.breath = 10; player.drownAcc = 0;   // v11.17 溺水状态重开复位
     player.jetpack = { count: 0, active: false, time: 0 };   // v8.4 喷气飞行器重开归零
     player.ammoPool = { pistol: 96, rifle: 360, sniper: 120, rocket: 0 };   // v8.5 分枪备弹重开归零
     // v8.5 战斗统计重开归零
@@ -3598,6 +3654,36 @@
     player.pos.z = clamp(player.pos.z, -WL, WL);
 
     checkPickups();
+
+    // v11.17 溺水机制：躲进 >0.5m 深水 → 10 秒窒息倒计时，每秒扣 10 HP，气尽即窒息死亡
+    // （防止玩家长期泡水借"深水免疫核弹"变成无敌）。出水后回气，breath 渐恢复到 10。
+    if (!player.dead) {
+      var _wd = waterDepthAt(player.pos.x, player.pos.z);
+      if (_wd > 0.5) {
+        player.breath -= dt;
+        player.drownAcc += dt;
+        while (player.drownAcc >= 1) {
+          player.drownAcc -= 1;
+          hitPlayer(10, { noClamp: true, ignoreShield: true });
+          if (player.dead) break;
+        }
+        if (player.breath <= 0 && !player.dead) {
+          player.breath = 0;
+          player.health = 0;
+          player.dead = true;
+          exitGatling();
+          state = 'dead';
+          bgm.stop();
+          if (gameMode === 'endless') showEndlessEnd('💀 溺水窒息');
+          else showStatsScreen('💀 溺水窒息');
+          overlay.style.display = 'flex';
+          return;
+        }
+      } else {
+        player.drownAcc = 0;
+        if (player.breath < 10) player.breath = Math.min(10, player.breath + dt * 4);   // 出水快速回气
+      }
+    }
   }
 
   var playerRadius = W.playerRadius || 0.4;
@@ -4091,6 +4177,12 @@
     }
     lines.push('HP   ' + Math.max(0, Math.round(player.health)) + '/' + player.maxHealth +
       (player.shieldTime > 0 ? '  ✨🛡 护盾 ' + Math.ceil(player.shieldTime) + 's（减伤90%）' : ''));
+    // v11.17 溺水：深水中显示剩余气息条并警告
+    if (waterDepthAt(player.pos.x, player.pos.z) > 0.5 && !player.dead) {
+      var _bb = Math.max(0, Math.ceil(player.breath));
+      var _bwarn = _bb <= 4 ? ' ⚠️窒息!' : '';
+      lines.push('🌊 水中气息 ' + _bb + 's' + _bwarn + '（每秒 -10HP，尽快上岸！）');
+    }
     lines.push(gt.name + '  ' + (gt.flame ? (Math.ceil(player.ammo * 100) / 100) : player.ammo) + '/' + player.reserve +
       (gt.flame ? '发(≈' + Math.floor(player.ammo * 15) + '秒)' : '') +
       (player.reloading ? '  [换弹中]' : ''));
