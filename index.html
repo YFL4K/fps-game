@@ -125,7 +125,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.17</div>
+<div id="versionTag">v11.18</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -646,6 +646,7 @@
     shieldTime: 0,      // v6.9 金色护盾剩余秒数（v7.9 初始 15 秒，击杀 +0.5 秒，上限 15）
     breath: 10,         // v11.17 溺水：深水(>0.5m)可用气秒数，出水回满 10
     drownAcc: 0,        // v11.17 溺水每秒扣血累计器
+    heli: null,         // v11.18 驾驶直升机状态 {active, rec, health, maxHealth, cd, posBackup}
     jetpack: { count: 0, active: false, time: 0 }   // v8.4 喷气飞行器：count 上限 1，active 飞行中，time 剩余秒数
   };
   var score = 0;
@@ -708,6 +709,15 @@
 
   function hitPlayer(dmg, opts) {
     if (player.dead || state !== 'playing') return;
+    // v11.18 驾驶直升机时：敌人伤害打到直升机血量上，而非玩家
+    if (player.heli && player.heli.active) {
+      player.heli.health -= dmg;
+      hurtEl.style.opacity = '0.7';
+      setTimeout(function () { hurtEl.style.opacity = '0'; }, 120);
+      if (sfx) sfx.playHurt();
+      if (player.heli.health <= 0) destroyHeliAndEject();
+      return;
+    }
     // v6.7 敌人伤害钳制：单次 5~20，杜绝一击必杀（核弹自伤等特殊来源传 { noClamp: true }）
     if (!(opts && opts.noClamp)) dmg = Math.min(20, Math.max(5, dmg));
     // v6.9 金色护盾：减伤 90%（钳制之后应用，最小 1 点）
@@ -798,13 +808,27 @@
 
   /* ================= 7. WebAudio 音效 ================= */
   var AC = null;
+  var sfxDest = null;   // v11.18 音效总输出：限幅器，防止密集枪声瞬态互相压低/偶发吞音
   function ensureAudio() {
     if (!AC) {
       try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; }
     }
     if (AC && AC.state === 'suspended') AC.resume();
+    if (AC && !sfxDest) {
+      // 压缩/限幅总线：threshold -12, knee 6, ratio 12, 快启动 → 削平叠加峰值，避免浏览器整体限幅吞音
+      var comp = AC.createDynamicsCompressor();
+      try {
+        comp.threshold.value = -14; comp.knee.value = 8; comp.ratio.value = 10;
+        comp.attack.value = 0.003; comp.release.value = 0.18;
+      } catch (e) {}
+      var makeup = AC.createGain(); makeup.gain.value = 1.25;
+      comp.connect(makeup); makeup.connect(sfxOut());
+      sfxDest = comp;
+    }
     if (bgm) bgm.init();
   }
+  // 统一取音效输出目标（限幅器未就绪时退回 destination）
+  function sfxOut() { return sfxDest || (AC && AC.destination); }
   function noiseBurst(dur, vol, cutoff) {
     if (!AC) return;
     var t = AC.currentTime;
@@ -814,7 +838,7 @@
     var src = AC.createBufferSource(); src.buffer = buf;
     var f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cutoff;
     var g = AC.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f); f.connect(g); g.connect(AC.destination);
+    src.connect(f); f.connect(g); g.connect(sfxOut());
     src.start(t);
   }
   function tone(freq, dur, vol, type, slideTo) {
@@ -823,7 +847,7 @@
     var o = AC.createOscillator(); o.type = type || 'square'; o.frequency.setValueAtTime(freq, t);
     if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
     var g = AC.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(AC.destination);
+    o.connect(g); g.connect(sfxOut());
     o.start(t); o.stop(t + dur + 0.02);
   }
   /* ============ v10.8 真实枪声合成引擎（WebAudio 三层结构） ============
@@ -844,7 +868,7 @@
   function gunShot(cfg) {
     if (!AC) return;
     var t = AC.currentTime;
-    var out = AC.createGain(); out.gain.value = 1.0; out.connect(AC.destination);
+    var out = AC.createGain(); out.gain.value = 1.0; out.connect(sfxOut());
     var rnd = 0.92 + Math.random() * 0.16;
     // ① Crack：枪口激波（高通噪声极短爆发）——决定"尖锐/清脆"度
     var c = AC.createBufferSource(); c.buffer = getWhiteBuf(); c.playbackRate.value = rnd;
@@ -915,7 +939,7 @@
     var clack = AC.createBufferSource(); clack.buffer = getWhiteBuf(); clack.playbackRate.value = 1.3;
     var cbp = AC.createBiquadFilter(); cbp.type = 'bandpass'; cbp.frequency.value = 1800; cbp.Q.value = 2;
     var cg = AC.createGain(); cg.gain.setValueAtTime(0.0001, t); cg.gain.linearRampToValueAtTime(0.52, t + 0.002); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-    clack.connect(cbp); cbp.connect(cg); cg.connect(AC.destination); clack.start(t); clack.stop(t + 0.06);
+    clack.connect(cbp); cbp.connect(cg); cg.connect(sfxOut()); clack.start(t); clack.stop(t + 0.06);
     var s = AC.createBufferSource(); s.buffer = getWhiteBuf();
     var bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.1;
     bp.frequency.setValueAtTime(260, t);
@@ -924,7 +948,7 @@
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.78, t + 0.06);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-    s.connect(bp); bp.connect(g); g.connect(AC.destination);
+    s.connect(bp); bp.connect(g); g.connect(sfxOut());
     s.start(t); s.stop(t + 0.65);
     var o = AC.createOscillator(); o.type = 'sine';
     o.frequency.setValueAtTime(110, t);
@@ -932,14 +956,14 @@
     var og = AC.createGain();
     og.gain.setValueAtTime(0.78, t);
     og.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
-    o.connect(og); og.connect(AC.destination);
+    o.connect(og); og.connect(sfxOut());
     o.start(t); o.stop(t + 0.45);
   }
   // 喷火器（v11.9 重做）：真实火焰喷射 = 低频燃气轰鸣 + 幅度调制湍流咆哮 + 高速燃气嘶嘶，短促连发叠加成持续"呼——"的喷射声
   function flameShot() {
     if (!AC) return;
     var t = AC.currentTime;
-    var out = AC.createGain(); out.gain.value = 0.65; out.connect(AC.destination);
+    var out = AC.createGain(); out.gain.value = 0.65; out.connect(sfxOut());
     // ① 低频轰鸣（燃气压力体）
     var bo = AC.createOscillator(); bo.type = 'sawtooth';
     bo.frequency.setValueAtTime(70, t); bo.frequency.linearRampToValueAtTime(48, t + 0.14);
@@ -964,7 +988,7 @@
   function explosionSfx(scale) {
     if (!AC) return; scale = scale || 1;
     var t = AC.currentTime;
-    var out = AC.createGain(); out.gain.value = Math.min(1, 0.8 * scale); out.connect(AC.destination);
+    var out = AC.createGain(); out.gain.value = Math.min(1, 0.8 * scale); out.connect(sfxOut());
     var cr = AC.createBufferSource(); cr.buffer = getWhiteBuf(); cr.playbackRate.value = 1 + Math.random() * 0.2;
     var chp = AC.createBiquadFilter(); chp.type = 'highpass'; chp.frequency.value = 2500;
     var cg = AC.createGain(); cg.gain.setValueAtTime(0.0001, t); cg.gain.linearRampToValueAtTime(0.5, t + 0.003); cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
@@ -982,6 +1006,8 @@
     ru.connect(rlp); rlp.connect(rg); rg.connect(out); ru.start(t); ru.stop(t + 0.95 * scale + 0.1);
   }
   function shotSound(type) {
+    // v11.18 修复偶发开枪无声：切后台/失焦后 AudioContext 会被浏览器挂起，射击前确保恢复
+    if (AC && AC.state !== 'running') { try { AC.resume(); } catch (e) {} }
     if (type === 'flamethrower') { flameShot(); return; }
     if (type === 'rocket') { rocketShot(); return; }
     gunShot(SHOT_CFG[type] || SHOT_CFG.pistol);
@@ -995,7 +1021,7 @@
     var g = AC.createGain(); g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(vol, t + 0.002);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(bp); bp.connect(g); g.connect(AC.destination);
+    s.connect(bp); bp.connect(g); g.connect(sfxOut());
     s.start(t); s.stop(t + dur + 0.03);
   }
   function impactThud(f0, f1, dur, vol) {
@@ -1004,7 +1030,7 @@
     var o = AC.createOscillator(); o.type = 'sine';
     o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
     var g = AC.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
+    o.connect(g); g.connect(sfxOut()); o.start(t); o.stop(t + dur + 0.02);
   }
   var sfx = {
     playShot: function (type) { shotSound(type); },
@@ -1029,36 +1055,39 @@
    *   L1 巷战冲锋 / L2 火力围猎 / L3 机甲降临 / L4 钢铁洪流 / L5 终焉之战 / 无尽鏖战
    * 每曲 = 鼓(4/4 循环) + 锯齿贝斯 + 合成器主旋律 riff，节奏/调式/音色各不相同。
    */
-  // v11.7 硬摇滚 BGM：失真强力和弦吉他 riff + 摇滚鼓组(底/军/踩镲/吊镲) + 锯齿贝斯。
-  //   key=根音MIDI，prog=4小节和弦根音偏移，riff=8个八分强力和弦偏移，lead=16分主音hook，
-  // v11.17 BGM 无主之地(Borderlands)风格：暗色工业沙漠蓝调——palm-muted 失真吉他 riff
-  //   + trip-hop 鼓(带 swing) + 蓝调滑音主音 + big-band 铜管 stab + .blurp 贝斯。
-  //   中速 swagger(86~112 BPM)，小调为主；音量克制、高频柔化，去掉刺耳音墙。
-  //   字段：prog=4小节和弦根音; riff=16步吉他闷音偏移(null=休止,负=低八度重音);
-  //         lead=乐句尾蓝调lick滑音[{m,d,slide}]; brass=铜管重音(16步中哪些下和弦);
-  //         hat=镲风格; swing=奇数16分延迟比例; 索引6=BOSS 狂暴工业。
+  // v11.18 经典蓝调(Blues)BGM：吉他 + 钢琴为主音，**完全无鼓点**。
+  //   慢速 shuffle、12 小节蓝调压缩成 4 小节循环(I–IV–I–V)、属七/大七和弦色彩。
+  //   字段：prog=4小节根音; gtr=16步吉他音符(null休止,数组=同时拨的琶音和弦);
+  //         piano=16步钢琴音符(单音=旋律,数组=和弦); bass=4小节低音根音偏移; 索引6=BOSS 小调蓝调。
   var BGM_TRACKS = [
-    { name: '沙漠·推进', tempo: 92, key: 41, prog: [0, 0, -3, -5],
-      riff: [0,null,0,null, 0,null,-5,null, 0,null,0,3, 0,null,-2,null],
-      lead: [{m:12,d:1},{m:15,d:1,slide:17}], brass: [12], hat: 'swing', swing: 0.16, gtr: 0.16, bassV: 0.20 },
-    { name: '废土·围猎', tempo: 100, key: 38, prog: [0, 3, 5, 3],
-      riff: [0,null,0,0, null,0,null,0, 5,null,5,null, 3,null,3,3],
-      lead: [{m:10,d:1},{m:12,d:1,slide:15}], brass: [8,12], hat: 'swing', swing: 0.14, gtr: 0.15, bassV: 0.20 },
-    { name: '锈镇·机甲', tempo: 88, key: 36, prog: [0, 0, -4, -2],
-      riff: [0,null,null,0, 0,null,-3,null, 0,null,null,0, 4,null,2,null],
-      lead: [{m:12,d:2,slide:11}], brass: [14], hat: 'off', swing: 0.12, gtr: 0.155, bassV: 0.22 },
-    { name: '荒原·洪流', tempo: 104, key: 40, prog: [0, 5, 0, 7],
-      riff: [0,null,0,null, 7,null,0,null, 0,0,null,0, 5,null,3,null],
-      lead: [{m:15,d:1,slide:12}], brass: [12], hat: 'swing', swing: 0.15, gtr: 0.15, bassV: 0.20 },
-    { name: '深渊·终焉', tempo: 108, key: 35, prog: [0, -2, 3, 5],
-      riff: [0,null,0,0, null,0,null,0, 0,null,-4,null, 0,null,-1,0],
-      lead: [{m:12,d:1,slide:14},{m:17,d:1}], brass: [8,12], hat: 'sixteenth', swing: 0.10, gtr: 0.16, bassV: 0.21 },
-    { name: '无尽·巡航', tempo: 96, key: 43, prog: [0, 7, 5, 3],
-      riff: [0,null,0,null, 3,null,0,null, 5,null,5,null, 3,null,0,0],
-      lead: [{m:12,d:1,slide:15}], brass: [14], hat: 'swing', swing: 0.15, gtr: 0.15, bassV: 0.20 },
-    { name: 'BOSS·工业狂暴', tempo: 112, key: 33, prog: [0, 0, 6, 5],
-      riff: [0,0,null,0, 0,0,null,-2, 0,0,null,0, 7,5,3,0],
-      lead: [{m:12,d:1,slide:11},{m:18,d:1}], brass: [4,8,12,14], hat: 'sixteenth', swing: 0.08, gtr: 0.175, bassV: 0.24 }
+    { name: '蓝调·黄昏酒馆', tempo: 78, key: 45, prog: [0, 5, 0, 7],
+      gtr: [[0,4,7],null,null,[0,4,7], null,[3,7,10],null,[0,4,7], null,null,[0,3,7],null, [7,11,14],null,null,null],
+      piano: [null,null,12,null, null,null,15,null, 16,null,null,15, 12,null,10,7],
+      bass: [0,5,0,7] },
+    { name: '蓝调·密西西比', tempo: 82, key: 41, prog: [0, 0, 5, 7],
+      gtr: [[0,4,7],null,[0,3,7],null, [0,4,7],null,null,[2,5,9], null,[0,4,7],null,null, [7,10,14],null,[5,9,12],null],
+      piano: [null,12,null,14, null,null,15,null, null,17,null,15, 12,null,null,null],
+      bass: [0,0,5,7] },
+    { name: '蓝调·雨夜', tempo: 72, key: 43, prog: [0, -2, 0, 5],
+      gtr: [[0,3,7],null,null,null, [0,4,7],null,[-2,2,5],null, [0,3,7],null,null,[3,7,10], null,null,null,null],
+      piano: [null,null,15,null, null,12,null,null, null,null,10,null, 12,null,14,null],
+      bass: [0,-2,0,5] },
+    { name: '蓝调·公路', tempo: 90, key: 40, prog: [0, 5, 7, 5],
+      gtr: [[0,4,7],null,[0,4,7],null, [5,9,12],null,[5,9,12],null, [7,11,14],null,[7,11,14],null, [5,9,12],null,[0,4,7],null],
+      piano: [null,12,null,15, null,17,null,15, 12,null,10,null, null,7,null,5],
+      bass: [0,5,7,5] },
+    { name: '蓝调·深夜', tempo: 74, key: 38, prog: [0, 0, -3, -5],
+      gtr: [[0,3,7],null,null,[0,3,7], null,null,5,null, [0,3,7],null,null,null, [-2,2,5],null,null,null],
+      piano: [null,null,12,null, 15,null,null,14, 12,null,null,null, null,10,null,7],
+      bass: [0,0,-3,-5] },
+    { name: '蓝调·无尽', tempo: 84, key: 42, prog: [0, 5, 3, 7],
+      gtr: [[0,4,7],null,[0,4,7],null, [5,8,12],null,null,[3,7,10], [0,4,7],null,[0,4,7],null, [7,10,14],null,[5,9,12],null],
+      piano: [12,null,15,null, null,17,null,null, 15,null,12,null, 10,null,7,null],
+      bass: [0,5,3,7] },
+    { name: 'BOSS·小调蓝调', tempo: 96, key: 36, prog: [0, 0, 6, 5],
+      gtr: [[0,3,7],null,[0,3,7],[0,3,7], [0,3,7],null,[6,9,13],null, [0,3,7],null,[0,3,7],[0,3,7], [5,8,12],null,[7,10,14],null],
+      piano: [null,12,null,15, 18,null,15,null, null,12,null,11, 12,null,15,null],
+      bass: [0,0,6,5] }
   ];
   function midiHz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
   // v11.13 音频性能：原实现每次鼓点都 createBuffer + 逐样本 Math.random() 填充 + 新建 BiquadFilter，
@@ -1207,6 +1236,47 @@
     src.connect(bp); bp.connect(g); g.connect(bgm.master);
     src.start(t); src.stop(t + dur + 0.03);
   }
+  // v11.18 蓝调声部：钢琴（正弦+三角泛音，快起快落，温暖）+ 吉他扫弦/拨弦（柔和 pluck）
+  function bgmPiano(t, midi, dur, vol) {
+    if (!AC) return;
+    var f = midiHz(midi);
+    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200; lp.Q.value = 0.5;
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    lp.connect(g); g.connect(bgm.master); if (bgm.delaySend) g.connect(bgm.delaySend);
+    // 基音 + 二次/三次泛音 + 轻微失谐 = 钢琴音色
+    var parts = [[1, 1.0, 'sine'], [2, 0.35, 'sine'], [3, 0.12, 'sine'], [1, 0.5, 'triangle']];
+    for (var i = 0; i < parts.length; i++) {
+      var o = AC.createOscillator(); o.type = parts[i][2];
+      o.frequency.value = f * parts[i][0]; o.detune.value = (i - 1) * 3;
+      var og = AC.createGain(); og.gain.value = parts[i][1];
+      o.connect(og); og.connect(lp); o.start(t); o.stop(t + dur + 0.02);
+    }
+  }
+  function bgmGtrPluck(t, midi, dur, vol) {   // 单音拨弦（蓝调吉他，比 chug 柔和）
+    if (!AC) return;
+    var f = midiHz(midi);
+    var ws = AC.createWaveShaper(); ws.curve = bluesCurve(); ws.oversample = '2x';
+    var lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(2400, t);
+    lp.frequency.exponentialRampToValueAtTime(900, t + dur);
+    var g = AC.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    ws.connect(lp); lp.connect(g); g.connect(bgm.master);
+    var o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    var o2 = AC.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = f; o2.detune.value = 6;
+    var og = AC.createGain(); og.gain.value = 0.45;
+    o.connect(og); o2.connect(og); og.connect(ws); o.start(t); o2.start(t);
+    o.stop(t + dur + 0.02); o2.stop(t + dur + 0.02);
+  }
+  function bgmGtrChord(t, offs, baseMidi, dur, vol) {  // 琶音扫弦：和弦内音快速错开拨
+    if (!AC || !offs) return;
+    for (var i = 0; i < offs.length; i++) {
+      bgmGtrPluck(t + i * 0.018, baseMidi + offs[i], dur, vol);
+    }
+  }
   function bgmCrash(t) { bgmNoise(t, 0.5, 0.09, 4200, 'highpass'); }
   var bgm = {
     idx: -1, track: null, playing: false, muted: false,
@@ -1219,7 +1289,7 @@
       this.master.gain.value = this.masterVol;
       // 柔化总线：低通削掉刺耳高频（无主之地偏暖偏脏，压高频）
       var tame = AC.createBiquadFilter(); tame.type = 'lowpass'; tame.frequency.value = 6200; tame.Q.value = 0.3;
-      this.master.connect(tame); tame.connect(AC.destination);
+      this.master.connect(tame); tame.connect(sfxOut());
       // 延迟总线（琶音空间感；单条链路，开销恒定）
       var dly = AC.createDelay(0.6); dly.delayTime.value = 0.36;
       var fb = AC.createGain(); fb.gain.value = 0.25;
@@ -1285,34 +1355,32 @@
       var bar = (s >> 4) & 3;
       var beat = s & 15;
       var chord = tr.key + (tr.prog ? tr.prog[bar] : 0);
-      var isBoss = (this.idx === 6);
-      var sw = (beat % 2 === 1) ? spb * (tr.swing || 0.12) : 0;   // trip-hop swing：后半拍延后
-      // ---- 鼓组：trip-hop（底鼓 0/8 重，6/10 轻；军鼓 4/12；swing 镲）----
-      if (beat === 0 || beat === 8) bgmKick(t, true);
-      else if (beat === 6 || beat === 10) bgmKick(t, false);
-      else if (isBoss && beat === 14) bgmKick(t, false);
-      if (beat === 4 || beat === 12) bgmSnareD(t);
-      if (isBoss && bar === 3 && beat >= 8 && beat % 2 === 0) bgmTom(t, 43 - (beat - 8));   // BOSS 鼓手过门
-      if (tr.hat === 'sixteenth') { if (beat % 2 === 0) bgmHat16(t); else bgmHat16(t + sw); if (beat === 6 || beat === 14) bgmHatOff(t); }
-      else if (tr.hat === 'off') { if (beat % 4 === 2) bgmHatOff(t); else if (beat % 2 === 1) bgmHat16(t + sw); }
-      else { if (beat % 2 === 0) bgmHat16(t); if (beat === 2 || beat === 10) bgmHatOff(t); }
-      if (beat === 0 && bar === 0) bgmCrash(t);
-      // ---- blurp 贝斯：根音落 1、3 拍 ----
-      if (beat === 0 || beat === 8 || (isBoss && beat === 6)) bgmBlurp(t, chord - 24, spb * 3, tr.bassV || 0.20);
-      // ---- 失真吉他闷音 riff（核心节奏层）----
-      if (tr.riff) { var off = tr.riff[beat]; if (off !== null && off !== undefined) bgmChug(t + sw, chord + off, spb * 1.15, tr.gtr || 0.15); }
-      // ---- big-band 铜管 stab（隔小节重音；BOSS 每小节）----
-      if (tr.brass && (isBoss || (bar & 1) === 1)) { if (tr.brass.indexOf(beat) >= 0) bgmBrass(t, chord + 12, [0, 4, 7], spb * 2.2, 0.085); }
-      // ---- 蓝调滑音主音（乐句末 turn-around）----
-      if (bar === 3 && tr.lead) {
-        for (var j = 0; j < tr.lead.length; j++) {
-          if (beat === 8 + j * 2) { var L = tr.lead[j]; bgmSlide(t, chord + L.m, (L.slide != null) ? chord + L.slide : null, spb * (L.d || 1) * 1.8, 0.10); }
+      // v11.18 经典蓝调：**无鼓**。吉他 + 钢琴主音 + 轻低音。shuffle：奇数后半拍稍延后
+      var sw = (beat % 2 === 1) ? spb * 0.16 : 0;
+      // ---- 低音（walking bass，轻柔，落每拍四分）----
+      if (beat % 4 === 0) {
+        var bo = (tr.bass ? tr.bass[bar] : 0);
+        bgmBlurp(t, tr.key + bo - 24, spb * 3.4, 0.13);
+      }
+      // ---- 吉他（和弦扫弦 / 单音 riff）----
+      if (tr.gtr) {
+        var gn = tr.gtr[beat];
+        if (gn !== null && gn !== undefined) {
+          if (Object.prototype.toString.call(gn) === '[object Array]') bgmGtrChord(t + sw, gn, chord, spb * 2.2, 0.085);
+          else bgmGtrPluck(t + sw, chord + gn, spb * 1.6, 0.10);
         }
       }
-      // ---- 低频张力 drone 铺底（乐句头，很轻）----
-      if (bar === 0 && beat === 0) bgmDrone(t, tr.key - 24, spb * 24, isBoss ? 0.06 : 0.04);
-      // ---- 乐句末噪声上升推进 ----
-      if (bar === 3 && beat === 8 && !isBoss) bgmRiser(t, spb * 8);
+      // ---- 钢琴（旋律 / 和弦点缀，走延迟做空间感）----
+      if (tr.piano) {
+        var pn = tr.piano[beat];
+        if (pn !== null && pn !== undefined) {
+          if (Object.prototype.toString.call(pn) === '[object Array]') {
+            for (var pi = 0; pi < pn.length; pi++) bgmPiano(t + sw + pi * 0.012, chord + 12 + pn[pi], spb * 2.4, 0.075);
+          } else {
+            bgmPiano(t + sw, chord + 12 + pn, spb * 2.6, 0.09);
+          }
+        }
+      }
     }
   };
   function bgmPlayForCurrent() {
@@ -1472,8 +1540,12 @@
     if (e.code === 'KeyT') { useAirSupport(); return; }
     // v6.8 加特林碉堡：按 E 进入/退出站桩射击
     if (e.code === 'KeyE') {
+      // v11.18 优先处理直升机登机/离机
+      if (player.heli && player.heli.active) { exitHeli(); return; }
       if (player.gatling && player.gatling.active) { exitGatling(); }
       else {
+        var nearH = findNearLandedHeli();
+        if (nearH) { enterHeli(nearH); return; }
         var nearG = findNearGatling();
         if (nearG) enterGatling(nearG);
       }
@@ -1543,6 +1615,7 @@
 
   function tryShoot() {
     if (!locked || player.dead || player.reloading || state !== 'playing') return;
+    if (player.heli && player.heli.active) return;   // v11.18 驾驶直升机时用火箭炮，不走枪械
     var gt = GUN_TYPES[player.gun];
     if (player.ammo <= 0) { startReload(); return; }
     
@@ -3263,6 +3336,7 @@
     player.gatling = null;   // v6.8 加特林状态重开归零
     player.shieldTime = 0;   // v6.9 护盾重开归零
     player.breath = 10; player.drownAcc = 0;   // v11.17 溺水状态重开复位
+    player.heli = null;   // v11.18 驾驶直升机状态重开归零
     player.jetpack = { count: 0, active: false, time: 0 };   // v8.4 喷气飞行器重开归零
     player.ammoPool = { pistol: 96, rifle: 360, sniper: 120, rocket: 0 };   // v8.5 分枪备弹重开归零
     // v8.5 战斗统计重开归零
@@ -3421,6 +3495,126 @@
     if (sfx) sfx.playLevelUp();
   };
 
+  /* ================= v11.18 直升机迫降 + 玩家驾驶 ================= */
+  ctx.groundY = groundY;
+  ctx.spawnSmoke = function (point, color) {
+    if (!point) return;
+    if (!_smokeGeo) _smokeGeo = new THREE.SphereGeometry(1, 6, 6);   // 懒创建（explode 同款），否则 null 几何体会让 raycast 崩溃
+    var sm = new THREE.Mesh(_smokeGeo, new window.MARIO.basic({ color: color || 0x555555, transparent: true, opacity: 0.5 }));
+    sm.position.copy(point); sm.scale.setScalar(0.6 + Math.random() * 0.4); scene.add(sm);
+    fx.push({ type: 'smoke', obj: sm, vel: new THREE.Vector3((Math.random() - 0.5) * 2, Math.random() * 2 + 0.6, (Math.random() - 0.5) * 2), life: 1.4, maxLife: 1.4, growTo: 2.2 });
+  };
+  // 杀满 3 只猪头佳后，玩家击毁直升机 30% 概率改为迫降
+  ctx.heliShouldLand = function () { return killCounts.pig >= 3 && Math.random() < 0.30; };
+  ctx.onHelicopterLanding = function () { showToast('🚁 直升机中弹迫降！冲向坠地点按 E 登机', 0xffcc44); };
+  ctx.onHelicopterLanded = function (inst) {
+    showToast('🚁 直升机已迫降！走近按 E 驾驶（火箭对敌 10000 伤害 · 5 发/秒）', 0x66ffaa);
+    if (sfx) sfx.playLevelUp();
+  };
+
+  function findNearLandedHeli() {
+    var best = null, bestD = 4.6;
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive || rec.cfg.model !== 'helicopter' || !rec.inst.userData || !rec.inst.userData.landed) continue;
+      var dx = rec.inst.position.x - player.pos.x, dz = rec.inst.position.z - player.pos.z;
+      var d2 = dx * dx + dz * dz;
+      if (d2 < bestD * bestD) { best = rec; bestD = Math.sqrt(d2); }
+    }
+    return best;
+  }
+
+  function enterHeli(rec) {
+    if (!rec || !rec.alive || player.dead || state !== 'playing') return;
+    if (player.gatling && player.gatling.active) return;
+    if (player.heli && player.heli.active) return;
+    player.heli = { active: true, rec: rec, health: 15000, maxHealth: 15000, cd: 0, posBackup: player.pos.clone() };
+    var u = rec.inst.userData;
+    u.playerPiloting = true; u.landed = false; u.landing = false; u.health = 15000; u.maxHealth = 15000;
+    player.yaw = rec.inst.rotation.y; player.pitch = -0.12; aiming = false;
+    if (gunInst) gunInst.visible = false;
+    showToast('🚁 已登机！WASD 飞行 · 空格升 · Ctrl 降 · 左键火箭(10000/发,5发每秒) · E 离机', 0x66ffaa);
+    if (sfx) sfx.playLevelUp();
+  }
+
+  function exitHeli() {
+    if (!player.heli || !player.heli.active) return;
+    var rec = player.heli.rec;
+    if (rec && rec.alive && rec.inst.userData) { rec.inst.userData.playerPiloting = false; rec.inst.userData.landed = true; }
+    var hp = player.heli.posBackup || player.pos.clone();
+    player.pos.set(hp.x, groundY(hp.x, hp.z) + 0.1, hp.z);
+    player.vel.set(0, 0, 0); player.onGround = true;
+    if (gunInst) gunInst.visible = true;
+    player.heli = null;
+    showToast('🚁 已离机，直升机停在原地（可再次登机）', 0x99ccff);
+  }
+
+  function destroyHeliAndEject() {
+    if (!player.heli) return;
+    var rec = player.heli.rec;
+    var p = (rec && rec.alive) ? rec.inst.position.clone() : player.pos.clone();
+    player.heli = null;
+    if (gunInst) gunInst.visible = true;
+    if (rec && rec.alive) {
+      if (ctx.explode) ctx.explode(p, 8, 0, { noPlayer: true });
+      removeEntity(rec);
+    }
+    // 从空中掉回地面
+    player.pos.set(p.x, Math.max(groundY(p.x, p.z) + 0.1, p.y), p.z);
+    player.vel.set(0, -4, 0); player.onGround = false;
+    hitPlayer(20, {});   // 坠机轻伤（非致命）
+    if (!player.dead) showToast('💥 直升机被击毁！你跳伞落地继续战斗', 0xff6a3a);
+  }
+
+  function heliRocket() {
+    var st = player.heli; if (!st || !st.rec || !st.rec.alive) return;
+    var inst = st.rec.inst;
+    var dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+    var origin = inst.position.clone(); origin.y += 0.5;
+    ctx.currentDamage = 10000; ctx.oneShotKill = false;
+    var hit = raycastShot(dir);
+    if (hit.rec) {
+      if (hit.rec.def && hit.rec.def.onHit) { try { hit.rec.def.onHit(hit.rec.inst, hit.point, ctx); } catch (e) {} }
+      else if (isDestructible(hit.rec)) damageStaticEntity(hit.rec, 10000, hit.point);
+      if (hit.rec.inst.userData && hit.rec.inst.userData.destroyed) { spawnDebris(hit.rec); destroyEntity(hit.rec); }
+      else if (hit.rec.inst.userData && hit.rec.inst.userData.respawnReady) respawnEntity(hit.rec);
+    }
+    if (ctx.explode) ctx.explode(hit.point || origin.clone().addScaledVector(dir, 40), 4.5, 10000, { noPlayer: true, bossDmgMul: 1 });
+    spawnTracer(origin, hit.point || origin.clone().addScaledVector(dir, 60), 0xff6633);
+    if (sfx) sfx.playShot('rocket');
+    screenShake = Math.min(1.2, screenShake + 0.25);
+  }
+
+  function updateHeliPilot(dt) {
+    var st = player.heli; if (!st || !st.active) return;
+    var rec = st.rec;
+    if (!rec || !rec.alive) { destroyHeliAndEject(); return; }
+    var inst = rec.inst;
+    var hs = 15;
+    forward.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+    right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
+    var mv = new THREE.Vector3();
+    if (keys.KeyW) mv.addScaledVector(forward, 1);
+    if (keys.KeyS) mv.addScaledVector(forward, -1);
+    if (keys.KeyD) mv.addScaledVector(right, 1);
+    if (keys.KeyA) mv.addScaledVector(right, -1);
+    if (mv.lengthSq() > 0) mv.normalize().multiplyScalar(hs * dt);
+    if (keys.Space) mv.y += 11 * dt;
+    if (keys.ControlLeft || keys.ControlRight) mv.y -= 11 * dt;
+    inst.position.add(mv);
+    var gy = groundY(inst.position.x, inst.position.z);
+    inst.position.x = clamp(inst.position.x, -62, 62);
+    inst.position.z = clamp(inst.position.z, -62, 62);
+    inst.position.y = clamp(inst.position.y, gy + 1.05, 42);
+    inst.rotation.y = player.yaw;
+    inst.rotation.x = player.pitch * 0.3;   // 随俯仰轻微抬头/低头
+    // 玩家位置同步到直升机（敌人据此瞄准、相机据此）
+    player.pos.set(inst.position.x, inst.position.y, inst.position.z);
+    st.cd -= dt;
+    if (player.firing && st.cd <= 0) { st.cd = 0.2; heliRocket(); }   // 5 发/秒
+    if (st.health <= 0) destroyHeliAndEject();
+  }
+
   function detonateNuke() {
     if (player.nukes <= 0 || player.dead || state !== 'playing' || nukeCountdownActive) return;
     player.nukes--;   // 立即消耗，避免倒计时期间重复引爆
@@ -3498,6 +3692,11 @@
   function updatePlayer(dt) {
     updateBerserkState();   // v7.4 帧循环评估（回血后解除/死亡状态）
     if (player.dead) return;
+    // v11.18 驾驶直升机：移动/开火由 updateHeliPilot 接管，这里只跑冷却
+    if (player.heli && player.heli.active) {
+      if (player.fireCooldown > 0) player.fireCooldown -= dt;
+      return;
+    }
     // Buff 计时
     if (player.buffs.speed > 0) {
       player.buffs.speed -= dt;
@@ -4205,6 +4404,13 @@
       else if (player.gatling.cooldown > 0) lines.push('🔥 加特林 超温冷却 ' + Math.ceil(player.gatling.cooldown) + ' 秒');
       else if (findNearGatling()) lines.push('🔫 加特林碉堡（附近）— 按 E 使用（30 秒无限子弹）');
     }
+    // v11.18 驾驶直升机：血条 + 操作提示；附近有迫降直升机时提示登机
+    if (player.heli && player.heli.active) {
+      var _hh = Math.max(0, Math.round(player.heli.health));
+      lines.push('🚁 驾驶直升机  装甲 ' + _hh + '/' + player.heli.maxHealth + '  ·  火箭 ∞(10000/发)  —  WASD飞行 空格升 Ctrl降 左键开火 E离机');
+    } else if (findNearLandedHeli()) {
+      lines.push('🚁 迫降直升机（附近）— 按 E 登机驾驶');
+    }
     if (debugMode) lines.push('DEBUG 飞行模式');
     lines.push('SCORE ' + score);
     statsEl.textContent = lines.join('\n');
@@ -4228,7 +4434,12 @@
       shakeY = (Math.random() - 0.5) * s;
     }
     // v6.8 加特林站桩：相机锁定碉堡机位
-    if (player.gatling && player.gatling.active && gatlingRec && gatlingRec.alive) {
+    if (player.heli && player.heli.active && player.heli.rec && player.heli.rec.alive) {
+      // v11.18 驾驶直升机：座舱视角（略高于机身中心，随俯仰看地面）
+      var hp = player.heli.rec.inst.position;
+      camera.position.set(hp.x + shakeX, hp.y + 1.2 + shakeY, hp.z);
+      camera.rotation.set(player.pitch, player.yaw, 0);
+    } else if (player.gatling && player.gatling.active && gatlingRec && gatlingRec.alive) {
       var gp = gatlingRec.inst.position;
       camera.position.set(gp.x, gp.y + 1.5, gp.z);
       camera.rotation.set(player.pitch, player.yaw, 0);
@@ -4254,7 +4465,7 @@
     crosshairEl.style.color = player.berserk ? '#ff3333' : '#33ff66';
     crosshairEl.style.textShadow = player.berserk ? '0 0 10px #ff3333, 0 0 3px rgba(0,0,0,0.8)' : '0 0 10px #33ff66, 0 0 3px rgba(0,0,0,0.8)';
     // v7.7 修复：加特林碉堡开火时必须显示加特林枪管、隐藏玩家枪（原每帧强制 !scopeOn 会覆盖 enterGatling 的隐藏）
-      if (gunInst) gunInst.visible = !scopeOn && !(player.gatling && player.gatling.active);
+      if (gunInst) gunInst.visible = !scopeOn && !(player.gatling && player.gatling.active) && !(player.heli && player.heli.active);
     if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
       window.MODELS.gun.update(gunInst, dt, ctx);
     }
@@ -4289,6 +4500,7 @@
         updateRockets(dt);
         updateAirstrikes(dt);
         updateEntities(dt);
+        updateHeliPilot(dt);   // v11.18 驾驶直升机：移动/开火/同步玩家位置
         collideEnemies();
         updateWaves(dt);
         updateFx(dt);

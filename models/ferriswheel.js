@@ -27,10 +27,12 @@
       function beamCyl(r1, r2, len, mat) { return new T.Mesh(new T.CylinderGeometry(r1 * s, r2 * s, len * s, 10), mat); }
 
       // ---- A 型支架 ×2（前后各一组，倒 V 支撑轮轴）+ 交叉拉杆 + 地基 ----
+      // v11.18 修复悬空：原腿长 15.5 且中心在 HUB-1.2(≈12.3s)，底部只到 ~4.7s，够不到地面，
+      //   与脚墩(0.3s)之间断开 → 摩天轮看起来悬浮。改为腿长 14.0、中心 7.0s，底部≈0.2s 落地、顶部≈13.8s 接轮心。
       for (let az = -1; az <= 1; az += 2) {
         for (let side = -1; side <= 1; side += 2) {
-          const leg = beamCyl(0.16, 0.26, 15.5, steel);
-          leg.position.set(side * 3.0 * s, HUB - 1.2 * s, az * AX);
+          const leg = beamCyl(0.16, 0.26, 14.0, steel);
+          leg.position.set(side * 3.0 * s, 7.0 * s, az * AX);
           leg.rotation.z = -side * 0.22;
           g.add(leg);
         }

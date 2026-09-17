@@ -154,6 +154,10 @@
         dead: false,
         deathTimer: 0,
         respawnReady: false,
+        // v11.18 迫降/驾驶状态
+        landing: false,     // 被击落但改为坠地迫降（不空中爆炸）
+        landed: false,      // 已停在地面，玩家可按 E 登机
+        playerPiloting: false,   // 玩家正在驾驶
         projectiles: []
       };
       return g;
@@ -168,6 +172,15 @@
       if (ctx && ctx.sfx) ctx.sfx.playHit();
       if (ctx && ctx.spawnSparks && point) ctx.spawnSparks(point.clone(), 0xffaa44);
       if (u.health <= 0) {
+        // v11.18 杀满 3 只猪头佳后，玩家击毁直升机 30% 概率改为"迫降"（坠地可登机）而非空中爆炸
+        if (ctx && ctx.heliShouldLand && ctx.heliShouldLand()) {
+          u.health = 0;
+          u.landing = true;
+          u.dead = false;
+          if (ctx.sfx) ctx.sfx.playDeath();
+          if (ctx.onHelicopterLanding) ctx.onHelicopterLanding();
+          return false;
+        }
         u.dead = true;
         u.deathTimer = 0;
         if (ctx && ctx.sfx) ctx.sfx.playDeath();
@@ -203,6 +216,40 @@
           ctx.scene.remove(b.mesh);
           u.projectiles.splice(i, 1);
         }
+      }
+
+      // ---- v11.18 玩家驾驶中：AI 全权由主程序接管，这里只维持旋翼视觉旋转 ----
+      if (u.playerPiloting) {
+        u.mainRotor.rotation.y += dt * 30;
+        u.tailRotor.rotation.x += dt * 38;
+        return;
+      }
+
+      // ---- v11.18 迫降：冒烟下坠、旋翼减速，触地后转为可登机的落地态 ----
+      if (u.landing) {
+        const gy = (ctx.groundY ? ctx.groundY(inst.position.x, inst.position.z) : 0) + 1.05;
+        inst.position.y -= dt * 9;
+        inst.rotation.z += dt * 1.4;
+        u.mainRotor.rotation.y += dt * 10;
+        u.tailRotor.rotation.x += dt * 6;
+        if (ctx.spawnSmoke && Math.random() < 0.5) ctx.spawnSmoke(inst.position.clone(), 0x555555);
+        if (inst.position.y <= gy) {
+          inst.position.y = gy;
+          inst.rotation.z = 0.06;   // 轻微侧倾停在地面
+          u.landing = false;
+          u.landed = true;
+          u.health = 0;
+          if (ctx.onHelicopterLanded) ctx.onHelicopterLanded(inst);
+          if (ctx.sfx) ctx.sfx.playExplode();
+        }
+        return;
+      }
+
+      // ---- v11.18 落地待登机：静止、旋翼缓停、不攻击 ----
+      if (u.landed) {
+        u.mainRotor.rotation.y += dt * 2.5;
+        u.tailRotor.rotation.x += dt * 3;
+        return;
       }
 
       // ---- 死亡：坠毁 + 爆炸 ----

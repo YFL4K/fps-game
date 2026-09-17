@@ -100,8 +100,8 @@
         }
       }
 
-      // v11.17 建筑旁花池（替代旧「通往屋顶」装饰台阶；台阶模型仅保留瞭望塔攀爬用途）
-      if (Math.random() > 0.35) {
+      // v11.17 建筑旁花池（替代旧「通往屋顶」装饰台阶）；v11.18 提高出现率让花池更常见
+      if (Math.random() > 0.15) {
         var fbs = rand(0.85, 1.15);
         entities.push({
           id: nextId('flowerbed'), model: 'flowerbed',
@@ -378,19 +378,14 @@
       // v11.12 瞭望塔脚下平整台地由下方 autoPads() 统一登记（螺旋台阶/平台改为相对本地地面抬升）
       entities.push({ id: nextId('tower'), model: 'watchtower',
         position: [tx, 0, tz], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false, destructible: false });
-      // 螺旋楼梯：48 级绕中心盘旋 2 整圈，结束角 = 2*360° ≡ 0°（+z），与模型 +z 入口缺口对齐
-      var N = 48, SR = 2.0, SD = 4 * Math.PI / (N - 1);
-      for (var s = 0; s < N; s++) {
-        var th = s * SD;
-        entities.push({ id: nextId('towerstep'), model: 'step',
-          position: [tx + SR * Math.sin(th), 0.14 + s * 0.28, tz + SR * Math.cos(th)],
-          rotation: [0, th, 0], scale: [1.2, 1, 1.0],
-          collision: true, destructible: false, climbOnly: true, color: 0x7a5230 });
+      // v11.18 按需求删除全部台阶：瞭望塔不再放螺旋台阶/平台碰撞体（改为纯景观地标）。
+      //   塔基四周点缀花池，替代旧台阶观感。
+      for (var ts = 0; ts < 4; ts++) {
+        var ta = ts * Math.PI / 2 + Math.PI / 4;
+        entities.push({ id: nextId('towerbed'), model: 'flowerbed',
+          position: [tx + Math.sin(ta) * 4.2, 0, tz + Math.cos(ta) * 4.2],
+          rotation: [0, ta, 0], scale: [1, 1, 1], collision: false });
       }
-      // 平台碰撞体：居中，覆盖顶台阶(+z)与四周围栏内区域，玩家登顶后自由站立移动
-      entities.push({ id: nextId('towerplat'), model: 'step',
-        position: [tx, PH - 0.14, tz], rotation: [0, 0, 0], scale: [3.2, 1, 2.0],
-        collision: true, destructible: false, climbOnly: true, color: 0x6b4a2f });
     })();
 
     // ---- 车辆 ----
