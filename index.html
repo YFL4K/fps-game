@@ -136,7 +136,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.21</div>
+<div id="versionTag">v11.22</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -3262,8 +3262,9 @@
   function heliRocket() {
     var st = player.heli; if (!st || !st.rec || !st.rec.alive) return;
     var inst = st.rec.inst;
+    // v11.22 射线从相机（驾驶舱）位置出发，方向取相机朝向，保证与准星完美对齐
+    var origin = camera.position.clone();
     var dir = new THREE.Vector3(); camera.getWorldDirection(dir);
-    var origin = inst.position.clone(); origin.y += 0.5;
     ctx.currentDamage = 10000; ctx.oneShotKill = false;
     var hit = raycastShot(dir);
     if (hit.rec) {
@@ -3607,27 +3608,22 @@
 
     // v11.17 溺水机制：躲进 >0.5m 深水 → 10 秒窒息倒计时，每秒扣 10 HP，气尽即窒息死亡
     // （防止玩家长期泡水借"深水免疫核弹"变成无敌）。出水后回气，breath 渐恢复到 10。
+    // v11.22 修正：入水前10秒为安全期（仅倒计时），安全期结束后才开始持续扣血。
     if (!player.dead) {
       var _wd = waterDepthAt(player.pos.x, player.pos.z);
       if (_wd > 0.5) {
-        player.breath -= dt;
         player.drownAcc += dt;
-        while (player.drownAcc >= 1) {
-          player.drownAcc -= 1;
-          hitPlayer(10, { noClamp: true, ignoreShield: true });
-          if (player.dead) break;
-        }
-        if (player.breath <= 0 && !player.dead) {
-          player.breath = 0;
-          player.health = 0;
-          player.dead = true;
-          exitGatling();
-          state = 'dead';
-          bgm.stop();
-          if (gameMode === 'endless') showEndlessEnd('💀 溺水窒息');
-          else showStatsScreen('💀 溺水窒息');
-          overlay.style.display = 'flex';
-          return;
+        if (player.breath > 0) {
+          // 安全期：breath 倒计时，不扣血
+          player.breath -= dt;
+          if (player.breath < 0) player.breath = 0;
+        } else {
+          // 安全期结束：开始持续扣血（每秒-10HP）
+          while (player.drownAcc >= 1) {
+            player.drownAcc -= 1;
+            hitPlayer(10, { noClamp: true, ignoreShield: true });
+            if (player.dead) break;
+          }
         }
       } else {
         player.drownAcc = 0;
@@ -4155,9 +4151,13 @@
       (player.shieldTime > 0 ? '  ✨🛡 护盾 ' + Math.ceil(player.shieldTime) + 's（减伤90%）' : ''));
     // v11.17 溺水：深水中显示剩余气息条并警告
     if (waterDepthAt(player.pos.x, player.pos.z) > 0.5 && !player.dead) {
-      var _bb = Math.max(0, Math.ceil(player.breath));
-      var _bwarn = _bb <= 4 ? ' ⚠️窒息!' : '';
-      lines.push('🌊 水中气息 ' + _bb + 's' + _bwarn + '（每秒 -10HP，尽快上岸！）');
+      if (player.breath > 0) {
+        var _bb = Math.max(0, Math.ceil(player.breath));
+        var _bwarn = _bb <= 3 ? ' ⚠️' : '';
+        lines.push('🌊 入水安全期 ' + _bb + 's' + _bwarn + '（10秒后开始扣血，尽快上岸！）');
+      } else {
+        lines.push('🌊 ⚠️扣血中（每秒-10HP，尽快上岸！）');
+      }
     }
     lines.push(gt.name + '  ' + (gt.flame ? (Math.ceil(player.ammo * 100) / 100) : player.ammo) + '/' + player.reserve +
       (gt.flame ? '发(≈' + Math.floor(player.ammo * 15) + '秒)' : '') +
