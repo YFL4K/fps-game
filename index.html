@@ -58,6 +58,13 @@
   #heliCrosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; z-index: 20; }
   #heliCrosshair .hch { position: absolute; top: 50%; left: -18px; right: -18px; height: 2px; background: #33ff66; box-shadow: 0 0 8px #33ff66; transform: translateY(-50%); }
   #heliCrosshair .hcv { position: absolute; left: 50%; top: -18px; bottom: -18px; width: 2px; background: #33ff66; box-shadow: 0 0 8px #33ff66; transform: translateX(-50%); }
+  /* v11.24 直升机方形瞄准镜（火箭炮风格，右键激活） */
+  #heliScope { position: fixed; inset: 0; display: none; pointer-events: none; z-index: 21; }
+  #heliScope .hs-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 44%; height: 44%; border: 2px solid rgba(0,200,80,0.35); box-shadow: 0 0 0 9999px rgba(5,7,10,0.92); }
+  #heliScope .hs-h { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 36%; height: 2px; background: rgba(0,255,80,0.7); box-shadow: 0 0 6px rgba(0,255,80,0.5); }
+  #heliScope .hs-v { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 2px; height: 36%; background: rgba(0,255,80,0.7); box-shadow: 0 0 6px rgba(0,255,80,0.5); }
+  #heliScope .hs-dot { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 7px; height: 7px; border-radius: 50%; background: rgba(0,255,80,0.9); box-shadow: 0 0 10px rgba(0,255,80,0.8); }
+  #heliScope .hs-label { position: absolute; top: calc(50% - 28px); left: 50%; transform: translateX(-50%); color: rgba(0,200,80,0.55); font-size: 14px; letter-spacing: 2px; text-shadow: 0 0 6px rgba(0,0,0,0.9); font-weight: bold; }
   #heliFuel { position: fixed; right: 16px; bottom: 16px; display: none; pointer-events: none; z-index: 20; }
   #heliFuel .hbar { width: 180px; height: 14px; background: rgba(20,20,30,0.75); border: 1px solid rgba(100,200,100,0.45); border-radius: 7px; overflow: hidden; }
   #heliFuel .hfill { height: 100%; background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff44); border-radius: 7px; transition: width 0.5s linear; }
@@ -132,11 +139,19 @@
 <div id="scopeOverlay"><div class="sh sline"></div><div class="sv sline"></div><div class="sret"></div><div class="sdot"></div><div class="stext">4X</div></div>
 <!-- v11.21 直升机 HUD（精简：仅绿色准星 + 燃油条） -->
 <div id="heliCrosshair"><div class="hch"></div><div class="hcv" style="position:absolute;left:50%;top:-18px;bottom:-18px;width:2px;background:#33ff66;box-shadow:0 0 8px #33ff66;transform:translateX(-50%)"></div></div>
+<!-- v11.24 直升机方形瞄准镜（右键激活，火箭炮风格） -->
+<div id="heliScope">
+  <div class="hs-frame"></div>
+  <div class="hs-h"></div>
+  <div class="hs-v"></div>
+  <div class="hs-dot"></div>
+  <div class="hs-label">×4</div>
+</div>
 <div id="heliFuel"><div class="hbar"><div class="hfill" id="heliFuelFill"></div></div><div class="hlabel">⛽ 燃油</div></div>
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.23</div>
+<div id="versionTag">v11.24</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -277,6 +292,7 @@
   var scopeEl = document.getElementById('scopeOverlay');
   // v11.21 直升机 HUD 元素（精简：仅绿色准星 + 燃油条）
   var heliCrosshairEl = document.getElementById('heliCrosshair');
+  var heliScopeEl = document.getElementById('heliScope');   // v11.24 方形瞄准镜
   var heliFuelEl = document.getElementById('heliFuel');
   var heliFuelFillEl = document.getElementById('heliFuelFill');
   var hitmarkEl = document.getElementById('hitmark');
@@ -380,6 +396,8 @@
   // v7.0 猪头佳小BOSS：击杀普通敌人计数（每 10 个触发出现），同屏最多 1 只
   var pigKills = 0;
   var pigAlive = false;
+  var pigCount = 0;        // v11.24 同屏猪头佳数量（最多 PIG_MAX）
+  var PIG_MAX = 4;        // v11.24 同屏最多 4 只猪头佳
   // v7.1 机甲 BOSS：每击杀 25 名普通敌人随机出现（所有关卡+无尽），同屏最多 1 只
   var bossKills = 0;
   var currentLayout = null;  // 记录当前加载的布局版本
@@ -2694,11 +2712,20 @@
   }
 
   // v7.0 猪头佳小BOSS：巨型野猪冲撞，每击杀 10 名普通敌人随机出现，90 秒超时自爆（v7.9 30→90）
+  // v11.24 支持 5 种变体 + 同屏最多 4 只
   function spawnPig() {
-    if (pigAlive || player.dead || state !== 'playing') return false;
+    if (pigCount >= PIG_MAX || player.dead || state !== 'playing') return false;
     pigAlive = true;
+    pigCount++;
     var side = Math.random() < 0.5 ? -1 : 1;
     var pos = new THREE.Vector3(side * (20 + Math.random() * 14), 0, -28 - Math.random() * 10);
+    // v11.24 随机选择变体
+    var variantIdx = Math.floor(Math.random() * 5);
+    var PIG_VARIANTS = [
+      { name: '瘟疫猪头佳' }, { name: '撼地尊猪头佳' }, { name: '镇海兽猪头佳' },
+      { name: '灾厄猪头佳' }, { name: '灭世猪头佳' }
+    ];
+    var vName = PIG_VARIANTS[variantIdx].name;
     var cfg = {
       id: 'dyn-pig-' + (++dynCounter),
       model: 'pig',
@@ -2708,16 +2735,16 @@
       collision: false,
       dynamic: true,
       respawn: 0,
-      // v7.4 猪头佳血量提升 300%：1000 → 4000；v7.6 再提升 200%：4000 → 12000；v8.2 再提升 2 倍：12000 → 24000；v10 再提升至 55000
+      variant: variantIdx,
       health: 55000,
-      // v7.7 猪头佳移动速度 +40%：13 → 18.2；v10 再 ×3：18.2 → 39；v10.3 降低到与普通敌人一致（speed 1）；v10.4 +170%（×2.7）
       speed: 2.7,
-      life: 90    // v7.9 超时自爆 30 → 90 秒
+      life: 90
     };
     buildEntity(cfg);
     // 自爆回调：爆炸 + 对玩家范围伤害（钳制 5~20）+ 状态复位
     ctx.onPigSelfDestruct = function (ppos) {
-      pigAlive = false;
+      pigCount = Math.max(0, pigCount - 1);
+      if (pigCount === 0) pigAlive = false;
       var p = ppos.clone ? ppos.clone() : new THREE.Vector3(ppos.x, 1, ppos.z);
       p.y = 1;
       // v8.2 自爆范围/伤害 ×2：半径 10→20、伤害 130→260
@@ -2728,8 +2755,8 @@
       showToast('💥 猪头佳自爆了！', 0xff6a3a);
       if (sfx && sfx.playRocket) sfx.playRocket();
     };
-    showToast('🐗 猪头佳出现！90 秒内击败它！', 0xff8a2a);
-    levelBannerTitle.textContent = '🐗 猪头佳现身';
+    showToast('🐗 ' + vName + ' 出现！90 秒内击败它！', 0xff8a2a);
+    levelBannerTitle.textContent = '🐗 ' + vName + ' 现身';
     levelBannerSub.textContent = '巨型野猪冲撞全场 — 90 秒内击败它，否则自爆！';
     levelBannerEl.style.opacity = '1';
     setTimeout(function () { levelBannerEl.style.opacity = '0'; }, 3000);
@@ -2858,7 +2885,7 @@
           if (t === 'boss') {
             if (!bossAlive) { waveQueue.shift(); spawnBoss(); }
           } else if (t === 'pig') {
-            if (!pigAlive) { waveQueue.shift(); spawnPig(); }
+            if (pigCount < PIG_MAX) { waveQueue.shift(); spawnPig(); }
           } else {
             waveQueue.shift();
             spawnEnemy(t, randomSpawnPos());
@@ -2959,6 +2986,7 @@
     chestSpawnedCount = 0;
     // v7.0 换关：猪头佳状态复位
     pigAlive = false;
+    pigCount = 0;
     pigKills = 0;
     // v7.1 换关：BOSS 击杀计数复位
     bossKills = 0;
@@ -2993,6 +3021,7 @@
     chestSpawnedCount = 0;
     // v7.0 换关：猪头佳状态复位
     pigAlive = false;
+    pigCount = 0;
     pigKills = 0;
     // v7.1 换关：BOSS 击杀计数复位
     bossKills = 0;
@@ -3058,14 +3087,15 @@
     startGame();
   }
 
-  ctx.onEnemyKilled = function (pos, type) {
+  ctx.onEnemyKilled = function (pos, type, variantName) {
     // v8.5 战斗统计：各类敌人击杀数
     if (killCounts[type] !== undefined) killCounts[type]++;
     // v7.0 猪头佳：'pig' 类型单独处理（小BOSS 击杀奖励，不计普通击杀数）
     if (type === 'pig') {
-      pigAlive = false;
+      pigCount = Math.max(0, pigCount - 1);
+      if (pigCount === 0) pigAlive = false;
       score += 1000;
-      showToast('🐗 击败猪头佳！+1000', 0xffcc66);
+      showToast('🐗 击败' + (variantName || '猪头佳') + '！+1000', 0xffcc66);
       // v7.3 5000 分里程碑奖励检查
       checkScoreMilestone();
       // v7.1 图鉴表：猪头佳击毁掉落（v7.2：对讲机/核弹 10%→30%）
@@ -3078,8 +3108,8 @@
       if (sfx) sfx.playLevelUp();
       return;
     }
-    // v7.1 每击杀 10 名普通敌人 → 猪头佳随机出现（同屏最多 1 只）；无尽模式改由波次驱动，跳过
-    if (gameMode !== 'endless' && (type === 'human' || type === 'monster' || type === 'spider') && !pigAlive) {
+    // v7.1 每击杀 10 名普通敌人 → 猪头佳随机出现（v11.24 同屏最多 PIG_MAX 只）；无尽模式改由波次驱动，跳过
+    if (gameMode !== 'endless' && (type === 'human' || type === 'monster' || type === 'spider') && pigCount < PIG_MAX) {
       pigKills++;
       if (pigKills >= 10) {
         pigKills = 0;
@@ -3225,7 +3255,7 @@
     if (heliCrosshairEl) heliCrosshairEl.style.display = 'block';
     if (heliFuelEl) heliFuelEl.style.display = 'block';
     crosshairEl.style.display = 'none';
-    showToast('🚁 已登机！WASD 飞行 · 空格升 · Ctrl 降 · 左键火箭(10000/发,5发每秒) · E 离机  · ⛽ 燃油60秒', 0x66ffaa);
+    showToast('🚁 已登机！WASD 飞行 · 空格升 · Ctrl 降 · 左键火箭(10000/发) · 右键瞄准 · E 离机  · ⛽ 燃油60秒', 0x66ffaa);
     if (sfx) sfx.playLevelUp();
   }
 
@@ -3240,6 +3270,7 @@
     player.heli = null;
     // v11.21 隐藏直升机 HUD（仅准星+燃油条）
     if (heliCrosshairEl) heliCrosshairEl.style.display = 'none';
+    if (heliScopeEl) heliScopeEl.style.display = 'none';
     if (heliFuelEl) heliFuelEl.style.display = 'none';
     crosshairEl.style.display = 'block';
     showToast('🚁 已离机，直升机停在原地（可再次登机）', 0x99ccff);
@@ -3253,6 +3284,7 @@
     if (gunInst) gunInst.visible = true;
     // v11.21 隐藏直升机 HUD（仅准星+燃油条）
     if (heliCrosshairEl) heliCrosshairEl.style.display = 'none';
+    if (heliScopeEl) heliScopeEl.style.display = 'none';
     if (heliFuelEl) heliFuelEl.style.display = 'none';
     crosshairEl.style.display = 'block';
     if (rec && rec.alive) {
@@ -4143,7 +4175,7 @@
           if (de.alive && de.cfg && de.cfg.dynamic &&
               (de.cfg.model === 'enemy' || de.cfg.model === 'spider' || de.cfg.model === 'pig')) aliveDyn++;
         }
-        lines.push('本波剩余 ' + (waveQueue.length + aliveDyn) + '  ·  BOSS ' + (bossAlive ? '⚠' : '—') + '  猪头佳 ' + (pigAlive ? '⚠' : '—'));
+        lines.push('本波剩余 ' + (waveQueue.length + aliveDyn) + '  ·  BOSS ' + (bossAlive ? '⚠' : '—') + '  猪头佳 ' + (pigCount > 0 ? '🐗' + pigCount : '—'));
       }
       lines.push('历史最高 击杀 ' + endlessBest.kills + ' · 得分 ' + endlessBest.score);
     } else {
@@ -4236,19 +4268,28 @@
       camera.rotation.set(player.pitch, player.yaw, 0);
     }
     // v6.7 右键瞄准：FOV 平滑缩放（狙击 4 倍镜 ≈ 18°，其余 35~55°）
+    // v11.24 直升机瞄准镜（方形，FOV 25°）
     var baseFov = 75;
     var targetFov = baseFov;
-    if (aiming && !player.dead && state === 'playing') {
+    var heliScopeOn = aiming && player.heli && player.heli.active && !player.dead && state === 'playing';
+    if (heliScopeOn) {
+      targetFov = 25;
+    } else if (aiming && !player.dead && state === 'playing') {
       targetFov = GUN_TYPES[player.gun].aimFov || baseFov;
     }
     if (Math.abs(camera.fov - targetFov) > 0.05) {
       camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 20);
       camera.updateProjectionMatrix();
     }
-    // 狙击镜遮罩 / 准星 / 枪模显示
-    var scopeOn = aiming && GUN_TYPES[player.gun].scopeLens && !player.dead && state === 'playing';
+    // 狙击镜遮罩 / 直升机瞄准镜 / 准星 / 枪模显示
+    var scopeOn = !heliScopeOn && aiming && GUN_TYPES[player.gun].scopeLens && !player.dead && state === 'playing';
     scopeEl.style.display = scopeOn ? 'block' : 'none';
-    crosshairEl.style.display = scopeOn ? 'none' : 'block';
+    if (heliScopeEl) heliScopeEl.style.display = heliScopeOn ? 'block' : 'none';
+    // v11.24 直升机准星在瞄准镜模式下隐藏
+    if (heliCrosshairEl && player.heli && player.heli.active) {
+      heliCrosshairEl.style.display = heliScopeOn ? 'none' : 'block';
+    }
+    crosshairEl.style.display = (scopeOn || heliScopeOn) ? 'none' : 'block';
     // v8.3 枪管准星发绿光，狂暴模式发红光
     crosshairEl.style.color = player.berserk ? '#ff3333' : '#33ff66';
     crosshairEl.style.textShadow = player.berserk ? '0 0 10px #ff3333, 0 0 3px rgba(0,0,0,0.8)' : '0 0 10px #33ff66, 0 0 3px rgba(0,0,0,0.8)';

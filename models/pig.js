@@ -11,6 +11,25 @@
   var T = global.THREE;
   var R = global.ROUND;
 
+  // v11.24 猪头佳 5 种规格
+  var PIG_VARIANTS = [
+    { name: '瘟疫猪头佳', scale: 0.5, hpMul: 0.5, dmgMul: 0.5, fur: 0x8a7b6b, furDark: 0x5a4b3b, mane: 0x4a3b2b, laser: 0xffffff, laserCore: 0xeeeeee, eye: 0xffffff, ember: 0xdddddd, prob: 0.35 },
+    { name: '撼地尊猪头佳', scale: 1.0, hpMul: 1, dmgMul: 1, fur: 0x241b15, furDark: 0x18110d, mane: 0x0c0a08, laser: 0x00ff66, laserCore: 0xd2ffd2, eye: 0xff4422, ember: 0xff3a10, prob: 0.30 },
+    { name: '镇海兽猪头佳', scale: 1.5, hpMul: 1.5, dmgMul: 1.5, fur: 0x4a4a4a, furDark: 0x2a2a2a, mane: 0x1a1a1a, laser: 0x00aaff, laserCore: 0xaad4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
+    { name: '灾厄猪头佳', scale: 2.0, hpMul: 2, dmgMul: 2, fur: 0x1a3a3a, furDark: 0x0a1a1a, mane: 0x051515, laser: 0xcc44ff, laserCore: 0xe8b4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
+    { name: '灭世猪头佳', scale: 3.0, hpMul: 3, dmgMul: 3, fur: 0x0a0a0a, furDark: 0x050505, mane: 0x000000, laser: 0xff0000, laserCore: 0xffaaaa, eye: 0xff0000, ember: 0xff3300, prob: 0.05 }
+  ];
+
+  function pickVariant() {
+    var r = Math.random();
+    var acc = 0;
+    for (var i = 0; i < PIG_VARIANTS.length; i++) {
+      acc += PIG_VARIANTS[i].prob;
+      if (r < acc) return PIG_VARIANTS[i];
+    }
+    return PIG_VARIANTS[1];   // 默认撼地尊
+  }
+
   function sqDist(ax, az, bx, bz) { var dx = ax - bx, dz = az - bz; return dx * dx + dz * dz; }
 
   // v11.15 水深采样（猪头佳避水：深水>0.5m 不入水，沿水岸滑动绕行）
@@ -45,8 +64,10 @@
 
   function ensureBeams(u, ctx) {
     if (u.laserBeams) return;
-    var outer = new global.window.MARIO.basicS({ color: 0x00ff66, transparent: true, opacity: 0.8 });
-    var core = new global.window.MARIO.basicS({ color: 0xd2ffd2, transparent: true, opacity: 0.95 });
+    var lc = u.laserColor || 0x00ff66;
+    var lcc = u.laserCoreColor || 0xd2ffd2;
+    var outer = new global.window.MARIO.basicS({ color: lc, transparent: true, opacity: 0.8 });
+    var core = new global.window.MARIO.basicS({ color: lcc, transparent: true, opacity: 0.95 });
     u.laserBeams = [];
     for (var i = 0; i < 2; i++) {
       var beam = new T.Mesh(new T.BoxGeometry(1, 1, 1), outer);
@@ -92,18 +113,22 @@
       var cfg = config || {};
       var g = new T.Group();
 
+      // v11.24 选择变体（cfg.variant 0-4 或随机）
+      var variant = cfg.variant != null ? PIG_VARIANTS[cfg.variant] : pickVariant();
+      if (!variant) variant = PIG_VARIANTS[1];
+
       // 哑光深色材质（不受 MARIO 调色板提亮，忠实还原参考图的近黑乱毛野猪）
       function std(color, rough, metal) {
         return new T.MeshStandardMaterial({ color: color, roughness: (rough === undefined ? 0.9 : rough), metalness: (metal || 0) });
       }
-      var fur = std(0x241b15, 0.92);            // 近黑炭棕（主毛色）
-      var furBelly = std(0x18110d, 0.95);       // 更暗腹/下侧
-      var maneMat = std(0x0c0a08, 0.96);        // 黑色鬃刺
-      var tuskMat = std(0xd8c59c, 0.55, 0.05);  // 象牙骨色
-      var noseMat = std(0x120d0a, 0.7);         // 湿黑鼻
+      var fur = std(variant.fur, 0.92);
+      var furBelly = std(variant.furDark, 0.95);
+      var maneMat = std(variant.mane, 0.96);
+      var tuskMat = std(0xd8c59c, 0.55, 0.05);
+      var noseMat = std(0x120d0a, 0.7);
       var holeMat = std(0x000000, 1);
-      var eyeMat = new T.MeshStandardMaterial({ color: 0xff4422, emissive: 0xff1a00, emissiveIntensity: 3.2, roughness: 0.4 });
-      var emberMat = new T.MeshBasicMaterial({ color: 0xff3a10 });
+      var eyeMat = new T.MeshStandardMaterial({ color: variant.eye, emissive: variant.eye, emissiveIntensity: 3.2, roughness: 0.4 });
+      var emberMat = new T.MeshBasicMaterial({ color: variant.ember });
 
       // —— 躯体：前倾弓背（肩部高、臀低），高分段椭圆 ——
       var body = new T.Mesh(new T.SphereGeometry(1.0, 22, 16), fur);
@@ -224,10 +249,16 @@
       cap(g, fur, 0.05, 0.34, 0, 1.15, -1.75, -0.7, 0, 0);
 
       // —— 状态（契约不变）——
+      var hp = (cfg.health || 55000) * variant.hpMul;
       var u = {
         kind: 'pig',
-        health: cfg.health || 55000,
-        maxHealth: cfg.health || 55000,
+        variant: variant,
+        variantName: variant.name,
+        dmgMul: variant.dmgMul,
+        laserColor: variant.laser,
+        laserCoreColor: variant.laserCore,
+        health: hp,
+        maxHealth: hp,
         dead: false,
         life: cfg.life || 30,
         speed: cfg.speed || 2.7,
@@ -252,6 +283,11 @@
       };
       g.userData = u;
 
+      // v11.24 应用变体缩放（基于 cfg.scale 基础值再乘以变体倍数）
+      var baseScale = cfg.scale && cfg.scale[0] ? cfg.scale[0] : 3;
+      var finalScale = baseScale * variant.scale;
+      g.scale.set(finalScale, finalScale, finalScale);
+
       u.takeDamage = function (dmg) {
         if (u.dead) return;
         u.health -= dmg / (u.defense || 1);
@@ -262,7 +298,7 @@
           u.dead = true;
           removeBeams(u);
           if (c && c.sfx) c.sfx.playDeath();
-          if (c && c.onEnemyKilled) c.onEnemyKilled(g.position.clone(), 'pig');
+          if (c && c.onEnemyKilled) c.onEnemyKilled(g.position.clone(), 'pig', u.variantName);
           u.respawnReady = true;
         }
       };
@@ -351,7 +387,8 @@
         var pr = contactR + (ctx.playerRadius || 0.4);
         if (sqDist(px, pz, ctx.player.pos.x, ctx.player.pos.z) < pr * pr) {
           u.hitPlayerCd = 0.7;
-          ctx.hitPlayer(Math.round((5 + Math.floor(Math.random() * 16)) * 1.5));
+          var _dm = u.dmgMul || 1;
+          ctx.hitPlayer(Math.round((5 + Math.floor(Math.random() * 16)) * 1.5 * _dm));
         }
       }
 
@@ -378,7 +415,8 @@
             }
           } else {
             var tgt = hit.inst.userData;
-            tgt.takeDamage(30 + Math.floor(Math.random() * 21));
+            var _edm = u.dmgMul || 1;
+            tgt.takeDamage(Math.round((30 + Math.floor(Math.random() * 21)) * _edm));
             var kn = new T.Vector3().subVectors(hit.inst.position, inst.position);
             kn.y = 0;
             if (kn.lengthSq() > 1e-6) { kn.normalize().multiplyScalar(3.0); hit.inst.position.add(kn); }
@@ -415,12 +453,13 @@
       }
       if (u.laserPhase === 'on') {
         u.laserDmgTick += dt;
+        var _ldm = u.dmgMul || 1;
         while (u.laserDmgTick >= 1) {
           u.laserDmgTick -= 1;
           if (ctx.hitPlayer && !ctx.player.dead &&
               laserRayHit(eyeMid, dxv, dyv, dzv,
                 ctx.player.pos.x, ctx.player.pos.y + 0.5, ctx.player.pos.z, LASER_RANGE, LASER_HALF_W)) {
-            ctx.hitPlayer(LASER_DPS_PLAYER);
+            ctx.hitPlayer(Math.round(LASER_DPS_PLAYER * _ldm));
           }
           for (var li2 = 0; li2 < list.length; li2++) {
             var recL = list[li2];
@@ -434,7 +473,7 @@
             var tyL = recL.inst.position.y + (mL === 'spider' ? 0.15 : 0.5);
             if (laserRayHit(eyeMid, dxv, dyv, dzv,
                 recL.inst.position.x, tyL, recL.inst.position.z, LASER_RANGE, LASER_HALF_W)) {
-              cuL.takeDamage(LASER_DPS_ENEMY);
+              cuL.takeDamage(Math.round(LASER_DPS_ENEMY * _ldm));
             }
           }
         }
