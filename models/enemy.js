@@ -28,13 +28,13 @@
     spider:  { body: 0x2d1f1f, dark: 0x1a1212, eye: 0xff4444, leg: 0x3d2b2b }
   };
 
-  // v11.29 机甲 BOSS 5 种变体（概率 35/30/10/10/5）
+  // v11.36 机甲 BOSS 5 种变体（移动速度×3，射速×2，射程×5，添加激光武器）
   var MECHA_VARIANTS = [
-    { name: '蜂群游侠', scale: 1.5, hp: 61650, dmgMul: 0.7, speed: 3, shootRange: 15, shootCooldown: 3, color: { main: 0x8a8a4b, dark: 0x4a6b3b, accent: 0x66ff66, visor: 0xffffff } },
-    { name: '熔炉铁骑', scale: 3.0, hp: 94500, dmgMul: 1, speed: 2, shootRange: 20, shootCooldown: 3, color: { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xffaa66 } },
-    { name: '裂变炮台', scale: 6.0, hp: 213750, dmgMul: 2.5, speed: 2, shootRange: 25, shootCooldown: 3, color: { main: 0x5a3a8f, dark: 0x2a1540, accent: 0x8fd3ff, visor: 0xaaddff } },
-    { name: '天基巨神', scale: 9.0, hp: 470250, dmgMul: 3.5, speed: 2, shootRange: 30, shootCooldown: 2, color: { main: 0x1a0a0a, dark: 0x0a0505, accent: 0xff5533, visor: 0xff9977 } },
-    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 1, shootRange: 35, shootCooldown: 2, color: { main: 0x3a2a1a, dark: 0x1a120a, accent: 0x996633, visor: 0xccaa77 } }
+    { name: '蜂群游侠', scale: 1.5, hp: 61650, dmgMul: 0.7, speed: 9, shootRange: 75, shootCooldown: 1.5, laserColor: 0xffffff, laserCore: 0xeeeeee, color: { main: 0x8a8a4b, dark: 0x4a6b3b, accent: 0x66ff66, visor: 0xffffff } },
+    { name: '熔炉铁骑', scale: 3.0, hp: 94500, dmgMul: 1, speed: 6, shootRange: 100, shootCooldown: 1.5, laserColor: 0x00ff66, laserCore: 0xd2ffd2, color: { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xffaa66 } },
+    { name: '裂变炮台', scale: 6.0, hp: 213750, dmgMul: 2.5, speed: 6, shootRange: 125, shootCooldown: 1.5, laserColor: 0x00aaff, laserCore: 0xaad4ff, color: { main: 0x5a3a8f, dark: 0x2a1540, accent: 0x8fd3ff, visor: 0xaaddff } },
+    { name: '天基巨神', scale: 9.0, hp: 470250, dmgMul: 3.5, speed: 6, shootRange: 150, shootCooldown: 1, laserColor: 0xcc44ff, laserCore: 0xe8b4ff, color: { main: 0x1a0a0a, dark: 0x0a0505, accent: 0xff5533, visor: 0xff9977 } },
+    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 3, shootRange: 175, shootCooldown: 1, laserColor: 0xff0000, laserCore: 0xffaaaa, color: { main: 0x3a2a1a, dark: 0x1a120a, accent: 0x996633, visor: 0xccaa77 } }
   ];
 
   // v6.5 机甲 BOSS 配色（每关不同造型）：红 / 蓝 / 绿 / 紫 / 金
@@ -303,6 +303,19 @@
         var warnMat = new window.MARIO.mat({ color: 0xffc107 });   // 警示黄
         var redMat = new window.MARIO.mat({ color: 0xa02222 });    // 暗红
         var cockpitMat = new window.MARIO.mat({ color: 0x7a1f1f, transparent: true, opacity: 0.55 }); // 半透明暗红座舱盖
+        // v11.36 头部激光（类似猪头佳，但上下扫射）
+        var laserOuter = new window.MARIO.mat({ color: variant ? variant.laserColor : 0xffffff, transparent: true, opacity: 0.45 });
+        var laserCore = new window.MARIO.mat({ color: variant ? variant.laserCore : 0xeeeeee });
+        u.laserBeams = [];
+        for (var bi = 0; bi < 2; bi++) {
+          var beam = new T.Mesh(new T.BoxGeometry(0.3, 0.3, 1), laserOuter);
+          var core = new T.Mesh(new T.BoxGeometry(0.12, 0.12, 1), laserCore);
+          beam.add(core);
+          beam.visible = false;
+          beam.frustumCulled = false;
+          if (ctx && ctx.scene) ctx.scene.add(beam);
+          u.laserBeams.push(beam);
+        }
 
         // 腿 + 圆角履带重足
         legPivotL = new T.Group(); legPivotL.position.set(-0.38, 0.95, 0);
@@ -527,6 +540,13 @@
         respawnReady: false,
         shootTimer: Math.random() * 1.5,
         projectiles: [],
+        // v11.36 头部激光（与猪头佳设置一致）
+        laserPhase: 'on',
+        laserTimer: 0,
+        laserSweep: 0,
+        laserBeams: null,
+        laserColor: variant ? variant.laserColor : 0xffffff,
+        laserCoreColor: variant ? variant.laserCore : 0xeeeeee,
         bodyMat: robotBodyMat || matBody,   // v11.13 机器人本体材质（闪红只改这一份）
         gunPivot: gunPivot,
         pivots: { armL: armPivotL, armR: armPivotR, legL: legPivotL, legR: legPivotR },
@@ -542,6 +562,14 @@
         if (u.health <= 0) {
           u.dead = true;
           u.deathTimer = 0;
+          // v11.36 清理激光光束
+          if (u.laserBeams) {
+            for (var bi = 0; bi < u.laserBeams.length; bi++) {
+              var b = u.laserBeams[bi];
+              if (b && b.parent) b.parent.remove(b);
+            }
+            u.laserBeams = null;
+          }
           if (c && c.sfx) c.sfx.playDeath();
           if (c && c.onEnemyKilled) c.onEnemyKilled(g.position.clone(), u.type);
           if (c && c.onBossKilled && u.type === 'boss') c.onBossKilled(g.position.clone());
@@ -692,6 +720,72 @@
             // 旧版人形 BOSS：额外两发偏转子弹（三向）
             fireBullet(u, inst, ctx, player, dist, -0.24);
             fireBullet(u, inst, ctx, player, dist, 0.24);
+          }
+        }
+      }
+
+      // v11.36 机甲 BOSS 头部激光扫射（上下扫射，可攻击玩家和直升机）
+      if (u.type === 'boss' && variant && u.laserBeams && !u.dead) {
+        u.laserTimer += dt;
+        if (u.laserTimer >= 5) { u.laserPhase = (u.laserPhase === 'on') ? 'off' : 'on'; u.laserTimer = 0; }
+        
+        var pitchMin = 20, pitchMax = 50;
+        var pitchRad = (pitchMin + (pitchMax - pitchMin) * (0.5 + 0.5 * Math.sin(u.laserSweep))) * Math.PI / 180;
+        u.laserSweep += dt * 0.8;
+        
+        var start = inst.position.clone();
+        start.y += 3.5 * s;
+        var dirX = Math.sin(pitchRad) * Math.cos(inst.rotation.y);
+        var dirY = Math.cos(pitchRad);
+        var dirZ = Math.sin(pitchRad) * Math.sin(inst.rotation.y);
+        
+        // 更新光束可见性
+        for (var bi = 0; bi < u.laserBeams.length; bi++) {
+          var beam = u.laserBeams[bi];
+          if (beam) {
+            beam.visible = (u.laserPhase === 'on');
+            beam.position.copy(start);
+            beam.lookAt(start.x + dirX * 100, start.y + dirY * 100, start.z + dirZ * 100);
+          }
+        }
+        
+        // 激光伤害（仅当开启时）
+        if (u.laserPhase === 'on') {
+          var laserDmg = variant.dmgMul * 30;  // 基础 30，乘以变体倍率
+          
+          // 检查玩家
+          if (!player.dead && player.heli) {
+            var plPos = player.heli.rec ? player.heli.rec.inst.position : player.pos.clone();
+            plPos.y += 5;
+            var t = (plPos.y - start.y) / dirY;
+            if (t > 0 && t < 200) {
+              var px = start.x + dirX * t, pz = start.z + dirZ * t;
+              var pdx = plPos.x - px, pdz = plPos.z - pz;
+              if (Math.sqrt(pdx*pdx + pdz*pdz) < 2.5) {
+                player.heli.health -= laserDmg * dt;
+                if (player.heli.health <= 0) {
+                  ctx.onHelicopterDestroyed && ctx.onHelicopterDestroyed();
+                }
+              }
+            }
+          }
+          
+          // 检查敌人
+          for (var ei = 0; ei < entities.length; ei++) {
+            var rec = entities[ei];
+            if (!rec.alive || rec.cfg.model === 'enemy' || rec.cfg.model === 'pig') continue;
+            var ent = rec.inst;
+            if (!ent || !ent.userData || ent.userData.dead) continue;
+            var entPos = ent.position.clone();
+            entPos.y += 2;
+            var t = (entPos.y - start.y) / dirY;
+            if (t > 0 && t < 200) {
+              var px = start.x + dirX * t, pz = start.z + dirZ * t;
+              var edx = entPos.x - px, edz = entPos.z - pz;
+              if (Math.sqrt(edx*edx + edz*edz) < 1.5) {
+                ent.userData.takeDamage(laserDmg * dt);
+              }
+            }
           }
         }
       }
