@@ -54,7 +54,7 @@
   #scopeOverlay .sret { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; transform: translate(-50%, -50%); border: 2px solid rgba(0,0,0,0.9); border-radius: 50%; }
   #scopeOverlay .sdot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; transform: translate(-50%, -50%); background: #0f0; border-radius: 50%; box-shadow: 0 0 6px rgba(0,255,0,0.9); }
   #scopeOverlay .stext { position: absolute; left: 50%; bottom: 8%; transform: translateX(-50%); color: rgba(0,255,0,0.75); font-size: 13px; letter-spacing: 2px; text-shadow: 0 0 6px rgba(0,0,0,0.9); }
-  /* v11.21 直升机 HUD（精简：仅绿色准星 + 燃油条） */
+  /* v11.37 直升机 HUD（精简：仅绿色准星 + 燃油条） */
   #heliCrosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; z-index: 20; }
   #heliCrosshair .hch { position: absolute; top: 50%; left: -18px; right: -18px; height: 2px; background: #33ff66; box-shadow: 0 0 8px #33ff66; transform: translateY(-50%); }
   #heliCrosshair .hcv { position: absolute; left: 50%; top: -18px; bottom: -18px; width: 2px; background: #33ff66; box-shadow: 0 0 8px #33ff66; transform: translateX(-50%); }
@@ -144,7 +144,7 @@
 <div id="app"></div>
 <div id="crosshair">+</div>
 <div id="scopeOverlay"><div class="sh sline"></div><div class="sv sline"></div><div class="sret"></div><div class="sdot"></div><div class="stext">4X</div></div>
-<!-- v11.21 直升机 HUD（精简：仅绿色准星 + 燃油条） -->
+<!-- v11.37 直升机 HUD（精简：仅绿色准星 + 燃油条） -->
 <div id="heliCrosshair"><div class="hch"></div><div class="hcv" style="position:absolute;left:50%;top:-18px;bottom:-18px;width:2px;background:#33ff66;box-shadow:0 0 8px #33ff66;transform:translateX(-50%)"></div></div>
 <!-- v11.24 直升机方形瞄准镜（右键激活，火箭炮风格） -->
 <div id="heliScope">
@@ -164,7 +164,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.36</div>
+<div id="versionTag">v11.37</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -209,48 +209,48 @@
 </script>
 
 <script src="three.min.js" onerror="window.__modErr('three.min.js')"></script>
-<script src="models/_mario.js?v=1136" onerror="window.__modErr('models/_mario.js')"></script>
-<script src="models/round.js?v=1136" onerror="window.__modErr('models/round.js')"></script>
-<script src="models/floor.js?v=1136" onerror="window.__modErr('models/floor.js')"></script>
-<script src="models/wall.js?v=1136" onerror="window.__modErr('models/wall.js')"></script>
-<script src="models/crate.js?v=1136" onerror="window.__modErr('models/crate.js')"></script>
-<script src="models/obstacle.js?v=1136" onerror="window.__modErr('models/obstacle.js')"></script>
-<script src="models/target.js?v=1136" onerror="window.__modErr('models/target.js')"></script>
-<script src="models/pickup.js?v=1136" onerror="window.__modErr('models/pickup.js')"></script>
-<script src="models/weapon.js?v=1136" onerror="window.__modErr('models/weapon.js')"></script>
-<script src="models/building.js?v=1136" onerror="window.__modErr('models/building.js')"></script>
-<script src="models/tree.js?v=1136" onerror="window.__modErr('models/tree.js')"></script>
-<script src="models/lamp.js?v=1136" onerror="window.__modErr('models/lamp.js')"></script>
-<script src="models/sky.js?v=1136" onerror="window.__modErr('models/sky.js')"></script>
-<script src="models/spawner.js?v=1136" onerror="window.__modErr('models/spawner.js')"></script>
-<script src="models/step.js?v=1136" onerror="window.__modErr('models/step.js')"></script>
-<script src="models/flowerbed.js?v=1136" onerror="window.__modErr('models/flowerbed.js')"></script>
-<script src="models/vehicle.js?v=1136" onerror="window.__modErr('models/vehicle.js')"></script>
-<script src="models/barrel.js?v=1136" onerror="window.__modErr('models/barrel.js')"></script>
-<script src="models/tnt.js?v=1136" onerror="window.__modErr('models/tnt.js')"></script>
-<script src="models/chest.js?v=1136" onerror="window.__modErr('models/chest.js')"></script>
-<script src="models/helicopter.js?v=1136" onerror="window.__modErr('models/helicopter.js')"></script>
-<script src="models/enemy.js?v=1136" onerror="window.__modErr('models/enemy.js')"></script>
-<script src="models/gun.js?v=1136" onerror="window.__modErr('models/gun.js')"></script>
-<script src="models/mountain-scenery.js?v=1136" onerror="window.__modErr('models/mountain-scenery.js')"></script>
-<script src="models/truck.js?v=1136" onerror="window.__modErr('models/truck.js')"></script>
-<script src="models/plane.js?v=1136" onerror="window.__modErr('models/plane.js')"></script>
-<script src="models/container.js?v=1136" onerror="window.__modErr('models/container.js')"></script>
-<script src="models/pot.js?v=1136" onerror="window.__modErr('models/pot.js')"></script>
-<script src="models/spider.js?v=1136" onerror="window.__modErr('models/spider.js')"></script>
-<script src="models/bigtree.js?v=1136" onerror="window.__modErr('models/bigtree.js')"></script>
-<script src="models/highwall.js?v=1136" onerror="window.__modErr('models/highwall.js')"></script>
-<script src="models/ferriswheel.js?v=1136" onerror="window.__modErr('models/ferriswheel.js')"></script>
-<script src="models/grass.js?v=1136" onerror="window.__modErr('models/grass.js')"></script>
-<script src="models/mushroom.js?v=1136" onerror="window.__modErr('models/mushroom.js')"></script>
-<script src="models/jetpack.js?v=1136" onerror="window.__modErr('models/jetpack.js')"></script>
-<script src="models/birds.js?v=1136" onerror="window.__modErr('models/birds.js')"></script>
-<script src="models/walkie.js?v=1136" onerror="window.__modErr('models/walkie.js')"></script>
-<script src="models/shield.js?v=1136" onerror="window.__modErr('models/shield.js')"></script>
-<script src="models/gatling.js?v=1136" onerror="window.__modErr('models/gatling.js')"></script>
-<script src="models/pig.js?v=1136" onerror="window.__modErr('models/pig.js')"></script>
-<script src="models/watchtower.js?v=1136" onerror="window.__modErr('models/watchtower.js')"></script>
-<script src="scene-layout.js?v=1136" onerror="window.__modErr('scene-layout.js')"></script>
+<script src="models/_mario.js?v=1137" onerror="window.__modErr('models/_mario.js')"></script>
+<script src="models/round.js?v=1137" onerror="window.__modErr('models/round.js')"></script>
+<script src="models/floor.js?v=1137" onerror="window.__modErr('models/floor.js')"></script>
+<script src="models/wall.js?v=1137" onerror="window.__modErr('models/wall.js')"></script>
+<script src="models/crate.js?v=1137" onerror="window.__modErr('models/crate.js')"></script>
+<script src="models/obstacle.js?v=1137" onerror="window.__modErr('models/obstacle.js')"></script>
+<script src="models/target.js?v=1137" onerror="window.__modErr('models/target.js')"></script>
+<script src="models/pickup.js?v=1137" onerror="window.__modErr('models/pickup.js')"></script>
+<script src="models/weapon.js?v=1137" onerror="window.__modErr('models/weapon.js')"></script>
+<script src="models/building.js?v=1137" onerror="window.__modErr('models/building.js')"></script>
+<script src="models/tree.js?v=1137" onerror="window.__modErr('models/tree.js')"></script>
+<script src="models/lamp.js?v=1137" onerror="window.__modErr('models/lamp.js')"></script>
+<script src="models/sky.js?v=1137" onerror="window.__modErr('models/sky.js')"></script>
+<script src="models/spawner.js?v=1137" onerror="window.__modErr('models/spawner.js')"></script>
+<script src="models/step.js?v=1137" onerror="window.__modErr('models/step.js')"></script>
+<script src="models/flowerbed.js?v=1137" onerror="window.__modErr('models/flowerbed.js')"></script>
+<script src="models/vehicle.js?v=1137" onerror="window.__modErr('models/vehicle.js')"></script>
+<script src="models/barrel.js?v=1137" onerror="window.__modErr('models/barrel.js')"></script>
+<script src="models/tnt.js?v=1137" onerror="window.__modErr('models/tnt.js')"></script>
+<script src="models/chest.js?v=1137" onerror="window.__modErr('models/chest.js')"></script>
+<script src="models/helicopter.js?v=1137" onerror="window.__modErr('models/helicopter.js')"></script>
+<script src="models/enemy.js?v=1137" onerror="window.__modErr('models/enemy.js')"></script>
+<script src="models/gun.js?v=1137" onerror="window.__modErr('models/gun.js')"></script>
+<script src="models/mountain-scenery.js?v=1137" onerror="window.__modErr('models/mountain-scenery.js')"></script>
+<script src="models/truck.js?v=1137" onerror="window.__modErr('models/truck.js')"></script>
+<script src="models/plane.js?v=1137" onerror="window.__modErr('models/plane.js')"></script>
+<script src="models/container.js?v=1137" onerror="window.__modErr('models/container.js')"></script>
+<script src="models/pot.js?v=1137" onerror="window.__modErr('models/pot.js')"></script>
+<script src="models/spider.js?v=1137" onerror="window.__modErr('models/spider.js')"></script>
+<script src="models/bigtree.js?v=1137" onerror="window.__modErr('models/bigtree.js')"></script>
+<script src="models/highwall.js?v=1137" onerror="window.__modErr('models/highwall.js')"></script>
+<script src="models/ferriswheel.js?v=1137" onerror="window.__modErr('models/ferriswheel.js')"></script>
+<script src="models/grass.js?v=1137" onerror="window.__modErr('models/grass.js')"></script>
+<script src="models/mushroom.js?v=1137" onerror="window.__modErr('models/mushroom.js')"></script>
+<script src="models/jetpack.js?v=1137" onerror="window.__modErr('models/jetpack.js')"></script>
+<script src="models/birds.js?v=1137" onerror="window.__modErr('models/birds.js')"></script>
+<script src="models/walkie.js?v=1137" onerror="window.__modErr('models/walkie.js')"></script>
+<script src="models/shield.js?v=1137" onerror="window.__modErr('models/shield.js')"></script>
+<script src="models/gatling.js?v=1137" onerror="window.__modErr('models/gatling.js')"></script>
+<script src="models/pig.js?v=1137" onerror="window.__modErr('models/pig.js')"></script>
+<script src="models/watchtower.js?v=1137" onerror="window.__modErr('models/watchtower.js')"></script>
+<script src="scene-layout.js?v=1137" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
 <script>
@@ -303,7 +303,7 @@
   var appEl = document.getElementById('app');
   var crosshairEl = document.getElementById('crosshair');
   var scopeEl = document.getElementById('scopeOverlay');
-  // v11.21 直升机 HUD 元素（精简：仅绿色准星 + 燃油条）
+  // v11.37 直升机 HUD 元素（精简：仅绿色准星 + 燃油条）
   var heliCrosshairEl = document.getElementById('heliCrosshair');
   var heliScopeEl = document.getElementById('heliScope');   // v11.24 方形瞄准镜
   var heliFuelEl = document.getElementById('heliFuel');
@@ -3306,7 +3306,7 @@
     u.playerPiloting = true; u.landed = false; u.landing = false; u.health = 15000; u.maxHealth = 15000;
     player.yaw = rec.inst.rotation.y; player.pitch = -0.12; aiming = false;
     if (gunInst) gunInst.visible = false;
-    // v11.21 座舱 HUD 精简：仅绿色准星 + 燃油条（无暗角/支柱/仪表盘/炮管/瞄准圈）
+    // v11.37 座舱 HUD 精简：仅绿色准星 + 燃油条（无暗角/支柱/仪表盘/炮管/瞄准圈）
     if (heliCrosshairEl) heliCrosshairEl.style.display = 'block';
     if (heliFuelEl) heliFuelEl.style.display = 'block';
     crosshairEl.style.display = 'none';
@@ -3323,7 +3323,7 @@
     player.vel.set(0, 0, 0); player.onGround = true;
     if (gunInst) gunInst.visible = true;
     player.heli = null;
-    // v11.21 隐藏直升机 HUD（仅准星+燃油条）
+    // v11.37 隐藏直升机 HUD（仅准星+燃油条）
     if (heliCrosshairEl) heliCrosshairEl.style.display = 'none';
     if (heliScopeEl) heliScopeEl.style.display = 'none';
     if (heliFuelEl) heliFuelEl.style.display = 'none';
@@ -3337,7 +3337,7 @@
     var p = (rec && rec.alive) ? rec.inst.position.clone() : player.pos.clone();
     player.heli = null;
     if (gunInst) gunInst.visible = true;
-    // v11.21 隐藏直升机 HUD（仅准星+燃油条）
+    // v11.37 隐藏直升机 HUD（仅准星+燃油条）
     if (heliCrosshairEl) heliCrosshairEl.style.display = 'none';
     if (heliScopeEl) heliScopeEl.style.display = 'none';
     if (heliFuelEl) heliFuelEl.style.display = 'none';
@@ -3653,7 +3653,7 @@
         player.jetpack.time = 0;
         showToast('✈ 喷气飞行器燃料耗尽，开始下落', 0x99ccff);
       } else {
-        var ceil = getJetpackCeiling() * 2;   // v11.21 飞行高度提高一倍
+        var ceil = getJetpackCeiling() * 2;   // v11.37 飞行高度提高一倍
         var jh = 12;   // 升降速度
         if (keys.Space) {
           player.vel.y = jh;                 // 上升
@@ -4420,7 +4420,7 @@
     // v8.3 枪管准星发绿光，狂暴模式发红光
     crosshairEl.style.color = player.berserk ? '#ff3333' : '#33ff66';
     crosshairEl.style.textShadow = player.berserk ? '0 0 10px #ff3333, 0 0 3px rgba(0,0,0,0.8)' : '0 0 10px #33ff66, 0 0 3px rgba(0,0,0,0.8)';
-    // v11.21 直升机 HUD 精简：无额外动态更新（准星+燃油条已静态显示）
+    // v11.37 直升机 HUD 精简：无额外动态更新（准星+燃油条已静态显示）
     // v7.7 修复：加特林碉堡开火时必须显示加特林枪管、隐藏玩家枪（原每帧强制 !scopeOn 会覆盖 enterGatling 的隐藏）
       if (gunInst) gunInst.visible = !scopeOn && !(player.gatling && player.gatling.active) && !(player.heli && player.heli.active);
     if (gunInst && window.MODELS.gun && typeof window.MODELS.gun.update === 'function') {
