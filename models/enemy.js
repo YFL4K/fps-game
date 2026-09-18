@@ -524,7 +524,7 @@
       return g;
     },
 
-    /** 玩家子弹命中；返回 true 表示爆头（爆头 ×5，暴击一击必杀由 ctx.oneShotKill 控制） */
+    /** 玩家子弹命中；返回 true 表示爆头（v11.22 爆头 ×10，2% 概率秒杀） */
     onHit: function (inst, point, ctx) {
       const u = inst.userData;
       if (u.dead) return false;
@@ -533,7 +533,10 @@
       const headBottom = inst.position.y + 1.68 * s;
       const head = !!(point && point.y > headBottom);
       let dmg = (ctx && ctx.currentDamage) || 15;
-      if (head) dmg *= 5;
+      if (head) {
+        dmg *= 10;
+        if (Math.random() < 0.02 && u.type !== 'boss') dmg = 99999;   // v11.22 爆头2%概率秒杀
+      }
       if (ctx && ctx.oneShotKill && u.type !== 'boss') dmg = 99999;
       u.takeDamage(dmg);
       if (ctx && ctx.sfx && head) ctx.sfx.playHeadshot();

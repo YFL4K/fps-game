@@ -136,7 +136,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.22</div>
+<div id="versionTag">v11.23</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -327,7 +327,7 @@
     rifle:      { name: '步枪',     damage: 35, mag: 60,  maxAmmo: 360, fireRate: 15.0, reload: 1.0,  spread: 0.02,  pellets: 1,   range: 120,  auto: true,  aimFov: 45, scopeLens: false },   // v7.2: 伤害20→35 射速9→15 换弹1.17→1，初始自带；v11.4: 弹匣30→60 备弹240→360
     flamethrower: { name: '喷火器', damage: 300, mag: 5,  maxAmmo: 30,  fireRate: 35.0, reload: 1.5,  spread: 0.08,  pellets: 1,   range: 80,   auto: true, flame: true, flameRadius: 12, aimFov: 55, scopeLens: false },  // v7.2: 伤害216→100 射速12→35 换弹2.0→1.5 射程80→60；v10.4: 伤害100→300 射程60→80 范围9→12
     sniper:     { name: '狙击枪',   damage: 300, mag: 12,  maxAmmo: 120, fireRate: 3.0,  reload: 1.0,  spread: 0.003, pellets: 1,   range: 300,  auto: false, aimFov: 18, scopeLens: true, explosive: true },   // v7.2: 伤害120→300 射程260→300；v8.4: 射速1→3 换弹2→1；v11.4: 弹匣5→12 备弹40→120 命中敌人附加小范围爆炸
-    rocket:     { name: '火箭筒',   damage: 630, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 200,  auto: false, aoe: { radius: 6, damage: 765 }, aimFov: 35, scopeLens: false }   // v11.15: 伤害×3(210→630, AOE 255→765)
+    rocket:     { name: '火箭筒',   damage: 1260, mag: 5,  maxAmmo: 0,   fireRate: 0.85, reload: 2.21, spread: 0.01,  pellets: 1,   range: 200,  auto: false, aoe: { radius: 6, damage: 1530 }, aimFov: 35, scopeLens: false }   // v11.22: 伤害×2(630→1260, AOE 765→1530)
   };
   var GUN_ORDER = ['pistol', 'rifle', 'flamethrower', 'sniper', 'rocket'];
   // v7.2 加特林碉堡参数（伤害40 / 射速30发每秒 / 射程120）
@@ -660,7 +660,8 @@
     gatling: null,      // v6.8 加特林碉堡状态 {active,heat,cooldown,posBackup}
     shieldTime: 0,      // v6.9 金色护盾剩余秒数（v7.9 初始 15 秒，击杀 +0.5 秒，上限 15）
     breath: 10,         // v11.17 溺水：深水(>0.5m)可用气秒数，出水回满 10
-    drownAcc: 0,        // v11.17 溺水每秒扣血累计器
+    drownAcc: 0,       // v11.17 溺水每秒扣血累计器
+    deathCause: null,   // v11.22 死亡原因（'drowning' 等）
     heli: null,         // v11.18 驾驶直升机状态 {active, rec, health, maxHealth, cd, posBackup}
     jetpack: { count: 0, active: false, time: 0 }   // v8.4 喷气飞行器：count 上限 1，active 飞行中，time 剩余秒数
   };
@@ -751,11 +752,17 @@
       exitGatling();   // v6.8 死亡退出加特林站桩
       state = 'dead';
       bgm.stop();
+      // v11.22 根据死亡原因显示不同标题+温馨提示
+      var deadTitle = 'GAME OVER';
+      var tipText = '';
+      if (player.deathCause === 'drowning') {
+        deadTitle = '💀 你被淹死了！';
+        tipText = '\n\n温馨提示：小朋友，不要去水边玩耍！';
+      }
       if (gameMode === 'endless') {
-        showEndlessEnd('GAME OVER');
+        showEndlessEnd(deadTitle + tipText);
       } else {
-        // v8.5 结算画面
-        showStatsScreen('GAME OVER');
+        showStatsScreen(deadTitle + tipText);
       }
       setModeBtnsVisible(false);
       overlay.style.display = 'flex';
@@ -3016,7 +3023,7 @@
     player.walkieBonus = 0;  // v7.3 5000 分奖励次数重开归零
     player.gatling = null;   // v6.8 加特林状态重开归零
     player.shieldTime = 0;   // v6.9 护盾重开归零
-    player.breath = 10; player.drownAcc = 0;   // v11.17 溺水状态重开复位
+    player.breath = 10; player.drownAcc = 0; player.deathCause = null;   // v11.17 溺水状态重开复位
     player.heli = null;   // v11.18 驾驶直升机状态重开归零
     player.jetpack = { count: 0, active: false, time: 0 };   // v8.4 喷气飞行器重开归零
     player.ammoPool = { pistol: 96, rifle: 360, sniper: 120, rocket: 0 };   // v8.5 分枪备弹重开归零
@@ -3618,15 +3625,17 @@
           player.breath -= dt;
           if (player.breath < 0) player.breath = 0;
         } else {
-          // 安全期结束：开始持续扣血（每秒-10HP）
+          // 安全期结束：开始持续扣血（每秒-15HP）
+          player.deathCause = 'drowning';
           while (player.drownAcc >= 1) {
             player.drownAcc -= 1;
-            hitPlayer(10, { noClamp: true, ignoreShield: true });
+            hitPlayer(15, { noClamp: true, ignoreShield: true });
             if (player.dead) break;
           }
         }
       } else {
         player.drownAcc = 0;
+        player.deathCause = null;
         if (player.breath < 10) player.breath = Math.min(10, player.breath + dt * 4);   // 出水快速回气
       }
     }
@@ -5356,14 +5365,14 @@
       var o = { bgmNodes: 0, noiseAllocs: _noiseAllocCount, sharedNoise: !!_whiteBuf, lookahead: 0, state: state, tick: !!bgm.timer };
       return o;
     };
-    // v7.9 需求3：玩家武器数值检查（火箭筒伤害 +50%）
+    // v7.9 需求3：玩家武器数值检查（v11.22 火箭筒伤害×2）
     window.__fpsTest.gunStatsTest = function () {
       var out = {};
       var g = GUN_TYPES;
       out.rocket = { dmg: g.rocket.damage, aoe: g.rocket.aoe.damage };
       out.sniper = { fireRate: g.sniper.fireRate, reload: g.sniper.reload };
       out.flame = { dmg: g.flamethrower.damage, range: g.flamethrower.range, radius: g.flamethrower.flameRadius };
-      out.ok = g.rocket.damage === 210 && g.rocket.aoe.damage === 255 &&
+      out.ok = g.rocket.damage === 1260 && g.rocket.aoe.damage === 1530 &&
                g.sniper.fireRate === 3.0 && g.sniper.reload === 1.0 &&
                g.flamethrower.damage === 300 && g.flamethrower.range === 80 && g.flamethrower.flameRadius === 12;
       return out;
