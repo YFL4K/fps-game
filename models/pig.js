@@ -13,11 +13,11 @@
 
   // v11.24 猪头佳 5 种规格
   var PIG_VARIANTS = [
-    { name: '瘟疫猪头佳', scale: 0.5, hpMul: 0.7, dmgMul: 0.7, fur: 0x8a7b6b, furDark: 0x5a4b3b, mane: 0x4a3b2b, laser: 0xffffff, laserCore: 0xeeeeee, eye: 0xffffff, ember: 0xdddddd, prob: 0.35 },
-    { name: '撼地尊猪头佳', scale: 1.0, hpMul: 1, dmgMul: 1, fur: 0x241b15, furDark: 0x18110d, mane: 0x0c0a08, laser: 0x00ff66, laserCore: 0xd2ffd2, eye: 0xff4422, ember: 0xff3a10, prob: 0.30 },
-    { name: '镇海兽猪头佳', scale: 2.0, hpMul: 2.5, dmgMul: 2.5, fur: 0x4a4a4a, furDark: 0x2a2a2a, mane: 0x1a1a1a, laser: 0x00aaff, laserCore: 0xaad4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
-    { name: '灾厄猪头佳', scale: 3.0, hpMul: 3.5, dmgMul: 3.5, fur: 0x1a3a3a, furDark: 0x0a1a1a, mane: 0x051515, laser: 0xcc44ff, laserCore: 0xe8b4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
-    { name: '灭世猪头佳', scale: 4.0, hpMul: 5, dmgMul: 5, fur: 0x0a0a0a, furDark: 0x050505, mane: 0x000000, laser: 0xff0000, laserCore: 0xffaaaa, eye: 0xff0000, ember: 0xff3300, prob: 0.05 }
+    { name: '瘟疫猪头佳', scale: 1.5, hp: 68500, dmgMul: 0.7, fur: 0x8a7b6b, furDark: 0x5a4b3b, mane: 0x4a3b2b, laser: 0xffffff, laserCore: 0xeeeeee, eye: 0xffffff, ember: 0xdddddd, prob: 0.35 },
+    { name: '撼地尊猪头佳', scale: 3.0, hp: 105000, dmgMul: 1, fur: 0x241b15, furDark: 0x18110d, mane: 0x0c0a08, laser: 0x00ff66, laserCore: 0xd2ffd2, eye: 0xff4422, ember: 0xff3a10, prob: 0.30 },
+    { name: '镇海兽猪头佳', scale: 6.0, hp: 237500, dmgMul: 2.5, fur: 0x4a4a4a, furDark: 0x2a2a2a, mane: 0x1a1a1a, laser: 0x00aaff, laserCore: 0xaad4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
+    { name: '灾厄猪头佳', scale: 9.0, hp: 522500, dmgMul: 3.5, fur: 0x1a3a3a, furDark: 0x0a1a1a, mane: 0x051515, laser: 0xcc44ff, laserCore: 0xe8b4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
+    { name: '灭世猪头佳', scale: 12.0, hp: 1085000, dmgMul: 5, fur: 0x0a0a0a, furDark: 0x050505, mane: 0x000000, laser: 0xff0000, laserCore: 0xffaaaa, eye: 0xff0000, ember: 0xff3300, prob: 0.05 }
   ];
 
   function pickVariant() {
@@ -283,11 +283,45 @@
       };
       g.userData = u;
 
-      // v11.24 应用变体缩放（基于 cfg.scale 基础值再乘以变体倍数）
-      var baseScale = cfg.scale && cfg.scale[0] ? cfg.scale[0] : 3;
-      var finalScale = baseScale * variant.scale;
-      g.scale.set(finalScale, finalScale, finalScale);
+      // v11.28 应用变体缩放 (直接使用 variant.scale，不再乘以 cfg.scale 基数)
+      g.scale.set(variant.scale, variant.scale, variant.scale);
 
+      // v11.28 HP 直接取 variant.hp (绝对值)
+      var hp = variant.hp;
+      var u = {
+        kind: 'pig',
+        variant: variant,
+        variantName: variant.name,
+        dmgMul: variant.dmgMul,
+        laserColor: variant.laser,
+        laserCoreColor: variant.laserCore,
+        health: hp,
+        maxHealth: hp,
+        dead: false,
+        life: cfg.life || 30,
+        speed: cfg.speed || 2.7,
+        hitPlayerCd: 0,
+        hitEnemyCd: 0,
+        runPhase: 0,
+        hitFlash: 0,
+        defense: 2,
+        _ctx: null,
+        _rec: null,
+        legs: legs,
+        head: head,
+        respawnReady: false,
+        laserPhase: 'on',
+        laserTimer: 0,
+        laserDmgTick: 0,
+        laserBeams: null,
+        laserEyeL: new T.Vector3(-0.3, 1.24, 1.5),
+        laserEyeR: new T.Vector3(0.3, 1.24, 1.5),
+        laserSweep: 0,
+        laserPitch: 40
+      };
+      g.userData = u;
+
+      // v11.28 HP 绝对值，不再乘以倍率
       u.takeDamage = function (dmg) {
         if (u.dead) return;
         u.health -= dmg / (u.defense || 1);
