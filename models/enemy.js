@@ -742,12 +742,14 @@
         var dirZ = Math.sin(pitchRad) * Math.sin(inst.rotation.y);
         
         // 更新光束可见性
-        for (var bi = 0; bi < u.laserBeams.length; bi++) {
-          var beam = u.laserBeams[bi];
-          if (beam) {
-            beam.visible = (u.laserPhase === 'on');
-            beam.position.copy(start);
-            beam.lookAt(start.x + dirX * 100, start.y + dirY * 100, start.z + dirZ * 100);
+        if (u.laserBeams && u.laserBeams.length > 0) {
+          for (var bi = 0; bi < u.laserBeams.length; bi++) {
+            var beam = u.laserBeams[bi];
+            if (beam) {
+              beam.visible = (u.laserPhase === 'on');
+              beam.position.copy(start);
+              beam.lookAt(start.x + dirX * 100, start.y + dirY * 100, start.z + dirZ * 100);
+            }
           }
         }
         
