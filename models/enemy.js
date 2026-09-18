@@ -303,19 +303,6 @@
         var warnMat = new window.MARIO.mat({ color: 0xffc107 });   // 警示黄
         var redMat = new window.MARIO.mat({ color: 0xa02222 });    // 暗红
         var cockpitMat = new window.MARIO.mat({ color: 0x7a1f1f, transparent: true, opacity: 0.55 }); // 半透明暗红座舱盖
-        // v11.36 头部激光（类似猪头佳，但上下扫射）
-        var laserOuter = new window.MARIO.mat({ color: variant ? variant.laserColor : 0xffffff, transparent: true, opacity: 0.45 });
-        var laserCore = new window.MARIO.mat({ color: variant ? variant.laserCore : 0xeeeeee });
-        u.laserBeams = [];
-        for (var bi = 0; bi < 2; bi++) {
-          var beam = new T.Mesh(new T.BoxGeometry(0.3, 0.3, 1), laserOuter);
-          var core = new T.Mesh(new T.BoxGeometry(0.12, 0.12, 1), laserCore);
-          beam.add(core);
-          beam.visible = false;
-          beam.frustumCulled = false;
-          if (ctx && ctx.scene) ctx.scene.add(beam);
-          u.laserBeams.push(beam);
-        }
 
         // 腿 + 圆角履带重足
         legPivotL = new T.Group(); legPivotL.position.set(-0.38, 0.95, 0);
@@ -576,6 +563,21 @@
         }
       };
       g.userData = u;
+      // v11.36 机甲 BOSS 头部激光（类似猪头佳，但上下扫射）
+      if (isMech) {
+        var laserOuter = new window.MARIO.mat({ color: variant ? variant.laserColor : 0xffffff, transparent: true, opacity: 0.45 });
+        var laserCore = new window.MARIO.mat({ color: variant ? variant.laserCore : 0xeeeeee });
+        u.laserBeams = [];
+        for (var bi = 0; bi < 2; bi++) {
+          var beam = new T.Mesh(new T.BoxGeometry(0.3, 0.3, 1), laserOuter);
+          var core = new T.Mesh(new T.BoxGeometry(0.12, 0.12, 1), laserCore);
+          beam.add(core);
+          beam.visible = false;
+          beam.frustumCulled = false;
+          if (ctx && ctx.scene) ctx.scene.add(beam);
+          u.laserBeams.push(beam);
+        }
+      }
       // v11.29 boss 变体缩放（直接应用 variant.scale）
       if (variant) {
         g.scale.set(variant.scale, variant.scale, variant.scale);
@@ -773,7 +775,7 @@
           // 检查敌人
           for (var ei = 0; ei < entities.length; ei++) {
             var rec = entities[ei];
-            if (!rec.alive || rec.cfg.model === 'enemy' || rec.cfg.model === 'pig') continue;
+            if (!rec.alive || rec.cfg.model === 'enemy') continue;
             var ent = rec.inst;
             if (!ent || !ent.userData || ent.userData.dead) continue;
             var entPos = ent.position.clone();

@@ -257,12 +257,6 @@
         return;
       }
 
-      // v11.29 玩家离开后自动降落（playerPiloting=false 且不在 landing/landed 状态）
-      if (u.playerPiloting === false && !u.landing && !u.landed && !u.dead) {
-        u.landing = true;   // 启动降落
-      }
-
-      // ---- 死亡：坠毁 + 爆炸 ----
       if (u.dead) {
         u.deathTimer += dt;
         inst.position.y -= dt * 7.5;
