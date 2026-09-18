@@ -534,8 +534,8 @@
       const head = !!(point && point.y > headBottom);
       let dmg = (ctx && ctx.currentDamage) || 15;
       if (head) {
-        dmg *= 10;
-        if (Math.random() < 0.02 && u.type !== 'boss') dmg = 99999;   // v11.22 爆头2%概率秒杀
+        dmg *= 30;
+        if (Math.random() < 0.05 && u.type !== 'boss') dmg = 99999;   // v11.26 爆头5%概率秒杀
       }
       if (ctx && ctx.oneShotKill && u.type !== 'boss') dmg = 99999;
       u.takeDamage(dmg);

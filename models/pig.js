@@ -369,7 +369,7 @@
         u._ramT = (u._ramT || 0) + dt;
         if (u._ramT > 0.25) {
           u._ramT = 0;
-          ctx.breakObstacleAhead(inst.position, dirX, dirZ, 3.5 * (inst.scale.x || 1), 400);
+          ctx.breakObstacleAhead(inst.position, dirX, dirZ, 3.5 * (inst.scale.x || 1), 400, 'pig');
         }
       }
 
