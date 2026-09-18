@@ -621,18 +621,19 @@
       // ---- 移动：太远靠近，太近后退（v11.15 避开水深>0.5m 水域，沿水岸滑动绕行）----
       const stopDist = u.baseStopDist * s;
       let moving = false;
-      // v11.33 debug
-      if (u.type === 'boss' && window.console) {
-        console.log('BOSS dist/stopDist/moving:', dist, stopDist, u.speed);
-      }
+      // v11.34 修复 BOSS 不移动问题：直接移动（不检查水深度，防止地形计算错误导致停滞）
       if (dist > stopDist) {
-        moving = stepAvoidWater(inst, dx / dist, dz / dist, u.speed * dt);
-        // v11.33 debug
-        if (u.type === 'boss' && window.console) {
-          console.log('BOSS moving step:', moving);
-        }
+        var nx = inst.position.x + (dx / dist) * u.speed * dt;
+        var nz = inst.position.z + (dz / dist) * u.speed * dt;
+        inst.position.x = nx;
+        inst.position.z = nz;
+        moving = true;
       } else if (u.type !== 'boss' && dist < stopDist * 0.55 && dist > 1e-4) {
-        moving = stepAvoidWater(inst, -dx / dist, -dz / dist, u.speed * dt * 0.5);
+        var nx = inst.position.x - (dx / dist) * u.speed * dt * 0.5;
+        var nz = inst.position.z - (dz / dist) * u.speed * dt * 0.5;
+        inst.position.x = nx;
+        inst.position.z = nz;
+        moving = true;
       }
 
       // v10.3 BOSS 撞开前方障碍物（前进时自动破坏挡路的墙/房/箱）
@@ -674,6 +675,10 @@
       var effectiveRange = heliActive ? u.shootRange * 1.5 : u.shootRange;
       var effectiveCd = heliActive ? u.shootCooldown * 0.6 : u.shootCooldown;
       u.shootTimer -= dt;
+      // v11.34 debug
+      if (u.type === 'boss' && window.console) {
+        console.log('BOSS shoot:', { timer: u.shootTimer, dist: dist, effectiveRange: effectiveRange, canSee: canSeePlayer(inst, ctx, player) });
+      }
       if (u.shootTimer <= 0 && dist < effectiveRange && !player.dead && canSeePlayer(inst, ctx, player)) {
         u.shootTimer = effectiveCd;
         if (isMonsterType(u)) {
