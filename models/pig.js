@@ -13,11 +13,11 @@
 
   // v11.24 猪头佳 5 种规格
   var PIG_VARIANTS = [
-    { name: '瘟疫猪头佳', scale: 0.5, hpMul: 0.5, dmgMul: 0.5, fur: 0x8a7b6b, furDark: 0x5a4b3b, mane: 0x4a3b2b, laser: 0xffffff, laserCore: 0xeeeeee, eye: 0xffffff, ember: 0xdddddd, prob: 0.35 },
+    { name: '瘟疫猪头佳', scale: 0.5, hpMul: 0.7, dmgMul: 0.7, fur: 0x8a7b6b, furDark: 0x5a4b3b, mane: 0x4a3b2b, laser: 0xffffff, laserCore: 0xeeeeee, eye: 0xffffff, ember: 0xdddddd, prob: 0.35 },
     { name: '撼地尊猪头佳', scale: 1.0, hpMul: 1, dmgMul: 1, fur: 0x241b15, furDark: 0x18110d, mane: 0x0c0a08, laser: 0x00ff66, laserCore: 0xd2ffd2, eye: 0xff4422, ember: 0xff3a10, prob: 0.30 },
-    { name: '镇海兽猪头佳', scale: 1.5, hpMul: 1.5, dmgMul: 1.5, fur: 0x4a4a4a, furDark: 0x2a2a2a, mane: 0x1a1a1a, laser: 0x00aaff, laserCore: 0xaad4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
-    { name: '灾厄猪头佳', scale: 2.0, hpMul: 2, dmgMul: 2, fur: 0x1a3a3a, furDark: 0x0a1a1a, mane: 0x051515, laser: 0xcc44ff, laserCore: 0xe8b4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
-    { name: '灭世猪头佳', scale: 3.0, hpMul: 3, dmgMul: 3, fur: 0x0a0a0a, furDark: 0x050505, mane: 0x000000, laser: 0xff0000, laserCore: 0xffaaaa, eye: 0xff0000, ember: 0xff3300, prob: 0.05 }
+    { name: '镇海兽猪头佳', scale: 2.0, hpMul: 2.5, dmgMul: 2.5, fur: 0x4a4a4a, furDark: 0x2a2a2a, mane: 0x1a1a1a, laser: 0x00aaff, laserCore: 0xaad4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
+    { name: '灾厄猪头佳', scale: 3.0, hpMul: 3.5, dmgMul: 3.5, fur: 0x1a3a3a, furDark: 0x0a1a1a, mane: 0x051515, laser: 0xcc44ff, laserCore: 0xe8b4ff, eye: 0xff4422, ember: 0xff3a10, prob: 0.10 },
+    { name: '灭世猪头佳', scale: 4.0, hpMul: 5, dmgMul: 5, fur: 0x0a0a0a, furDark: 0x050505, mane: 0x000000, laser: 0xff0000, laserCore: 0xffaaaa, eye: 0xff0000, ember: 0xff3300, prob: 0.05 }
   ];
 
   function pickVariant() {
@@ -327,7 +327,7 @@
         u.life = 0;
         u.dead = true;
         removeBeams(u);
-        if (ctx.onPigSelfDestruct) ctx.onPigSelfDestruct(inst.position.clone());
+        if (ctx.onPigSelfDestruct) ctx.onPigSelfDestruct(inst.position.clone(), u);
         u.respawnReady = true;
         return;
       }
