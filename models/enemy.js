@@ -263,7 +263,7 @@
   global.MODELS.enemy = {
     name: 'enemy',
 
-    create: function (config) {
+    create: function (config, ctx) {  // v11.37 修复:ctx 必须传入（激光光束需要 ctx.scene）
       const T = global.THREE;
       const cfg = config || {};
       const type = cfg.enemyType || 'human';
@@ -827,6 +827,7 @@
   // ---- 投射物更新 ----
   function updateProjectiles(u, inst, dt, ctx, pr, ph) {
     const T = global.THREE;
+    if (!Array.isArray(u.projectiles)) return;  // v11.37 防御:占位模型 fallbackInst 无 projectiles
     for (let i = u.projectiles.length - 1; i >= 0; i--) {
       const b = u.projectiles[i];
       b.life -= dt;

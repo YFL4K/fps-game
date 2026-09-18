@@ -566,6 +566,7 @@
       } catch (e) {
         showError('模型创建失败: ' + cfg.model + '（' + cfg.id + '）: ' + e.message + '，使用占位模型');
         inst = fallbackInst(cfg);
+        def = { name: cfg.model, create: null, update: null, onHit: null };  // v11.37 fix
       }
     }
     applyTransform(inst, cfg);
