@@ -281,13 +281,13 @@
       function sph(p, mat, r, x, y, z, sx, sy, sz) { var m = new T.Mesh(new T.SphereGeometry(r, 16, 12), mat); m.position.set(x, y, z); if (sx !== undefined) m.scale.set(sx, sy, sz); p.add(m); return m; }
       function cone(p, mat, r, h, seg, x, y, z, rx, ry, rz) { var m = new T.Mesh(new T.ConeGeometry(r, h, seg), mat); m.position.set(x, y, z); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); p.add(m); return m; }
 
-      const matBody = new window.MARIO.mat({ color: isMech ? skin.main : look.body});
-      const matDark = new window.MARIO.mat({ color: isMech ? skin.dark : look.dark});
+      const matBody = new window.MARIO.mat({ color: variant ? variant.color.main : (isMech ? skin.main : look.body)});
+      const matDark = new window.MARIO.mat({ color: variant ? variant.color.dark : (isMech ? skin.dark : look.dark)});
       const matEye = new window.MARIO.mat({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.6 });
       const matGun = new window.MARIO.mat({ color: 0x1b1e23});
       const matHand = new window.MARIO.mat({ color: 0x2e3d52});
-      const matAccent = new window.MARIO.mat({ color: (skin && skin.accent) || 0xffd166});
-      const matVisor = new window.MARIO.mat({ color: (skin && skin.visor) || 0xff5533, emissive: (skin && skin.visor) || 0xff5533, emissiveIntensity: 2.2 });
+      const matAccent = new window.MARIO.mat({ color: variant ? variant.color.accent : (skin && skin.accent) || 0xffd166});
+      const matVisor = new window.MARIO.mat({ color: variant ? variant.color.visor : (skin && skin.visor) || 0xff5533, emissive: variant ? variant.color.visor : (skin && skin.visor) || 0xff5533, emissiveIntensity: 2.2 });
 
       // ---- 共享枢轴（机甲 / 人形共用） ----
       var gunPivot, armPivotL, armPivotR, legPivotL, legPivotR, muzzleLocal = null, gunZ = 0.6;
