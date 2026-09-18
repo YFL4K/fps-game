@@ -582,7 +582,7 @@
       const player = ctx.player;
       // v11.33 debug
       if (u.type === 'boss' && window.console) {
-        console.log('BOSS update:', u.health, u.speed, u.shootRange);
+        console.log('BOSS update:', { health: u.health, speed: u.speed, shootRange: u.shootRange, shootCooldown: u.shootCooldown, baseStopDist: u.baseStopDist });
       }
       if (!player) return;
       const pr = ctx.playerRadius || 0.5;
@@ -621,8 +621,16 @@
       // ---- 移动：太远靠近，太近后退（v11.15 避开水深>0.5m 水域，沿水岸滑动绕行）----
       const stopDist = u.baseStopDist * s;
       let moving = false;
+      // v11.33 debug
+      if (u.type === 'boss' && window.console) {
+        console.log('BOSS dist/stopDist/moving:', dist, stopDist, u.speed);
+      }
       if (dist > stopDist) {
         moving = stepAvoidWater(inst, dx / dist, dz / dist, u.speed * dt);
+        // v11.33 debug
+        if (u.type === 'boss' && window.console) {
+          console.log('BOSS moving step:', moving);
+        }
       } else if (u.type !== 'boss' && dist < stopDist * 0.55 && dist > 1e-4) {
         moving = stepAvoidWater(inst, -dx / dist, -dz / dist, u.speed * dt * 0.5);
       }
