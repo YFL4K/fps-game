@@ -151,7 +151,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.24</div>
+<div id="versionTag">v11.25</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -387,6 +387,8 @@
   var heliTimer = 20;
   var endlessWaveActive = false;   // v11.11 无尽波次：当前波是否已生成队列
   var endlessInterWave = 0;        // v11.11 波间安全时间倒计时（秒）
+  var endlessWaveTotal = 0;        // v11.25 本波普通敌人总数（用于 10% 阈值计算）
+  var endlessWaveThresholdHit = false; // v11.25 本波是否已触发 10% 阈值倒计时
   var heliSpawnedCount = 0;
   var chestSpawnedCount = 0;
   // v6.4 宝箱机制：每关 30% 几率出现宝箱（首杀敌人时在击杀点附近刷出），每关最多 1 个
@@ -2842,6 +2844,8 @@
   function startEndlessWave(wave) {
     endlessWave = wave;
     var normal = Math.round(20 * Math.pow(1.2, wave - 1));
+    endlessWaveTotal = normal;          // v11.25 记录本波普通敌人总数
+    endlessWaveThresholdHit = false;    // v11.25 重置阈值标志
     waveQueue = [];
     for (var i = 0; i < normal; i++) {
       var t = 'human';
@@ -2893,17 +2897,22 @@
           waveTimer = 1.2 + Math.random() * 0.8;
         }
       } else {
-        // 本波队列已空 → 等待全部清场后进入安全时间
-        var aliveDyn = 0;
+        // v11.25 本波队列已空 → 普通敌人剩余<10%即可倒计时进下一波（BOSS/猪头佳除外）
+        var aliveNormal = 0;
+        var aliveBossPig = 0;
         for (var di = 0; di < entities.length; di++) {
           var de = entities[di];
-          if (de.alive && de.cfg && de.cfg.dynamic &&
-              (de.cfg.model === 'enemy' || de.cfg.model === 'spider' || de.cfg.model === 'pig')) aliveDyn++;
+          if (!de.alive || !de.cfg || !de.cfg.dynamic) continue;
+          var dm = de.cfg.model;
+          if (dm === 'enemy' || dm === 'spider') aliveNormal++;
+          else if (dm === 'pig') aliveBossPig++;
         }
-        if (aliveDyn === 0) {
+        var threshold = Math.ceil(endlessWaveTotal * 0.1);
+        if (aliveNormal < threshold && !endlessWaveThresholdHit) {
+          endlessWaveThresholdHit = true;
           endlessInterWave = 5.0;
           endlessWaveActive = false;
-          showToast('✅ 第 ' + endlessWave + ' 波清除！5 秒安全时间…', 0x66ff88);
+          showToast('✅ 第 ' + endlessWave + ' 波剩余 ' + aliveNormal + ' 只（<10%）— 5 秒后进入下一波！', 0x66ff88);
         }
       }
       // 直升机仍随机来袭（提供火箭筒补给）；安全时间内不刷
@@ -3034,6 +3043,8 @@
       endlessWave = 1;
       endlessWaveActive = false;
       endlessInterWave = 0;
+      endlessWaveTotal = 0;
+      endlessWaveThresholdHit = false;
     }
     currentLayout = getTargetLayout();
     score = 0;
@@ -4167,15 +4178,17 @@
       // v11.11 无尽模式 HUD：波次 / 安全时间 / 本波剩余
       lines.push('♾️ 无尽模式  ·  第 ' + endlessWave + ' 波');
       if (endlessInterWave > 0) {
-        lines.push('⏳ 安全时间 ' + endlessInterWave.toFixed(1) + 's — 休整！');
+        lines.push('⏳ 安全时间 ' + endlessInterWave.toFixed(1) + 's — 下一波即将来袭！');
       } else {
-        var aliveDyn = 0;
+        var aliveNormal = 0, aliveBossPig = 0;
         for (var di = 0; di < entities.length; di++) {
           var de = entities[di];
-          if (de.alive && de.cfg && de.cfg.dynamic &&
-              (de.cfg.model === 'enemy' || de.cfg.model === 'spider' || de.cfg.model === 'pig')) aliveDyn++;
+          if (!de.alive || !de.cfg || !de.cfg.dynamic) continue;
+          if (de.cfg.model === 'enemy' || de.cfg.model === 'spider') aliveNormal++;
+          else if (de.cfg.model === 'pig') aliveBossPig++;
         }
-        lines.push('本波剩余 ' + (waveQueue.length + aliveDyn) + '  ·  BOSS ' + (bossAlive ? '⚠' : '—') + '  猪头佳 ' + (pigCount > 0 ? '🐗' + pigCount : '—'));
+        var pct = endlessWaveTotal > 0 ? Math.round(aliveNormal / endlessWaveTotal * 100) : 0;
+        lines.push('本波剩余 ' + aliveNormal + '(' + pct + '%)  ·  BOSS ' + (bossAlive ? '⚠' : '—') + '  猪头佳 ' + (pigCount > 0 ? '🐗' + pigCount : '—'));
       }
       lines.push('历史最高 击杀 ' + endlessBest.kills + ' · 得分 ' + endlessBest.score);
     } else {
