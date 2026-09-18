@@ -272,6 +272,10 @@
       const isBoss = (type === 'boss');
       // v6.5 机甲 BOSS
       const isMech = isBoss && cfg.bossKind === 'mech';
+      // v11.33 debug
+      if (isBoss && window.console) {
+        console.log('BOSS create:', cfg.bossKind, cfg.variant, cfg.weapon);
+      }
       const skinIdx = Math.max(0, Math.min(MECH_SKINS.length - 1, (cfg.bossSkin || 1) - 1));
       const skin = MECH_SKINS[skinIdx];
       const g = new T.Group();
@@ -576,6 +580,10 @@
       const u = inst.userData;
       u._ctx = ctx;
       const player = ctx.player;
+      // v11.33 debug
+      if (u.type === 'boss' && window.console) {
+        console.log('BOSS update:', u.health, u.speed, u.shootRange);
+      }
       if (!player) return;
       const pr = ctx.playerRadius || 0.5;
       const ph = ctx.playerHeight || 1.7;
