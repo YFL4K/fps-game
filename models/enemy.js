@@ -28,6 +28,15 @@
     spider:  { body: 0x2d1f1f, dark: 0x1a1212, eye: 0xff4444, leg: 0x3d2b2b }
   };
 
+  // v11.29 机甲 BOSS 5 种变体（概率 35/30/10/10/5）
+  var MECHA_VARIANTS = [
+    { name: '蜂群游侠', scale: 1.5, hp: 61650, dmgMul: 0.7, speed: 3, shootRange: 15, shootCooldown: 3, color: { main: 0x8a8a4b, dark: 0x4a6b3b, accent: 0x66ff66, visor: 0xffffff } },
+    { name: '熔炉铁骑', scale: 3.0, hp: 94500, dmgMul: 1, speed: 2, shootRange: 20, shootCooldown: 3, color: { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xffaa66 } },
+    { name: '裂变炮台', scale: 6.0, hp: 213750, dmgMul: 2.5, speed: 2, shootRange: 25, shootCooldown: 3, color: { main: 0x5a3a8f, dark: 0x2a1540, accent: 0x8fd3ff, visor: 0xaaddff } },
+    { name: '天基巨神', scale: 9.0, hp: 470250, dmgMul: 3.5, speed: 2, shootRange: 30, shootCooldown: 2, color: { main: 0x1a0a0a, dark: 0x0a0505, accent: 0xff5533, visor: 0xff9977 } },
+    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 1, shootRange: 35, shootCooldown: 2, color: { main: 0x3a2a1a, dark: 0x1a120a, accent: 0x996633, visor: 0xccaa77 } }
+  ];
+
   // v6.5 机甲 BOSS 配色（每关不同造型）：红 / 蓝 / 绿 / 紫 / 金
   var MECH_SKINS = [
     { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xff5533 },  // 红（第3关）
@@ -477,22 +486,36 @@
       }  // end humanoid (非机甲) body
 
       // ---- 运行时状态 ----
+      // v11.29 机甲 BOSS 变体选择
+      var variant = null;
+      if (isBoss && cfg.variant != null && cfg.variant >= 0 && cfg.variant < MECHA_VARIANTS.length) {
+        variant = MECHA_VARIANTS[cfg.variant];
+      }
+      // v11.29 boss health/speed/shootRange/shootCooldown 从 variant 取值，否则使用 cfg
+      var bossHp = variant ? variant.hp : (cfg.health || 22500);
+      var bossSpeed = variant ? variant.speed : (cfg.speed || 2.7);
+      var bossShootRange = variant ? variant.shootRange : (cfg.shootRange || 35);
+      var bossShootCooldown = variant ? variant.shootCooldown : (cfg.shootCooldown || 0.2);
+      var bossDmgMul = variant ? variant.dmgMul : 1;
       const u = {
         kind: 'enemy',
         type: type,
-        health: cfg.health || 100,
-        maxHealth: cfg.health || 100,
-        speed: cfg.speed || 1.5,
+        variant: variant,
+        variantName: variant ? variant.name : null,
+        health: bossHp,
+        maxHealth: bossHp,
+        speed: bossSpeed,
+        dmgMul: bossDmgMul,
         damage: cfg.damage || 10,
         // v6.5: 防御倍率（机甲 BOSS defense=2 → 受到的伤害减半）
         defense: cfg.defense || 1,
         weapon: cfg.weapon || 'bullet',   // 'bullet' | 'fireball'(怪物) | 'rocket'(机甲)
         muzzleLocal: muzzleLocal,
         gunZ: gunZ,
-        shootRange: cfg.shootRange || 20,
-        shootCooldown: cfg.shootCooldown || 2,
+        shootRange: bossShootRange,
+        shootCooldown: bossShootCooldown,
         baseStopDist: cfg.stopDist || 5,
-        score: cfg.score || 100,
+        score: cfg.score || 2000,
         walkPhase: 0,
         hitFlash: 0,
         dead: false,
@@ -521,6 +544,10 @@
         }
       };
       g.userData = u;
+      // v11.29 boss 变体缩放（直接应用 variant.scale）
+      if (variant) {
+        g.scale.set(variant.scale, variant.scale, variant.scale);
+      }
       return g;
     },
 
@@ -752,7 +779,9 @@
     bmesh.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
     bmesh.position.copy(muzzle);
     ctx.scene.add(bmesh);
-    u.projectiles.push({ mesh: bmesh, vel: aim.multiplyScalar(19), life: 5, damage: u.damage, kind: 'rocket' });
+    // v11.29 机甲 BOSS 伤害倍率
+    var dmg = u.damage * (u.dmgMul || 1);
+    u.projectiles.push({ mesh: bmesh, vel: aim.multiplyScalar(19), life: 5, damage: dmg, kind: 'rocket' });
   }
 
   // ---- 子弹（人类 / BOSS）：大散布 = 低精准度 ----
@@ -783,7 +812,9 @@
     bmesh.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), aim.clone());
     bmesh.position.copy(muzzle);
     ctx.scene.add(bmesh);
-    u.projectiles.push({ mesh: bmesh, vel: aim.multiplyScalar(26), life: 3, damage: u.damage, kind: 'bullet' });
+    // v11.29 机甲 BOSS 伤害倍率
+    var dmg = u.damage * (u.dmgMul || 1);
+    u.projectiles.push({ mesh: bmesh, vel: aim.multiplyScalar(26), life: 3, damage: dmg, kind: 'bullet' });
   }
 
   // ---- 火球（怪物 / BOSS）：体积大、速度慢、伤害高 ----
@@ -817,6 +848,8 @@
     bmesh.add(glow);
     bmesh.position.copy(muzzle);
     ctx.scene.add(bmesh);
-    u.projectiles.push({ mesh: bmesh, vel: aim.multiplyScalar(15), life: 4, damage: u.damage, kind: 'fireball' });
+    // v11.29 机甲 BOSS 伤害倍率
+    var dmg = u.damage * (u.dmgMul || 1);
+    u.projectiles.push({ mesh: bmesh, vel: aim.multiplyScalar(15), life: 4, damage: dmg, kind: 'fireball' });
   }
 })(window);
