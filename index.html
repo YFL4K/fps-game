@@ -68,6 +68,12 @@
   #heliFuel { position: fixed; right: 16px; bottom: 16px; display: none; pointer-events: none; z-index: 20; }
   #heliFuel .hbar { width: 180px; height: 14px; background: rgba(20,20,30,0.75); border: 1px solid rgba(100,200,100,0.45); border-radius: 7px; overflow: hidden; }
   #heliFuel .hfill { height: 100%; background: linear-gradient(90deg, #ff4444, #ffaa00, #44ff44); border-radius: 7px; transition: width 0.5s linear; }
+  /* v11.31 BOSS 血量条 */
+  #bossHealthContainer { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; pointer-events: none; z-index: 25; width: 400px; }
+  #bossHealthContainer .name { text-align: center; color: #ffd94a; font-size: 18px; font-weight: bold; text-shadow: 0 0 6px rgba(0,0,0,0.9); margin-bottom: 6px; }
+  #bossHealthContainer .bar { width: 100%; height: 18px; background: rgba(30,30,40,0.9); border: 2px solid rgba(200,200,200,0.3); border-radius: 9px; overflow: hidden; }
+  #bossHealthContainer .fill { height: 100%; background: linear-gradient(90deg, #ff3333, #ff9933, #33ff33); transition: width 0.2s linear; }
+  #bossHealthContainer .hp-text { text-align: center; color: #fff; font-size: 12px; margin-top: 4px; }
   #heliFuel .hlabel { color: #88cc88; font-size: 12px; text-align: center; margin-top: 3px; text-shadow: 0 1px 2px rgba(0,0,0,0.8); letter-spacing: 1px; }
 
   /* 提示条（宝箱/直升机/BOSS） */
@@ -148,10 +154,16 @@
   <div class="hs-label">×4</div>
 </div>
 <div id="heliFuel"><div class="hbar"><div class="hfill" id="heliFuelFill"></div></div><div class="hlabel">⛽ 燃油</div></div>
+<!-- v11.31 BOSS 血量条 -->
+<div id="bossHealthContainer">
+  <div class="name" id="bossName">机甲 BOSS</div>
+  <div class="bar"><div class="fill" id="bossHealthFill"></div></div>
+  <div class="hp-text" id="bossHpText">HP: 0 / 0</div>
+</div>
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.30</div>
+<div id="versionTag">v11.31</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -196,48 +208,48 @@
 </script>
 
 <script src="three.min.js" onerror="window.__modErr('three.min.js')"></script>
-<script src="models/_mario.js?v=1130" onerror="window.__modErr('models/_mario.js')"></script>
-<script src="models/round.js?v=1130" onerror="window.__modErr('models/round.js')"></script>
-<script src="models/floor.js?v=1130" onerror="window.__modErr('models/floor.js')"></script>
-<script src="models/wall.js?v=1130" onerror="window.__modErr('models/wall.js')"></script>
-<script src="models/crate.js?v=1130" onerror="window.__modErr('models/crate.js')"></script>
-<script src="models/obstacle.js?v=1130" onerror="window.__modErr('models/obstacle.js')"></script>
-<script src="models/target.js?v=1130" onerror="window.__modErr('models/target.js')"></script>
-<script src="models/pickup.js?v=1130" onerror="window.__modErr('models/pickup.js')"></script>
-<script src="models/weapon.js?v=1130" onerror="window.__modErr('models/weapon.js')"></script>
-<script src="models/building.js?v=1130" onerror="window.__modErr('models/building.js')"></script>
-<script src="models/tree.js?v=1130" onerror="window.__modErr('models/tree.js')"></script>
-<script src="models/lamp.js?v=1130" onerror="window.__modErr('models/lamp.js')"></script>
-<script src="models/sky.js?v=1130" onerror="window.__modErr('models/sky.js')"></script>
-<script src="models/spawner.js?v=1130" onerror="window.__modErr('models/spawner.js')"></script>
-<script src="models/step.js?v=1130" onerror="window.__modErr('models/step.js')"></script>
-<script src="models/flowerbed.js?v=1130" onerror="window.__modErr('models/flowerbed.js')"></script>
-<script src="models/vehicle.js?v=1130" onerror="window.__modErr('models/vehicle.js')"></script>
-<script src="models/barrel.js?v=1130" onerror="window.__modErr('models/barrel.js')"></script>
-<script src="models/tnt.js?v=1130" onerror="window.__modErr('models/tnt.js')"></script>
-<script src="models/chest.js?v=1130" onerror="window.__modErr('models/chest.js')"></script>
-<script src="models/helicopter.js?v=1130" onerror="window.__modErr('models/helicopter.js')"></script>
-<script src="models/enemy.js?v=1130" onerror="window.__modErr('models/enemy.js')"></script>
-<script src="models/gun.js?v=1130" onerror="window.__modErr('models/gun.js')"></script>
-<script src="models/mountain-scenery.js?v=1130" onerror="window.__modErr('models/mountain-scenery.js')"></script>
-<script src="models/truck.js?v=1130" onerror="window.__modErr('models/truck.js')"></script>
-<script src="models/plane.js?v=1130" onerror="window.__modErr('models/plane.js')"></script>
-<script src="models/container.js?v=1130" onerror="window.__modErr('models/container.js')"></script>
-<script src="models/pot.js?v=1130" onerror="window.__modErr('models/pot.js')"></script>
-<script src="models/spider.js?v=1130" onerror="window.__modErr('models/spider.js')"></script>
-<script src="models/bigtree.js?v=1130" onerror="window.__modErr('models/bigtree.js')"></script>
-<script src="models/highwall.js?v=1130" onerror="window.__modErr('models/highwall.js')"></script>
-<script src="models/ferriswheel.js?v=1130" onerror="window.__modErr('models/ferriswheel.js')"></script>
-<script src="models/grass.js?v=1130" onerror="window.__modErr('models/grass.js')"></script>
-<script src="models/mushroom.js?v=1130" onerror="window.__modErr('models/mushroom.js')"></script>
-<script src="models/jetpack.js?v=1130" onerror="window.__modErr('models/jetpack.js')"></script>
-<script src="models/birds.js?v=1130" onerror="window.__modErr('models/birds.js')"></script>
-<script src="models/walkie.js?v=1130" onerror="window.__modErr('models/walkie.js')"></script>
-<script src="models/shield.js?v=1130" onerror="window.__modErr('models/shield.js')"></script>
-<script src="models/gatling.js?v=1130" onerror="window.__modErr('models/gatling.js')"></script>
-<script src="models/pig.js?v=1130" onerror="window.__modErr('models/pig.js')"></script>
-<script src="models/watchtower.js?v=1130" onerror="window.__modErr('models/watchtower.js')"></script>
-<script src="scene-layout.js?v=1130" onerror="window.__modErr('scene-layout.js')"></script>
+<script src="models/_mario.js?v=1131" onerror="window.__modErr('models/_mario.js')"></script>
+<script src="models/round.js?v=1131" onerror="window.__modErr('models/round.js')"></script>
+<script src="models/floor.js?v=1131" onerror="window.__modErr('models/floor.js')"></script>
+<script src="models/wall.js?v=1131" onerror="window.__modErr('models/wall.js')"></script>
+<script src="models/crate.js?v=1131" onerror="window.__modErr('models/crate.js')"></script>
+<script src="models/obstacle.js?v=1131" onerror="window.__modErr('models/obstacle.js')"></script>
+<script src="models/target.js?v=1131" onerror="window.__modErr('models/target.js')"></script>
+<script src="models/pickup.js?v=1131" onerror="window.__modErr('models/pickup.js')"></script>
+<script src="models/weapon.js?v=1131" onerror="window.__modErr('models/weapon.js')"></script>
+<script src="models/building.js?v=1131" onerror="window.__modErr('models/building.js')"></script>
+<script src="models/tree.js?v=1131" onerror="window.__modErr('models/tree.js')"></script>
+<script src="models/lamp.js?v=1131" onerror="window.__modErr('models/lamp.js')"></script>
+<script src="models/sky.js?v=1131" onerror="window.__modErr('models/sky.js')"></script>
+<script src="models/spawner.js?v=1131" onerror="window.__modErr('models/spawner.js')"></script>
+<script src="models/step.js?v=1131" onerror="window.__modErr('models/step.js')"></script>
+<script src="models/flowerbed.js?v=1131" onerror="window.__modErr('models/flowerbed.js')"></script>
+<script src="models/vehicle.js?v=1131" onerror="window.__modErr('models/vehicle.js')"></script>
+<script src="models/barrel.js?v=1131" onerror="window.__modErr('models/barrel.js')"></script>
+<script src="models/tnt.js?v=1131" onerror="window.__modErr('models/tnt.js')"></script>
+<script src="models/chest.js?v=1131" onerror="window.__modErr('models/chest.js')"></script>
+<script src="models/helicopter.js?v=1131" onerror="window.__modErr('models/helicopter.js')"></script>
+<script src="models/enemy.js?v=1131" onerror="window.__modErr('models/enemy.js')"></script>
+<script src="models/gun.js?v=1131" onerror="window.__modErr('models/gun.js')"></script>
+<script src="models/mountain-scenery.js?v=1131" onerror="window.__modErr('models/mountain-scenery.js')"></script>
+<script src="models/truck.js?v=1131" onerror="window.__modErr('models/truck.js')"></script>
+<script src="models/plane.js?v=1131" onerror="window.__modErr('models/plane.js')"></script>
+<script src="models/container.js?v=1131" onerror="window.__modErr('models/container.js')"></script>
+<script src="models/pot.js?v=1131" onerror="window.__modErr('models/pot.js')"></script>
+<script src="models/spider.js?v=1131" onerror="window.__modErr('models/spider.js')"></script>
+<script src="models/bigtree.js?v=1131" onerror="window.__modErr('models/bigtree.js')"></script>
+<script src="models/highwall.js?v=1131" onerror="window.__modErr('models/highwall.js')"></script>
+<script src="models/ferriswheel.js?v=1131" onerror="window.__modErr('models/ferriswheel.js')"></script>
+<script src="models/grass.js?v=1131" onerror="window.__modErr('models/grass.js')"></script>
+<script src="models/mushroom.js?v=1131" onerror="window.__modErr('models/mushroom.js')"></script>
+<script src="models/jetpack.js?v=1131" onerror="window.__modErr('models/jetpack.js')"></script>
+<script src="models/birds.js?v=1131" onerror="window.__modErr('models/birds.js')"></script>
+<script src="models/walkie.js?v=1131" onerror="window.__modErr('models/walkie.js')"></script>
+<script src="models/shield.js?v=1131" onerror="window.__modErr('models/shield.js')"></script>
+<script src="models/gatling.js?v=1131" onerror="window.__modErr('models/gatling.js')"></script>
+<script src="models/pig.js?v=1131" onerror="window.__modErr('models/pig.js')"></script>
+<script src="models/watchtower.js?v=1131" onerror="window.__modErr('models/watchtower.js')"></script>
+<script src="scene-layout.js?v=1131" onerror="window.__modErr('scene-layout.js')"></script>
 <!-- scene-layout-level2.js 已由 scene-layout.js 随机布局取代（v6）-->
 
 <script>
@@ -295,6 +307,11 @@
   var heliScopeEl = document.getElementById('heliScope');   // v11.24 方形瞄准镜
   var heliFuelEl = document.getElementById('heliFuel');
   var heliFuelFillEl = document.getElementById('heliFuelFill');
+  // v11.31 BOSS 血量条
+  var bossHealthContainerEl = document.getElementById('bossHealthContainer');
+  var bossHealthFillEl = document.getElementById('bossHealthFill');
+  var bossHpTextEl = document.getElementById('bossHpText');
+  var bossNameEl = document.getElementById('bossName');
   var hitmarkEl = document.getElementById('hitmark');
   var headshotEl = document.getElementById('headshotTag');
   var critTagEl = document.getElementById('critTag');
@@ -4073,6 +4090,40 @@
     if (cfg.collision && colliders.indexOf(rec) < 0) colliders.push(rec);
   }
 
+  /* ================= v11.31 BOSS 血量条显示 ================= */
+  function updateBossHealthBar() {
+    var found = false;
+    for (var i = 0; i < entities.length; i++) {
+      var rec = entities[i];
+      if (!rec.alive || !rec.inst || !rec.inst.userData) continue;
+      // 机甲 BOSS
+      if (rec.cfg.enemyType === 'boss' && rec.inst.userData.health !== undefined) {
+        var u = rec.inst.userData;
+        var maxHp = u.maxHealth || u.health;
+        var pct = Math.max(0, Math.min(100, (u.health / maxHp) * 100));
+        if (bossHealthFillEl) bossHealthFillEl.style.width = pct + '%';
+        if (bossHpTextEl) bossHpTextEl.textContent = 'HP: ' + Math.round(u.health) + ' / ' + Math.round(maxHp);
+        if (bossNameEl) bossNameEl.textContent = u.variantName || '机甲 BOSS';
+        if (bossHealthContainerEl) bossHealthContainerEl.style.display = 'block';
+        found = true;
+        break;
+      }
+      // 猪头佳
+      if (rec.cfg.model === 'pig' && rec.inst.userData.health !== undefined) {
+        var u = rec.inst.userData;
+        var maxHp = u.maxHealth || u.health;
+        var pct = Math.max(0, Math.min(100, (u.health / maxHp) * 100));
+        if (bossHealthFillEl) bossHealthFillEl.style.width = pct + '%';
+        if (bossHpTextEl) bossHpTextEl.textContent = 'HP: ' + Math.round(u.health) + ' / ' + Math.round(maxHp);
+        if (bossNameEl) bossNameEl.textContent = u.variantName || '猪头佳';
+        if (bossHealthContainerEl) bossHealthContainerEl.style.display = 'block';
+        found = true;
+        break;
+      }
+    }
+    if (!found && bossHealthContainerEl) bossHealthContainerEl.style.display = 'none';
+  }
+
   /* ================= 14. 特效更新 ================= */
   function updateFx(dt) {
     // v7.9 性能优化：fx 超上限时丢弃最老特效，防止长时间游玩内存/对象无限增长
@@ -4370,6 +4421,7 @@
         updateRockets(dt);
         updateAirstrikes(dt);
         updateEntities(dt);
+        updateBossHealthBar();   // v11.31 BOSS 血量条显示
         updateHeliPilot(dt);   // v11.18 驾驶直升机：移动/开火/同步玩家位置
         collideEnemies();
         updateWaves(dt);
