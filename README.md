@@ -1,6 +1,6 @@
 # 🎮 程序化 FPS 射击游戏
 
-一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.37**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
+一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.38**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
 
 ![GitHub License](https://img.shields.io/github/license/YFL4K/fps-game)
 
@@ -66,6 +66,19 @@
 ## 📋 更新履历
 
 ### v11.37（2026-09-18）— 🐛 修复 BOSS「实体更新失败」崩溃
+
+- 🐛 **根因**：`enemy.js` 的 `create: function (config)` 只声明了 1 个参数，但函数体内引用 `ctx`（v11.36 激光光束需要 `ctx.scene.add(beam)`）。`ctx` 不在 enemy.js 的 IIFE 作用域内 → `ReferenceError` → `buildEntity` 捕获后回退到占位模型（`userData = {}`），但 `rec.def` 仍指向 enemy 真模型（含 `update`）→ 每帧 `updateProjectiles` 访问 `u.projectiles.length` 崩溃，报错 `实体更新失败(dyn-boss-*): Cannot read properties of undefined(reading length)`。
+- ✅ **修复 1（根因）**：`create: function (config)` → `create: function (config, ctx)`，`ctx` 正确传入，激光光束挂载到场景。
+- ✅ **修复 2（防御）**：`buildEntity` 中 `create` 抛异常时，`def` 一并替换为无 `update` 的 fallback，占位模型不再被当真敌人更新。
+- ✅ **修复 3（防御）**：`updateProjectiles` 加 `Array.isArray(u.projectiles)` 守卫。
+
+### v11.38（2026-09-19）— 🔧 机甲 BOSS 全面修复
+
+- 🐛 **`variant is not defined`**：`update` 函数直接引用 `variant`（`create` 的局部变量），改用 `u.variant`（已存入 userData）。
+- ⚡ **移动速度提升**：`MECHA_VARIANTS` 速度 ×1.5～2.3（蜂群游侠 9→14，熔炉/裂变/天基 6→10，星轨 3→7）。
+- ⚡ **射击速度提升**：`shootCooldown` 减半（1.5→0.6 / 1.0→0.4），火箭炮更密集。
+- 🔫 **激光武器修复**：光束定位改 midpoint+scale 缩放至 60m，始终跟随 boss 方向扫射。
+- 🚧 **障碍物绕行**：BOSS 在 `stopDist` 内仍以 40% 速度持续逼近玩家，`breakObstacleAhead` 频率提升（0.25→0.15s），范围加大（4→5m，伤害 400→500）。
 
 - 🐛 **根因**：`enemy.js` 的 `create: function (config)` 只声明了 1 个参数，但函数体内引用 `ctx`（v11.36 激光光束需要 `ctx.scene.add(beam)`）。`ctx` 不在 enemy.js 的 IIFE 作用域内 → `ReferenceError` → `buildEntity` 捕获后回退到占位模型（`userData = {}`），但 `rec.def` 仍指向 enemy 真模型（含 `update`）→ 每帧 `updateProjectiles` 访问 `u.projectiles.length` 崩溃，报错 `实体更新失败(dyn-boss-*): Cannot read properties of undefined(reading length)`。
 - ✅ **修复 1（根因）**：`create: function (config)` → `create: function (config, ctx)`，`ctx` 正确传入，激光光束挂载到场景。
