@@ -30,11 +30,11 @@
 
   // v11.36 机甲 BOSS 5 种变体（移动速度×3，射速×2，射程×5，添加激光武器）
   var MECHA_VARIANTS = [
-    { name: '蜂群游侠', scale: 1.5, hp: 61650, dmgMul: 0.7, speed: 9, shootRange: 75, shootCooldown: 1.5, laserColor: 0xffffff, laserCore: 0xeeeeee, color: { main: 0x8a8a4b, dark: 0x4a6b3b, accent: 0x66ff66, visor: 0xffffff } },
-    { name: '熔炉铁骑', scale: 3.0, hp: 94500, dmgMul: 1, speed: 6, shootRange: 100, shootCooldown: 1.5, laserColor: 0x00ff66, laserCore: 0xd2ffd2, color: { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xffaa66 } },
-    { name: '裂变炮台', scale: 6.0, hp: 213750, dmgMul: 2.5, speed: 6, shootRange: 125, shootCooldown: 1.5, laserColor: 0x00aaff, laserCore: 0xaad4ff, color: { main: 0x5a3a8f, dark: 0x2a1540, accent: 0x8fd3ff, visor: 0xaaddff } },
-    { name: '天基巨神', scale: 9.0, hp: 470250, dmgMul: 3.5, speed: 6, shootRange: 150, shootCooldown: 1, laserColor: 0xcc44ff, laserCore: 0xe8b4ff, color: { main: 0x1a0a0a, dark: 0x0a0505, accent: 0xff5533, visor: 0xff9977 } },
-    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 3, shootRange: 175, shootCooldown: 1, laserColor: 0xff0000, laserCore: 0xffaaaa, color: { main: 0x3a2a1a, dark: 0x1a120a, accent: 0x996633, visor: 0xccaa77 } }
+    { name: '蜂群游侠', scale: 1.5, hp: 61650, dmgMul: 0.7, speed: 14, shootRange: 75, shootCooldown: 0.6, laserColor: 0xffffff, laserCore: 0xeeeeee, color: { main: 0x8a8a4b, dark: 0x4a6b3b, accent: 0x66ff66, visor: 0xffffff } },
+    { name: '熔炉铁骑', scale: 3.0, hp: 94500, dmgMul: 1, speed: 10, shootRange: 100, shootCooldown: 0.6, laserColor: 0x00ff66, laserCore: 0xd2ffd2, color: { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xffaa66 } },
+    { name: '裂变炮台', scale: 6.0, hp: 213750, dmgMul: 2.5, speed: 10, shootRange: 125, shootCooldown: 0.6, laserColor: 0x00aaff, laserCore: 0xaad4ff, color: { main: 0x5a3a8f, dark: 0x2a1540, accent: 0x8fd3ff, visor: 0xaaddff } },
+    { name: '天基巨神', scale: 9.0, hp: 470250, dmgMul: 3.5, speed: 10, shootRange: 150, shootCooldown: 0.4, laserColor: 0xcc44ff, laserCore: 0xe8b4ff, color: { main: 0x1a0a0a, dark: 0x0a0505, accent: 0xff5533, visor: 0xff9977 } },
+    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 7, shootRange: 175, shootCooldown: 0.4, laserColor: 0xff0000, laserCore: 0xffaaaa, color: { main: 0x3a2a1a, dark: 0x1a120a, accent: 0x996633, visor: 0xccaa77 } }
   ];
 
   // v6.5 机甲 BOSS 配色（每关不同造型）：红 / 蓝 / 绿 / 紫 / 金
@@ -666,12 +666,18 @@
         moving = true;
       }
 
-      // v10.3 BOSS 撞开前方障碍物（前进时自动破坏挡路的墙/房/箱）
-      if (u.type === 'boss' && moving && dist > stopDist && ctx.breakObstacleAhead) {
+      // v11.38 BOSS 始终尝试破障前进(不再受 stopDist 限制),射程内也移动
+      if (u.type === 'boss' && ctx.breakObstacleAhead) {
         u._ramT = (u._ramT || 0) + dt;
-        if (u._ramT > 0.25) {
+        if (u._ramT > 0.15) {
           u._ramT = 0;
-          ctx.breakObstacleAhead(inst.position, dx / dist, dz / dist, 4.0 * s, 400);
+          ctx.breakObstacleAhead(inst.position, dx / dist, dz / dist, 5.0 * s, 500);
+        }
+        // v11.38 boss 在 stopDist 内也持续逼近玩家(不完全停住)
+        if (dist > 2 && dist <= stopDist) {
+          inst.position.x += (dx / dist) * u.speed * 0.4 * dt;
+          inst.position.z += (dz / dist) * u.speed * 0.4 * dt;
+          moving = true;
         }
       }
 
@@ -727,7 +733,7 @@
       }
 
       // v11.36 机甲 BOSS 头部激光扫射（上下扫射，可攻击玩家和直升机）
-      if (u.type === 'boss' && variant && u.laserBeams && !u.dead) {
+      if (u.type === 'boss' && u.variant && u.laserBeams && !u.dead) {
         u.laserTimer += dt;
         if (u.laserTimer >= 5) { u.laserPhase = (u.laserPhase === 'on') ? 'off' : 'on'; u.laserTimer = 0; }
         
@@ -741,21 +747,27 @@
         var dirY = Math.cos(pitchRad);
         var dirZ = Math.sin(pitchRad) * Math.sin(inst.rotation.y);
         
-        // 更新光束可见性
+        // 更新光束可见性 + 定位/缩放(从发射点拉伸到目标方向)
+        var beamLen = 60;  // 光束长度
         if (u.laserBeams && u.laserBeams.length > 0) {
           for (var bi = 0; bi < u.laserBeams.length; bi++) {
             var beam = u.laserBeams[bi];
             if (beam) {
+              // 终点 = 起点 + 方向 * beamLen
+              var endX = start.x + dirX * beamLen;
+              var endY = start.y + dirY * beamLen;
+              var endZ = start.z + dirZ * beamLen;
+              // 中点定位 + lookAt + z 轴缩放(BoxGeometry 的 z 方向是厚度,需缩放到光束长度)
+              beam.position.set((start.x + endX) * 0.5, (start.y + endY) * 0.5, (start.z + endZ) * 0.5);
+              beam.lookAt(endX, endY, endZ);
+              beam.scale.set(1, 1, beamLen);
               beam.visible = (u.laserPhase === 'on');
-              beam.position.copy(start);
-              beam.lookAt(start.x + dirX * 100, start.y + dirY * 100, start.z + dirZ * 100);
             }
           }
         }
-        
         // 激光伤害（仅当开启时）
         if (u.laserPhase === 'on') {
-          var laserDmg = variant.dmgMul * 30;  // 基础 30，乘以变体倍率
+          var laserDmg = u.variant.dmgMul * 30;  // 基础 30，乘以变体倍率
           
           // 检查玩家
           if (!player.dead && player.heli) {
