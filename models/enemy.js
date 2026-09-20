@@ -30,11 +30,11 @@
 
   // v11.36 机甲 BOSS 5 种变体（移动速度×3，射速×2，射程×5，添加激光武器）
   var MECHA_VARIANTS = [
-    { name: '蜂群游侠', scale: 1.5, hp: 61650, dmgMul: 0.7, speed: 14, shootRange: 75, shootCooldown: 0.6, laserColor: 0xffffff, laserCore: 0xeeeeee, color: { main: 0x8a8a4b, dark: 0x4a6b3b, accent: 0x66ff66, visor: 0xffffff } },
-    { name: '熔炉铁骑', scale: 3.0, hp: 94500, dmgMul: 1, speed: 10, shootRange: 100, shootCooldown: 0.6, laserColor: 0x00ff66, laserCore: 0xd2ffd2, color: { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xffaa66 } },
-    { name: '裂变炮台', scale: 6.0, hp: 213750, dmgMul: 2.5, speed: 10, shootRange: 125, shootCooldown: 0.6, laserColor: 0x00aaff, laserCore: 0xaad4ff, color: { main: 0x5a3a8f, dark: 0x2a1540, accent: 0x8fd3ff, visor: 0xaaddff } },
-    { name: '天基巨神', scale: 9.0, hp: 470250, dmgMul: 3.5, speed: 10, shootRange: 150, shootCooldown: 0.4, laserColor: 0xcc44ff, laserCore: 0xe8b4ff, color: { main: 0x1a0a0a, dark: 0x0a0505, accent: 0xff5533, visor: 0xff9977 } },
-    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 7, shootRange: 175, shootCooldown: 0.4, laserColor: 0xff0000, laserCore: 0xffaaaa, color: { main: 0x3a2a1a, dark: 0x1a120a, accent: 0x996633, visor: 0xccaa77 } }
+    { name: '蜂群游侠', scale: 1.5, hp: 61650, dmgMul: 0.7, speed: 14, shootRange: 75, shootCooldown: 0.6, laserDpsPlayer: 5, laserDpsHeli: 100, laserColor: 0xffffff, laserCore: 0xeeeeee, color: { main: 0x8a8a4b, dark: 0x4a6b3b, accent: 0x66ff66, visor: 0xffffff } },
+    { name: '熔炉铁骑', scale: 3.0, hp: 94500, dmgMul: 1, speed: 10, shootRange: 100, shootCooldown: 0.6, laserDpsPlayer: 9, laserDpsHeli: 200, laserColor: 0x00ff66, laserCore: 0xd2ffd2, color: { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xffaa66 } },
+    { name: '裂变炮台', scale: 6.0, hp: 213750, dmgMul: 2.5, speed: 10, shootRange: 125, shootCooldown: 0.6, laserDpsPlayer: 13, laserDpsHeli: 300, laserColor: 0x00aaff, laserCore: 0xaad4ff, color: { main: 0x5a3a8f, dark: 0x2a1540, accent: 0x8fd3ff, visor: 0xaaddff } },
+    { name: '天基巨神', scale: 9.0, hp: 470250, dmgMul: 3.5, speed: 10, shootRange: 150, shootCooldown: 0.4, laserDpsPlayer: 16, laserDpsHeli: 400, laserColor: 0xcc44ff, laserCore: 0xe8b4ff, color: { main: 0x1a0a0a, dark: 0x0a0505, accent: 0xff5533, visor: 0xff9977 } },
+    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 7, shootRange: 175, shootCooldown: 0.4, laserDpsPlayer: 20, laserDpsHeli: 500, laserColor: 0xff0000, laserCore: 0xffaaaa, color: { main: 0x3a2a1a, dark: 0x1a120a, accent: 0x996633, visor: 0xccaa77 } }
   ];
 
   // v6.5 机甲 BOSS 配色（每关不同造型）：红 / 蓝 / 绿 / 紫 / 金
@@ -733,7 +733,7 @@
       }
 
       // v11.36 机甲 BOSS 头部激光扫射（上下扫射，可攻击玩家和直升机）
-      // v11.4 机甲 BOSS 头部激光扫射（3s开/1s关，300m射程，从眼睛发射，优先攻击直升机/喷气背包）
+      // v11.42 机甲 BOSS 头部激光扫射（3s开/1s关，100m射程，从眼睛发射，优先攻击直升机/喷气背包）
       if (u.type === 'boss' && u.variant && u.laserBeams && !u.dead) {
         u.laserTimer += dt;
         if (u.laserPhase === 'on' && u.laserTimer >= 3) { u.laserPhase = 'off'; u.laserTimer = 0; }
@@ -778,7 +778,7 @@
         var dirZ = Math.cos(yaw) * Math.cos(pitchRad);
 
         // 更新光束可见性 + 定位/缩放
-        var beamLen = 300;  // v11.4 300m 射程（原 60m × 5）
+        var beamLen = 100;  // v11.42 100m 射程（300÷3）
         if (u.laserBeams && u.laserBeams.length > 0) {
           for (var bi = 0; bi < u.laserBeams.length; bi++) {
             var beam = u.laserBeams[bi];
@@ -796,7 +796,7 @@
 
         // 激光伤害（仅当开启时）
         if (u.laserPhase === 'on') {
-          var laserDmg = u.variant.dmgMul * 30;
+          var laserDpsPlayer = u.variant.laserDpsPlayer || 10;  // v11.42 玩家DPS 5~20
 
           // v11.4 优先攻击玩家（直升机/喷气背包/步行）
           if (!player.dead) {
@@ -814,12 +814,13 @@
                 var miss = Math.sqrt((plTarget.x-px)*(plTarget.x-px) + (plTarget.y-py)*(plTarget.y-py) + (plTarget.z-pz)*(plTarget.z-pz));
                 if (miss < 3.0) {
                   if (plHeli && player.heli.health !== undefined) {
-                    player.heli.health -= laserDmg * dt;
+                    var laserDpsHeli = u.variant.laserDpsHeli || 300;  // v11.42 直升机DPS 100~500
+                    player.heli.health -= laserDpsHeli * dt;
                     if (player.heli.health <= 0) {
                       ctx.onHelicopterDestroyed && ctx.onHelicopterDestroyed();
                     }
                   } else {
-                    ctx.hitPlayer && ctx.hitPlayer(Math.round(laserDmg * dt));
+                    ctx.hitPlayer && ctx.hitPlayer(Math.round(laserDpsPlayer * dt));
                   }
                 }
               }
