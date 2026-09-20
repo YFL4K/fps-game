@@ -530,7 +530,9 @@
         // v11.36 头部激光（与猪头佳设置一致）
         laserPhase: 'on',
         laserTimer: 0,
+        laserDmgTick: 0,
         laserSweep: 0,
+        laserDmgTick: 0,
         laserBeams: null,
         laserColor: variant ? variant.laserColor : 0xffffff,
         laserCoreColor: variant ? variant.laserCore : 0xeeeeee,
@@ -733,7 +735,7 @@
       }
 
       // v11.36 机甲 BOSS 头部激光扫射（上下扫射，可攻击玩家和直升机）
-      // v11.42 机甲 BOSS 头部激光扫射（3s开/1s关，100m射程，从眼睛发射，优先攻击直升机/喷气背包）
+      // v11.43 机甲 BOSS 头部激光扫射（3s开/1s关，200m射程，从眼睛发射，优先攻击直升机/喷气背包，障碍物遮挡）
       if (u.type === 'boss' && u.variant && u.laserBeams && !u.dead) {
         u.laserTimer += dt;
         if (u.laserPhase === 'on' && u.laserTimer >= 3) { u.laserPhase = 'off'; u.laserTimer = 0; }
@@ -778,7 +780,7 @@
         var dirZ = Math.cos(yaw) * Math.cos(pitchRad);
 
         // 更新光束可见性 + 定位/缩放
-        var beamLen = 100;  // v11.42 100m 射程（300÷3）
+        var beamLen = 200;  // v11.43 200m 射程（与猪头佳一致）
         if (u.laserBeams && u.laserBeams.length > 0) {
           for (var bi = 0; bi < u.laserBeams.length; bi++) {
             var beam = u.laserBeams[bi];
@@ -794,62 +796,86 @@
           }
         }
 
-        // 激光伤害（仅当开启时）
+        // v11.43 激光伤害（仅当开启时）—— 累加器方案，每1秒结算一次，防止每帧扣血
         if (u.laserPhase === 'on') {
-          var laserDpsPlayer = u.variant.laserDpsPlayer || 10;  // v11.42 玩家DPS 5~20
-
-          // v11.4 优先攻击玩家（直升机/喷气背包/步行）
-          if (!player.dead) {
-            var pdx = plTarget.x - start.x;
-            var pdy = plTarget.y - start.y;
-            var pdz = plTarget.z - start.z;
-            var pDist = Math.sqrt(pdx*pdx + pdy*pdy + pdz*pdz);
-            if (pDist < beamLen) {
-              // 射线投射检查玩家是否在激光路径上
-              var tPlayer = (plTarget.x - start.x) / dirX;
-              if (tPlayer > 0 && tPlayer < beamLen) {
-                var px = start.x + dirX * tPlayer;
-                var pz = start.z + dirZ * tPlayer;
-                var py = start.y + dirY * tPlayer;
-                var miss = Math.sqrt((plTarget.x-px)*(plTarget.x-px) + (plTarget.y-py)*(plTarget.y-py) + (plTarget.z-pz)*(plTarget.z-pz));
-                if (miss < 3.0) {
-                  if (plHeli && player.heli.health !== undefined) {
-                    var laserDpsHeli = u.variant.laserDpsHeli || 300;  // v11.42 直升机DPS 100~500
-                    player.heli.health -= laserDpsHeli * dt;
-                    if (player.heli.health <= 0) {
-                      ctx.onHelicopterDestroyed && ctx.onHelicopterDestroyed();
+          u.laserDmgTick += dt;
+          var laserDpsPlayer = u.variant.laserDpsPlayer || 10;
+          var laserDpsHeli = u.variant.laserDpsHeli || 300;
+          
+          while (u.laserDmgTick >= 1) {
+            u.laserDmgTick -= 1;
+            
+            // v11.43 射线投射检查玩家（带障碍物遮挡检测）
+            if (!player.dead) {
+              var pdx = plTarget.x - start.x;
+              var pdy = plTarget.y - start.y;
+              var pdz = plTarget.z - start.z;
+              var pDist = Math.sqrt(pdx*pdx + pdy*pdy + pdz*pdz);
+              if (pDist < beamLen) {
+                var tPlayer = pdx / dirX;
+                if (tPlayer > 0 && tPlayer < beamLen) {
+                  var px = start.x + dirX * tPlayer;
+                  var pz = start.z + dirZ * tPlayer;
+                  var py = start.y + dirY * tPlayer;
+                  var miss = Math.sqrt((plTarget.x-px)*(plTarget.x-px) + (plTarget.y-py)*(plTarget.y-py) + (plTarget.z-pz)*(plTarget.z-pz));
+                  if (miss < 3.0) {
+                    // v11.43 障碍物遮挡检测：从起点到目标检查是否有碰撞体
+                    var blocked = false;
+                    var colls = ctx.colliders || [];
+                    for (var ci = 0; ci < colls.length; ci++) {
+                      var col = colls[ci];
+                      if (!col.alive || !col.inst || !col.cfg || !col.cfg.collision) continue;
+                      var colPos = col.inst.position;
+                      var colS = col.inst.scale.x || 1;
+                      // 简单 AABB 检测（碰撞体在光线路径上）
+                      var colDist = Math.sqrt((colPos.x - start.x)*(colPos.x - start.x) + (colPos.y - start.y)*(colPos.y - start.y) + (colPos.z - start.z)*(colPos.z - start.z));
+                      if (colDist < beamLen && colDist > 1) {
+                        var tCol = (colPos.x - start.x) / dirX;
+                        if (tCol > 1 && tCol < tPlayer) {
+                          blocked = true;
+                          break;
+                        }
+                      }
                     }
-                  } else {
-                    ctx.hitPlayer && ctx.hitPlayer(Math.round(laserDpsPlayer * dt));
+                    if (!blocked) {
+                      if (plHeli && player.heli.health !== undefined) {
+                        player.heli.health -= laserDpsHeli;
+                        if (player.heli.health <= 0) {
+                          ctx.onHelicopterDestroyed && ctx.onHelicopterDestroyed();
+                        }
+                      } else {
+                        ctx.hitPlayer && ctx.hitPlayer(laserDpsPlayer);
+                      }
+                    }
                   }
                 }
               }
             }
-          }
-
-          // 检查其他敌人/实体
-          var ents = ctx.entities || [];
-          for (var ei = 0; ei < ents.length; ei++) {
-            var rec = ents[ei];
-            if (!rec.alive || rec.cfg.model === 'enemy') continue;
-            var ent = rec.inst;
-            if (!ent || !ent.userData || ent.userData.dead) continue;
-            if (typeof ent.userData.takeDamage !== 'function') continue;
-            var entPos = ent.position.clone();
-            entPos.y += 2;
-            var edx = entPos.x - start.x;
-            var edy = entPos.y - start.y;
-            var edz = entPos.z - start.z;
-            var eDist = Math.sqrt(edx*edx + edy*edy + edz*edz);
-            if (eDist > beamLen) continue;
-            var tEnt = edx / dirX;
-            if (tEnt > 0 && tEnt < beamLen) {
-              var ex = start.x + dirX * tEnt;
-              var ez = start.z + dirZ * tEnt;
-              var ey = start.y + dirY * tEnt;
-              var emiss = Math.sqrt((entPos.x-ex)*(entPos.x-ex) + (entPos.y-ey)*(entPos.y-ey) + (entPos.z-ez)*(entPos.z-ez));
-              if (emiss < 2.0) {
-                ent.userData.takeDamage(laserDmg * dt);
+            
+            // 检查其他敌人/实体
+            var ents = ctx.entities || [];
+            for (var ei = 0; ei < ents.length; ei++) {
+              var rec = ents[ei];
+              if (!rec.alive || rec.cfg.model === 'enemy') continue;
+              var ent = rec.inst;
+              if (!ent || !ent.userData || ent.userData.dead) continue;
+              if (typeof ent.userData.takeDamage !== 'function') continue;
+              var entPos = ent.position.clone();
+              entPos.y += 2;
+              var edx = entPos.x - start.x;
+              var edy = entPos.y - start.y;
+              var edz = entPos.z - start.z;
+              var eDist = Math.sqrt(edx*edx + edy*edy + edz*edz);
+              if (eDist > beamLen) continue;
+              var tEnt = edx / dirX;
+              if (tEnt > 1 && tEnt < beamLen) {
+                var ex = start.x + dirX * tEnt;
+                var ez = start.z + dirZ * tEnt;
+                var ey = start.y + dirY * tEnt;
+                var emiss = Math.sqrt((entPos.x-ex)*(entPos.x-ex) + (entPos.y-ey)*(entPos.y-ey) + (entPos.z-ez)*(entPos.z-ez));
+                if (emiss < 2.0) {
+                  ent.userData.takeDamage(laserDpsPlayer * u.variant.dmgMul);
+                }
               }
             }
           }
@@ -859,6 +885,25 @@
       function isMonsterType(uu) { return uu.type === 'monster'; }
     }
   };
+
+  /** 激光遮挡检测：从起点沿方向射线投射，返回碰撞距离（null=未阻挡）v11.43 */
+  function laserBlockedBy(ctx, start, dir, maxDist) {
+    if (!ctx.scene || !ctx.findEntityById) return null;
+    const T = global.THREE;
+    const ray = new T.Raycaster(start.clone(), dir.clone(), 0, maxDist);
+    const hits = ray.intersectObjects(ctx.scene.children, true);
+    for (let i = 0; i < hits.length; i++) {
+      const o = hits[i].object;
+      if (o.userData && o.userData.noHit) continue;
+      const id = o.userData && o.userData.entityId;
+      if (!id) continue;
+      const rec = ctx.findEntityById(id);
+      if (rec && rec.alive && rec.cfg.collision && rec.cfg.model !== 'sky' && rec.cfg.model !== 'floor') {
+        return hits[i].distance;
+      }
+    }
+    return null;
+  }
 
   /** 视线检测：从敌人头部到玩家躯干，中间若被存活碰撞体（墙/建筑/车/箱）挡住则不可见 */
   function canSeePlayer(inst, ctx, player) {
