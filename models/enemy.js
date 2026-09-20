@@ -532,7 +532,6 @@
         laserTimer: 0,
         laserDmgTick: 0,
         laserSweep: 0,
-        laserDmgTick: 0,
         laserBeams: null,
         laserColor: variant ? variant.laserColor : 0xffffff,
         laserCoreColor: variant ? variant.laserCore : 0xeeeeee,
@@ -738,8 +737,8 @@
       // v11.43 机甲 BOSS 头部激光扫射（3s开/1s关，200m射程，从眼睛发射，优先攻击直升机/喷气背包，障碍物遮挡）
       if (u.type === 'boss' && u.variant && u.laserBeams && !u.dead) {
         u.laserTimer += dt;
-        if (u.laserPhase === 'on' && u.laserTimer >= 3) { u.laserPhase = 'off'; u.laserTimer = 0; }
-        else if (u.laserPhase === 'off' && u.laserTimer >= 1) { u.laserPhase = 'on'; u.laserTimer = 0; }
+        if (u.laserPhase === 'on' && u.laserTimer >= 3) { u.laserPhase = 'off'; u.laserTimer = 0; u.laserDmgTick = 0; }
+        else if (u.laserPhase === 'off' && u.laserTimer >= 1) { u.laserPhase = 'on'; u.laserTimer = 0; u.laserDmgTick = 0; }
 
         // v11.4 激光从眼睛位置发射（不悬空不错位）
         var eyeY = 3.2 * s;  // 眼睛高度
@@ -779,8 +778,13 @@
         var dirY = Math.sin(pitchRad);
         var dirZ = Math.cos(yaw) * Math.cos(pitchRad);
 
-        // 更新光束可见性 + 定位/缩放
+        // v11.43 更新光束可见性 + 定位/缩放（射程与猪头佳一致=200，激光被遮挡截短）
         var beamLen = 200;  // v11.43 200m 射程（与猪头佳一致）
+        var dirVec = new T.Vector3(dirX, dirY, dirZ).normalize();
+        var blockedDist = laserBlockedBy(ctx, start, dirVec, beamLen);
+        if (blockedDist !== null && blockedDist < beamLen) {
+          beamLen = blockedDist;
+        }
         if (u.laserBeams && u.laserBeams.length > 0) {
           for (var bi = 0; bi < u.laserBeams.length; bi++) {
             var beam = u.laserBeams[bi];
@@ -844,7 +848,7 @@
                           ctx.onHelicopterDestroyed && ctx.onHelicopterDestroyed();
                         }
                       } else {
-                        ctx.hitPlayer && ctx.hitPlayer(laserDpsPlayer);
+                        ctx.hitPlayer && ctx.hitPlayer(laserDpsPlayer, { noClamp: true });
                       }
                     }
                   }

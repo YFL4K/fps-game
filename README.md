@@ -1,6 +1,6 @@
 # 🎮 程序化 FPS 射击游戏
 
-一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.42**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
+一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.43**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
 
 ![GitHub License](https://img.shields.io/github/license/YFL4K/fps-game)
 
@@ -71,6 +71,12 @@
 - ✅ **修复 1（根因）**：`create: function (config)` → `create: function (config, ctx)`，`ctx` 正确传入，激光光束挂载到场景。
 - ✅ **修复 2（防御）**：`buildEntity` 中 `create` 抛异常时，`def` 一并替换为无 `update` 的 fallback，占位模型不再被当真敌人更新。
 - ✅ **修复 3（防御）**：`updateProjectiles` 加 `Array.isArray(u.projectiles)` 守卫。
+
+### v11.43（2026-09-20）— 🛡️ 机甲BOSS激光三项Bug修复
+
+- 🧱 **激光不再穿模**：新增 `laserBlockedBy()` 射线投射检测，激光遇到墙体/建筑/车辆/箱子等碰撞体自动截短，不穿透物品和建筑物
+- 💀 **严格限定DPS 5~20**：原 `ctx.hitPlayer(Math.round(laserDpsPlayer*dt))` 每帧传极小值被钳制5~15→60fps=300DPS秒杀；改为累加器方案（每秒结算一次）+ `noClamp:true` 绕过钳制，精确按变体设定伤害：蜂群5/熔炉9/裂变13/天基16/星轨20
+- 📏 **射程与猪头佳一致**：`beamLen` 100m→200m，与猪头佳 `LASER_RANGE=200` 对齐
 
 ### v11.42（2026-09-20）— 🔫 激光武器最终调参
 
