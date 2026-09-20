@@ -422,7 +422,7 @@
       }
       // v11.20 塔顶加特林：+z 入口侧平台边缘（面向外侧，登顶即可看到/使用）
       entities.push({ id: nextId('towergatling'), model: 'gatling',
-        position: [tx, PH, tz + 1.2], rotation: [0, 0, 0], scale: [1, 1, 1], collision: true, kind: 'gatling' });
+        position: [tx, PH, tz + 0.6], rotation: [0, 0, 0], scale: [1, 1, 1], collision: true, kind: 'gatling' });
       // v11.20 隐形攀登碰撞体：螺旋楼梯 48 级（半径 1.0，在塔内；视觉在 watchtower.js 模型内部）
       var N = 48, SR = 1.0, stepRise = (PH - 0.14) / (N - 1), SD = 4 * Math.PI / (N - 1);
       for (var s = 0; s < N; s++) {
@@ -434,7 +434,7 @@
       }
       // 塔顶平台碰撞体（登顶后可站立行走）
       entities.push({ id: nextId('towerplat'), model: 'step',
-        position: [tx, PH - 0.14, tz], rotation: [0, 0, 0], scale: [3.2, 1, 2.0],
+        position: [tx, PH - 0.14, tz], rotation: [0, 0, 0], scale: [3.2, 1, 3.2],
         collision: true, destructible: false, climbOnly: true, hidden: true, color: 0x6b4a2f });
     })();
 

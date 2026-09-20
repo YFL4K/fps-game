@@ -597,7 +597,7 @@
       let dmg = (ctx && ctx.currentDamage) || 15;
       if (head) {
         dmg *= 30;
-        if (Math.random() < 0.10 && u.type !== 'boss') dmg = 99999;   // v11.45 爆头10%概率秒杀
+        if (Math.random() < 0.10) dmg = 99999;   // v11.46 爆头10%概率秒杀（含BOSS）
       }
       if (ctx && ctx.oneShotKill && u.type !== 'boss') dmg = 99999;
       u.takeDamage(dmg);
@@ -779,7 +779,7 @@
         var dirZ = Math.cos(yaw) * Math.cos(pitchRad);
 
         // v11.43 更新光束可见性 + 定位/缩放（射程与猪头佳一致=200，激光被遮挡截短）
-        var beamLen = 200;  // v11.43 200m 射程（与猪头佳一致）
+        var beamLen = 50;  // v11.46 50m 射程（所有等级统一）
         var dirVec = new T.Vector3(dirX, dirY, dirZ).normalize();
         var blockedDist = laserBlockedBy(ctx, start, dirVec, beamLen);
         if (blockedDist !== null && blockedDist < beamLen) {

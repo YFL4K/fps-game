@@ -342,10 +342,18 @@
     onHit: function (inst, point, ctx) {
       var u = inst.userData;
       if (u.dead) return false;
+      var s = inst.scale.x || 1;
+      var headBottom = inst.position.y + 1.68 * s;
+      var head = !!(point && point.y > headBottom);
       var dmg = (ctx && ctx.currentDamage) || 15;
+      if (head) {
+        dmg *= 30;
+        if (Math.random() < 0.10) dmg = 99999;   // v11.46 爆头10%概率秒杀
+      }
       if (ctx && ctx.oneShotKill) dmg = 99999;
       u.takeDamage(dmg);
-      return false;
+      if (ctx && ctx.sfx && head) ctx.sfx.playHeadshot();
+      return head;
     },
 
     update: function (inst, dt, ctx) {
