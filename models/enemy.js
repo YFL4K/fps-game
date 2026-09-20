@@ -597,7 +597,7 @@
       let dmg = (ctx && ctx.currentDamage) || 15;
       if (head) {
         dmg *= 30;
-        if (Math.random() < 0.05 && u.type !== 'boss') dmg = 99999;   // v11.26 爆头5%概率秒杀
+        if (Math.random() < 0.10 && u.type !== 'boss') dmg = 99999;   // v11.45 爆头10%概率秒杀
       }
       if (ctx && ctx.oneShotKill && u.type !== 'boss') dmg = 99999;
       u.takeDamage(dmg);
