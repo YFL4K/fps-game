@@ -34,7 +34,7 @@
     { name: '熔炉铁骑', scale: 3.0, hp: 94500, dmgMul: 1, speed: 10, shootRange: 100, shootCooldown: 0.6, laserDpsPlayer: 9, laserDpsHeli: 200, laserColor: 0x00ff66, laserCore: 0xd2ffd2, color: { main: 0xb03a2e, dark: 0x5a1d16, accent: 0xffd166, visor: 0xffaa66 } },
     { name: '裂变炮台', scale: 6.0, hp: 213750, dmgMul: 2.5, speed: 10, shootRange: 125, shootCooldown: 0.6, laserDpsPlayer: 13, laserDpsHeli: 300, laserColor: 0x00aaff, laserCore: 0xaad4ff, color: { main: 0x5a3a8f, dark: 0x2a1540, accent: 0x8fd3ff, visor: 0xaaddff } },
     { name: '天基巨神', scale: 9.0, hp: 470250, dmgMul: 3.5, speed: 10, shootRange: 150, shootCooldown: 0.4, laserDpsPlayer: 16, laserDpsHeli: 400, laserColor: 0xcc44ff, laserCore: 0xe8b4ff, color: { main: 0x1a0a0a, dark: 0x0a0505, accent: 0xff5533, visor: 0xff9977 } },
-    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 7, shootRange: 175, shootCooldown: 0.4, laserDpsPlayer: 20, laserDpsHeli: 500, laserColor: 0xff0000, laserCore: 0xffaaaa, color: { main: 0x3a2a1a, dark: 0x1a120a, accent: 0x996633, visor: 0xccaa77 } }
+    { name: '星轨吞噬者', scale: 12.0, hp: 976500, dmgMul: 5, speed: 7, shootRange: 175, shootCooldown: 0.4, laserDpsPlayer: 20, laserDpsHeli: 500, laserColor: 0xff0000, laserCore: 0xffaaaa, color: { main: 0xc9a227, dark: 0x5c4708, accent: 0xfff3c4, visor: 0xffcc33 } }
   ];
 
   // v6.5 机甲 BOSS 配色（每关不同造型）：红 / 蓝 / 绿 / 紫 / 金
@@ -285,6 +285,12 @@
       function sph(p, mat, r, x, y, z, sx, sy, sz) { var m = new T.Mesh(new T.SphereGeometry(r, 16, 12), mat); m.position.set(x, y, z); if (sx !== undefined) m.scale.set(sx, sy, sz); p.add(m); return m; }
       function cone(p, mat, r, h, seg, x, y, z, rx, ry, rz) { var m = new T.Mesh(new T.ConeGeometry(r, h, seg), mat); m.position.set(x, y, z); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0); p.add(m); return m; }
 
+      // v11.47 修复：variant 必须在材质创建之前赋值（原代码在材质之后才赋值，导致 variant 始终为 undefined）
+      var variant = null;
+      if (isBoss && cfg.variant != null && cfg.variant >= 0 && cfg.variant < MECHA_VARIANTS.length) {
+        variant = MECHA_VARIANTS[cfg.variant];
+      }
+
       const matBody = new window.MARIO.mat({ color: variant ? variant.color.main : (isMech ? skin.main : look.body)});
       const matDark = new window.MARIO.mat({ color: variant ? variant.color.dark : (isMech ? skin.dark : look.dark)});
       const matEye = new window.MARIO.mat({ color: look.eye, emissive: look.eye, emissiveIntensity: 1.6 });
@@ -490,11 +496,6 @@
       }  // end humanoid (非机甲) body
 
       // ---- 运行时状态 ----
-      // v11.29 机甲 BOSS 变体选择
-      var variant = null;
-      if (isBoss && cfg.variant != null && cfg.variant >= 0 && cfg.variant < MECHA_VARIANTS.length) {
-        variant = MECHA_VARIANTS[cfg.variant];
-      }
       // v11.29 boss health/speed/shootRange/shootCooldown 从 variant 取值，否则使用 cfg
       var bossHp = variant ? variant.hp : (cfg.health || 22500);
       var bossSpeed = variant ? variant.speed : (cfg.speed || 2.7);

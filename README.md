@@ -1,6 +1,6 @@
 # 🎮 程序化 FPS 射击游戏
 
-一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.46**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
+一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.47**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
 
 ![GitHub License](https://img.shields.io/github/license/YFL4K/fps-game)
 
@@ -71,6 +71,13 @@
 - ✅ **修复 1（根因）**：`create: function (config)` → `create: function (config, ctx)`，`ctx` 正确传入，激光光束挂载到场景。
 - ✅ **修复 2（防御）**：`buildEntity` 中 `create` 抛异常时，`def` 一并替换为无 `update` 的 fallback，占位模型不再被当真敌人更新。
 - ✅ **修复 3（防御）**：`updateProjectiles` 加 `Array.isArray(u.projectiles)` 守卫。
+
+### v11.47（2026-09-20）— 🎨 机甲BOSS颜色区分修复
+
+- 🐛 **根因**：`variant` 变量在材质创建后才赋值，导致 `variant ? variant.color.main : ...` 始终为 false，所有BOSS颜色相同
+- ✅ **修复**：将 `variant` 赋值移到材质创建之前，确保5个变体各自使用独立配色
+- 🎨 **配色方案**：蜂群游侠(橄榄绿) / 熔炉铁骑(红) / 裂变炮台(紫) / 天基巨神(黑) / 星轨吞噬者(金)
+- ✨ **星轨吞噬者配色优化**：从暗棕色改为金色，与其他变体区分更明显
 
 ### v11.46（2026-09-20）— 🐛 五项Bug修复+数值调整
 
