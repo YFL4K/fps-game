@@ -733,31 +733,59 @@
       }
 
       // v11.36 机甲 BOSS 头部激光扫射（上下扫射，可攻击玩家和直升机）
+      // v11.4 机甲 BOSS 头部激光扫射（3s开/1s关，300m射程，从眼睛发射，优先攻击直升机/喷气背包）
       if (u.type === 'boss' && u.variant && u.laserBeams && !u.dead) {
         u.laserTimer += dt;
-        if (u.laserTimer >= 5) { u.laserPhase = (u.laserPhase === 'on') ? 'off' : 'on'; u.laserTimer = 0; }
-        
-        var pitchMin = 20, pitchMax = 50;
-        var pitchRad = (pitchMin + (pitchMax - pitchMin) * (0.5 + 0.5 * Math.sin(u.laserSweep))) * Math.PI / 180;
-        u.laserSweep += dt * 0.8;
-        
+        if (u.laserPhase === 'on' && u.laserTimer >= 3) { u.laserPhase = 'off'; u.laserTimer = 0; }
+        else if (u.laserPhase === 'off' && u.laserTimer >= 1) { u.laserPhase = 'on'; u.laserTimer = 0; }
+
+        // v11.4 激光从眼睛位置发射（不悬空不错位）
+        var eyeY = 3.2 * s;  // 眼睛高度
         var start = inst.position.clone();
-        start.y += 3.5 * s;
-        var dirX = Math.sin(pitchRad) * Math.cos(inst.rotation.y);
-        var dirY = Math.cos(pitchRad);
-        var dirZ = Math.sin(pitchRad) * Math.sin(inst.rotation.y);
-        
-        // 更新光束可见性 + 定位/缩放(从发射点拉伸到目标方向)
-        var beamLen = 60;  // 光束长度
+        start.y += eyeY;
+
+        // v11.4 优先攻击直升机/喷气背包中的玩家
+        var plTarget = null;
+        var plHeli = player.heli && player.heli.active;
+        var plJet = player.jetpack && player.jetpack.active;
+        if (plHeli && player.heli.rec) {
+          plTarget = player.heli.rec.inst.position.clone();
+          plTarget.y += 3;  // 直升机中心
+        } else if (plJet) {
+          plTarget = player.pos.clone();
+          plTarget.y += 2;  // 喷气背包玩家高度
+        } else {
+          plTarget = player.pos.clone();
+          plTarget.y += 1;
+        }
+
+        // v11.4 计算目标方向（带扫射）
+        var dxT = plTarget.x - start.x;
+        var dzT = plTarget.z - start.z;
+        var dyT = plTarget.y - start.y;
+        var hDist = Math.sqrt(dxT * dxT + dzT * dzT);
+        var pitchRad = Math.atan2(dyT, hDist);
+        // 添加扫射摆动
+        u.laserSweep += dt * 1.5;
+        var sweepPitch = Math.sin(u.laserSweep) * 0.15;
+        pitchRad += sweepPitch;
+        // 限制角度（-45° 到 75°，可攻击空中和地面）
+        pitchRad = Math.max(-0.78, Math.min(1.3, pitchRad));
+
+        var yaw = Math.atan2(dxT, dzT);
+        var dirX = Math.sin(yaw) * Math.cos(pitchRad);
+        var dirY = Math.sin(pitchRad);
+        var dirZ = Math.cos(yaw) * Math.cos(pitchRad);
+
+        // 更新光束可见性 + 定位/缩放
+        var beamLen = 300;  // v11.4 300m 射程（原 60m × 5）
         if (u.laserBeams && u.laserBeams.length > 0) {
           for (var bi = 0; bi < u.laserBeams.length; bi++) {
             var beam = u.laserBeams[bi];
             if (beam) {
-              // 终点 = 起点 + 方向 * beamLen
               var endX = start.x + dirX * beamLen;
               var endY = start.y + dirY * beamLen;
               var endZ = start.z + dirZ * beamLen;
-              // 中点定位 + lookAt + z 轴缩放(BoxGeometry 的 z 方向是厚度,需缩放到光束长度)
               beam.position.set((start.x + endX) * 0.5, (start.y + endY) * 0.5, (start.z + endZ) * 0.5);
               beam.lookAt(endX, endY, endZ);
               beam.scale.set(1, 1, beamLen);
@@ -765,40 +793,61 @@
             }
           }
         }
+
         // 激光伤害（仅当开启时）
         if (u.laserPhase === 'on') {
-          var laserDmg = u.variant.dmgMul * 30;  // 基础 30，乘以变体倍率
-          
-          // 检查玩家
-          if (!player.dead && player.heli) {
-            var plPos = player.heli.rec ? player.heli.rec.inst.position : player.pos.clone();
-            plPos.y += 5;
-            var t = (plPos.y - start.y) / dirY;
-            if (t > 0 && t < 200) {
-              var px = start.x + dirX * t, pz = start.z + dirZ * t;
-              var pdx = plPos.x - px, pdz = plPos.z - pz;
-              if (Math.sqrt(pdx*pdx + pdz*pdz) < 2.5) {
-                player.heli.health -= laserDmg * dt;
-                if (player.heli.health <= 0) {
-                  ctx.onHelicopterDestroyed && ctx.onHelicopterDestroyed();
+          var laserDmg = u.variant.dmgMul * 30;
+
+          // v11.4 优先攻击玩家（直升机/喷气背包/步行）
+          if (!player.dead) {
+            var pdx = plTarget.x - start.x;
+            var pdy = plTarget.y - start.y;
+            var pdz = plTarget.z - start.z;
+            var pDist = Math.sqrt(pdx*pdx + pdy*pdy + pdz*pdz);
+            if (pDist < beamLen) {
+              // 射线投射检查玩家是否在激光路径上
+              var tPlayer = (plTarget.x - start.x) / dirX;
+              if (tPlayer > 0 && tPlayer < beamLen) {
+                var px = start.x + dirX * tPlayer;
+                var pz = start.z + dirZ * tPlayer;
+                var py = start.y + dirY * tPlayer;
+                var miss = Math.sqrt((plTarget.x-px)*(plTarget.x-px) + (plTarget.y-py)*(plTarget.y-py) + (plTarget.z-pz)*(plTarget.z-pz));
+                if (miss < 3.0) {
+                  if (plHeli && player.heli.health !== undefined) {
+                    player.heli.health -= laserDmg * dt;
+                    if (player.heli.health <= 0) {
+                      ctx.onHelicopterDestroyed && ctx.onHelicopterDestroyed();
+                    }
+                  } else {
+                    ctx.hitPlayer && ctx.hitPlayer(Math.round(laserDmg * dt));
+                  }
                 }
               }
             }
           }
-          
-          // 检查敌人
-          for (var ei = 0; ei < entities.length; ei++) {
-            var rec = entities[ei];
+
+          // 检查其他敌人/实体
+          var ents = ctx.entities || [];
+          for (var ei = 0; ei < ents.length; ei++) {
+            var rec = ents[ei];
             if (!rec.alive || rec.cfg.model === 'enemy') continue;
             var ent = rec.inst;
             if (!ent || !ent.userData || ent.userData.dead) continue;
+            if (typeof ent.userData.takeDamage !== 'function') continue;
             var entPos = ent.position.clone();
             entPos.y += 2;
-            var t = (entPos.y - start.y) / dirY;
-            if (t > 0 && t < 200) {
-              var px = start.x + dirX * t, pz = start.z + dirZ * t;
-              var edx = entPos.x - px, edz = entPos.z - pz;
-              if (Math.sqrt(edx*edx + edz*edz) < 1.5) {
+            var edx = entPos.x - start.x;
+            var edy = entPos.y - start.y;
+            var edz = entPos.z - start.z;
+            var eDist = Math.sqrt(edx*edx + edy*edy + edz*edz);
+            if (eDist > beamLen) continue;
+            var tEnt = edx / dirX;
+            if (tEnt > 0 && tEnt < beamLen) {
+              var ex = start.x + dirX * tEnt;
+              var ez = start.z + dirZ * tEnt;
+              var ey = start.y + dirY * tEnt;
+              var emiss = Math.sqrt((entPos.x-ex)*(entPos.x-ex) + (entPos.y-ey)*(entPos.y-ey) + (entPos.z-ez)*(entPos.z-ez));
+              if (emiss < 2.0) {
                 ent.userData.takeDamage(laserDmg * dt);
               }
             }
