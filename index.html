@@ -164,7 +164,7 @@
 <div id="stats"></div>
 <div id="fps"></div>
 <div id="debugBadge">[ DEBUG 飞行模式 ]</div>
-<div id="versionTag">v11.38</div>
+<div id="versionTag">v11.4</div>
 <div id="hurtOverlay"></div>
 <div id="flashOverlay"></div>
 <div id="hitmark"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i></div>
@@ -6019,6 +6019,8 @@
         spawnWalkieDrop(new THREE.Vector3(player.pos.x, player.pos.y, player.pos.z));
       }
       // B：无尽模式强制召唤随机机甲 BOSS（测试 BOSS）
+      // K：直接生成 BOSS（测试用，无视模式和 spawnEndlessBoss 保护）
+      if (e.code === 'KeyK') { spawnBoss(); }
       if (e.code === 'KeyB' && gameMode === 'endless' && !bossAlive) spawnEndlessBoss();
       // V：自动前进开关（测试移动速度）
       if (e.code === 'KeyV') _testForward = !_testForward;

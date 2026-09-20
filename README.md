@@ -1,6 +1,6 @@
 # 🎮 程序化 FPS 射击游戏
 
-一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.38**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
+一个**零依赖、纯前端、程序化生成**的第一人称射击游戏（当前版本 **v11.4**）。双击 `index.html` 即可游玩 —— 无服务器、无构建、无安装。过关模式（5 关）+ 无尽模式，墙体掩体结构、全场景可破坏、猪头佳/机甲 BOSS 双 BOSS 战。
 
 ![GitHub License](https://img.shields.io/github/license/YFL4K/fps-game)
 
@@ -72,7 +72,7 @@
 - ✅ **修复 2（防御）**：`buildEntity` 中 `create` 抛异常时，`def` 一并替换为无 `update` 的 fallback，占位模型不再被当真敌人更新。
 - ✅ **修复 3（防御）**：`updateProjectiles` 加 `Array.isArray(u.projectiles)` 守卫。
 
-### v11.38（2026-09-19）— 🔧 机甲 BOSS 全面修复
+### v11.4（2026-09-19）— 🔧 机甲 BOSS 全面修复
 
 - 🐛 **`variant is not defined`**：`update` 函数直接引用 `variant`（`create` 的局部变量），改用 `u.variant`（已存入 userData）。
 - ⚡ **移动速度提升**：`MECHA_VARIANTS` 速度 ×1.5～2.3（蜂群游侠 9→14，熔炉/裂变/天基 6→10，星轨 3→7）。
