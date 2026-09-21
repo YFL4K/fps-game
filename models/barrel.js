@@ -57,7 +57,7 @@
 
       g.userData = {
         kind: 'explosive',
-        radius: cfg.radius || 10,
+        radius: cfg.radius || 5,   // v11.50: 10→5，爆炸范围减半
         damage: cfg.damage || 210
       };
       return g;

@@ -8,9 +8,34 @@
   var randInt = function (min, max) { return Math.floor(rand(min, max + 1)); };
   // 暴露全局，供主脚本（index.html 内联 IIFE）及后续扩展脚本使用
   window.randInt = function (min, max) { return Math.floor(rand(min, max + 1)); };
+  window.rand = rand;
   var randChoice = function (arr) { return arr[randInt(0, arr.length - 1)]; };
   var randColor = function () { return randInt(0x223344, 0x8899aa); };
   var randRoofColor = function () { return randChoice([0x5d4a3a, 0x6b4a2f, 0x4a5568, 0x3d3d3d, 0x8b4513]); };
+
+  // v11.50 水面判定：某点（含半径余量）是否落在水线以下 → 用于禁止建筑/车辆/油桶等入水
+  // 提到顶层，既供 generateLayout 内部使用，也暴露给 index.html 波次刷新油桶/TNT
+  function inWater(x, z, margin) {
+    if (!window.TERRAIN || window.TERRAIN.waterLevel == null || !window.TERRAIN.heightAt) return false;
+    var wl = window.TERRAIN.waterLevel;
+    margin = margin || 0;
+    if (window.TERRAIN.heightAt(x, z) < wl + 0.15 + margin * 0.15) return true;
+    if (margin > 0) {
+      var pts = [[x - margin, z], [x + margin, z], [x, z - margin], [x, z + margin]];
+      for (var i = 0; i < pts.length; i++) if (window.TERRAIN.heightAt(pts[i][0], pts[i][1]) < wl + 0.1) return true;
+    }
+    return false;
+  }
+  // 在 [lo,hi] 随机找一处不沾水的位置（最多 tries 次）；失败返回 null
+  function dryRand(lo, hi, margin, tries) {
+    for (var t = 0; t < (tries || 12); t++) {
+      var x = rand(lo, hi), z = rand(lo, hi);
+      if (!inWater(x, z, margin)) return [x, z];
+    }
+    return null;
+  }
+  window.inWater = inWater;
+  window.dryRand = dryRand;
 
   function generateLayout(seed) {
     var entities = [];
@@ -22,27 +47,7 @@
     var flattens = [];
     function pad(x, z, r) { flattens.push({ x: x, z: z, r: r }); }
 
-    // v11.19 水面判定：某点（含半径余量）是否落在水线以下 → 用于禁止建筑/车辆/油桶等入水
-    function inWater(x, z, margin) {
-      if (!window.TERRAIN || window.TERRAIN.waterLevel == null || !window.TERRAIN.heightAt) return false;
-      var wl = window.TERRAIN.waterLevel;
-      margin = margin || 0;
-      if (window.TERRAIN.heightAt(x, z) < wl + 0.15 + margin * 0.15) return true;
-      // 采样四角，避免大件边缘压水
-      if (margin > 0) {
-        var pts = [[x - margin, z], [x + margin, z], [x, z - margin], [x, z + margin]];
-        for (var i = 0; i < pts.length; i++) if (window.TERRAIN.heightAt(pts[i][0], pts[i][1]) < wl + 0.1) return true;
-      }
-      return false;
-    }
-    // 在 [lo,hi] 随机找一处不沾水的位置（最多 tries 次）；失败返回 null
-    function dryRand(lo, hi, margin, tries) {
-      for (var t = 0; t < (tries || 12); t++) {
-        var x = rand(lo, hi), z = rand(lo, hi);
-        if (!inWater(x, z, margin)) return [x, z];
-      }
-      return null;
-    }
+    // v11.50 inWater / dryRand 已提升到模块顶层（暴露给 index.html），这里不再重复定义
 
     // ---- 基础环境 ----
     entities.push({ id: nextId('sky'), model: 'sky', position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1], collision: false });
