@@ -61,8 +61,8 @@
 
       g.userData = {
         kind: 'explosive',
-        radius: cfg.radius || 6.5,
-        damage: cfg.damage || 100
+        radius: cfg.radius || 26,
+        damage: cfg.damage || 400
       };
       return g;
     },
