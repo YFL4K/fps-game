@@ -15,10 +15,10 @@
       const isLaser = (kind === 'laserblock');
       const g = new T.Group();
 
-      // v11.49 激光能量块：紫蓝色六面能量晶体
+      // v11.51 激光能量块：红色六面能量晶体
       const baseMat = new window.MARIO.matS({
-        color: isFlame ? 0xe74c3c : (kind === 'health' ? 0x27ae60 : (isLaser ? 0xcc44ff : 0xf39c12)),
-        emissive: isFlame ? 0xc0392b : (kind === 'health' ? 0x1e8449 : (isLaser ? 0x6622cc : 0xb9770e)),
+        color: isFlame ? 0xe74c3c : (kind === 'health' ? 0x27ae60 : (isLaser ? 0xff3344 : 0xf39c12)),
+        emissive: isFlame ? 0xc0392b : (kind === 'health' ? 0x1e8449 : (isLaser ? 0xcc1100 : 0xb9770e)),
         emissiveIntensity: isLaser ? 1.2 : 0.6,
       });
 
@@ -46,7 +46,7 @@
 
       // 光环（激光能量块用双环）
       const ringMat = new window.MARIO.basicS({
-        color: isFlame ? 0xff8844 : (kind === 'health' ? 0x7dffc0 : (isLaser ? 0xee88ff : 0xffe08a))
+        color: isFlame ? 0xff8844 : (kind === 'health' ? 0x7dffc0 : (isLaser ? 0xff6633 : 0xffe08a))
       });
       const ring = new T.Mesh(
         new T.TorusGeometry(0.28, isLaser ? 0.04 : 0.025, isLaser ? 12 : 8, 24),
@@ -57,7 +57,7 @@
       if (isLaser) {
         const ring2 = new T.Mesh(
           new T.TorusGeometry(0.42, 0.015, 8, 24),
-          new window.MARIO.basicS({ color: 0x66ddff, transparent: true, opacity: 0.6 })
+          new window.MARIO.basicS({ color: 0xff6633, transparent: true, opacity: 0.6 })
         );
         ring2.rotation.x = Math.PI / 2;
         ring2.rotation.z = 0.3;

@@ -47,12 +47,12 @@
       orange: sm({ color: 0x9a4408 }),
       lens: new T.MeshBasicMaterial({ color: 0x2a5a7a }),     // 瞄具镜片（蓝）
       redDot: new T.MeshBasicMaterial({ color: 0xcc2211 }),   // 准星红点
-      // v11.49 激光枪专属：赛博朋克霓虹发光材质
-      laserPurple: new T.MeshBasicMaterial({ color: 0xcc44ff }),
-      laserCyan: new T.MeshBasicMaterial({ color: 0x66ddff }),
+      // v11.49 激光枪专属：赛博朋克霓虹发光材质（v11.51: 改为红色系）
+      laserPurple: new T.MeshBasicMaterial({ color: 0xff3344 }),  // 主红
+      laserCyan: new T.MeshBasicMaterial({ color: 0xff6633 }),      // 橙红
       laserWhite: new T.MeshBasicMaterial({ color: 0xffffff }),
-      laserLED: new T.MeshBasicMaterial({ color: 0x00ff88 }),  // LED 能量显示
-      laserOrange: new T.MeshBasicMaterial({ color: 0xff8844 }) // 能量警示 LED
+      laserLED: new T.MeshBasicMaterial({ color: 0xff4444 }),       // LED 能量显示
+      laserOrange: new T.MeshBasicMaterial({ color: 0xffaa33 })     // 能量警示 LED
     };
   }
 
