@@ -20,7 +20,8 @@
     shotgun: { len: 0.52, barrelLen: 0.52, pos: [0.20, -0.12, -0.27], scope: false, recoilKick: 1.5, casing: true, pump: true },
     flamethrower: { len: 0.53, barrelLen: 0.53, pos: [0.20, -0.12, -0.27], scope: false, recoilKick: 0.8, casing: false },
     sniper: { len: 0.58, barrelLen: 0.58, pos: [0.19, -0.12, -0.28], scope: true, recoilKick: 2.2, casing: true },
-    rocket: { len: 0.52, barrelLen: 0.52, pos: [0.20, -0.13, -0.28], scope: true, recoilKick: 3.4, casing: true, tubeReload: true }
+    rocket: { len: 0.52, barrelLen: 0.52, pos: [0.20, -0.13, -0.28], scope: true, recoilKick: 3.4, casing: true, tubeReload: true },
+    laser: { len: 0.62, barrelLen: 0.62, pos: [0.19, -0.13, -0.30], scope: true, recoilKick: 1.2, casing: false }   // v11.49 激光枪
   };
 
   // 圆润金属/聚合物材质（保留 v10.8 R6 真实军色，改用 Standard 让圆角更有体积感）
@@ -45,7 +46,13 @@
       brass: sm({ color: 0x8a6a20 }),
       orange: sm({ color: 0x9a4408 }),
       lens: new T.MeshBasicMaterial({ color: 0x2a5a7a }),     // 瞄具镜片（蓝）
-      redDot: new T.MeshBasicMaterial({ color: 0xcc2211 })    // 准星红点
+      redDot: new T.MeshBasicMaterial({ color: 0xcc2211 }),   // 准星红点
+      // v11.49 激光枪专属：赛博朋克霓虹发光材质
+      laserPurple: new T.MeshBasicMaterial({ color: 0xcc44ff }),
+      laserCyan: new T.MeshBasicMaterial({ color: 0x66ddff }),
+      laserWhite: new T.MeshBasicMaterial({ color: 0xffffff }),
+      laserLED: new T.MeshBasicMaterial({ color: 0x00ff88 }),  // LED 能量显示
+      laserOrange: new T.MeshBasicMaterial({ color: 0xff8844 }) // 能量警示 LED
     };
   }
 
@@ -307,6 +314,72 @@
     return anim;
   }
 
+  // ============ v11.49 激光枪（赛博朋克霓虹步枪：黄铜管道 + 哑光黑碳纤维 + LED 能量显示 + 全息激光发射器） ============
+  function buildLaserRifle(g, M, T, st) {
+    var anim = { mag: null, pump: null, bolt: null, tube: null };
+    // 主体：哑光黑碳纤维机匣
+    box(g, M.dark, 0.06, 0.07, 0.30, 0.014, 0, 0, -0.16);            // 主机匣
+    box(g, M.polymer, 0.055, 0.06, 0.10, 0.012, 0, -0.008, 0.04);    // 后段握持
+    box(g, M.polymer, 0.045, 0.08, 0.09, 0.012, 0, -0.022, -0.32);   // 前护木
+    // 黄铜管道：沿机身两侧缠绕
+    tube(g, M.brass, 0.008, 0.008, 0.28, -0.032, 0.005, -0.16, 10);  // 左管
+    tube(g, M.brass, 0.008, 0.008, 0.28, 0.032, 0.005, -0.16, 10);   // 右管
+    tube(g, M.brass, 0.006, 0.006, 0.18, 0, -0.032, -0.14, 8);       // 底管
+    // 激光发射管（长，带铜色线圈）
+    var barrel = tube(g, M.dark, 0.02, 0.022, 0.42, 0, 0.008, -0.42, 12);
+    barrel.userData.part = 'barrel';
+    for (var ri = 0; ri < 6; ri++) {
+      var coil = new T.Mesh(new T.TorusGeometry(0.024, 0.004, 6, 12), M.brass);
+      coil.rotation.x = Math.PI / 2;
+      coil.position.set(0, 0.008, -0.30 - ri * 0.06);
+      g.add(coil);
+    }
+    // 发射口：多层霓虹环
+    var muzzleRing = new T.Mesh(new T.TorusGeometry(0.028, 0.006, 8, 16), M.laserPurple);
+    muzzleRing.rotation.x = Math.PI / 2; muzzleRing.position.set(0, 0.008, -0.635); g.add(muzzleRing);
+    var muzzleRing2 = new T.Mesh(new T.TorusGeometry(0.034, 0.004, 8, 16), M.laserCyan);
+    muzzleRing2.rotation.x = Math.PI / 2; muzzleRing2.position.set(0, 0.008, -0.64); g.add(muzzleRing2);
+    var muzzleCore = new T.Mesh(new T.CylinderGeometry(0.012, 0.014, 0.03, 12), M.laserWhite);
+    muzzleCore.rotation.x = Math.PI / 2; muzzleCore.position.set(0, 0.008, -0.63); g.add(muzzleCore);
+    // 能量核心（发光球）
+    var core = new T.Mesh(new T.SphereGeometry(0.016, 12, 10), M.laserPurple);
+    core.position.set(0, 0.008, -0.32); g.add(core);
+    // 全息霓虹线条（沿机身走向的发光条）
+    box(g, M.laserPurple, 0.004, 0.004, 0.26, 0.001, -0.028, 0.036, -0.16);
+    box(g, M.laserPurple, 0.004, 0.004, 0.26, 0.001, 0.028, 0.036, -0.16);
+    box(g, M.laserCyan, 0.004, 0.004, 0.16, 0.001, 0, 0.038, -0.32);
+    // LED 能量显示面板（前护木上方）
+    box(g, M.dark, 0.05, 0.018, 0.08, 0.004, 0, 0.043, -0.32);      // LED 面板底
+    box(g, M.laserLED, 0.04, 0.008, 0.06, 0.002, 0, 0.05, -0.32);    // LED 显示亮条
+    // 侧面能量警示灯（3 个）
+    for (var li = 0; li < 3; li++) {
+      var led = new T.Mesh(new T.SphereGeometry(0.006, 8, 6), M.laserOrange);
+      led.position.set(0.035, 0.028, -0.14 - li * 0.05);
+      g.add(led);
+      var led2 = new T.Mesh(new T.SphereGeometry(0.006, 8, 6), M.laserOrange);
+      led2.position.set(-0.035, 0.028, -0.14 - li * 0.05);
+      g.add(led2);
+    }
+    // 瞄准镜（全息瞄具）
+    tube(g, M.dark, 0.018, 0.018, 0.12, 0, 0.072, -0.22, 12);        // 镜筒
+    var scopeRing = new T.Mesh(new T.TorusGeometry(0.02, 0.003, 6, 14), M.laserCyan);
+    scopeRing.position.set(0, 0.072, -0.285); scopeRing.rotation.x = Math.PI / 2; g.add(scopeRing);
+    var scopeRing2 = new T.Mesh(new T.TorusGeometry(0.02, 0.003, 6, 14), M.laserPurple);
+    scopeRing2.position.set(0, 0.072, -0.155); scopeRing2.rotation.x = Math.PI / 2; g.add(scopeRing2);
+    var eyeGlass = new T.Mesh(new T.CylinderGeometry(0.016, 0.016, 0.004, 12), M.lens);
+    eyeGlass.rotation.x = Math.PI / 2; eyeGlass.position.set(0, 0.072, -0.14); g.add(eyeGlass);
+    // 握把 + 扳机
+    box(g, M.polymer, 0.032, 0.078, 0.044, 0.01, 0, -0.062, -0.06, 0.2, 0, 0); // 后握把
+    box(g, M.dark, 0.032, 0.062, 0.036, 0.01, 0, -0.05, -0.22);     // 前握把
+    var tg = new T.Mesh(new T.TorusGeometry(0.016, 0.005, 8, 12), M.brass); tg.position.set(0, -0.038, -0.10); g.add(tg);
+    // 电源指示条（顶部）
+    box(g, M.dark, 0.048, 0.012, 0.05, 0.004, 0, 0.042, -0.10);
+    box(g, M.laserCyan, 0.038, 0.006, 0.04, 0.002, 0, 0.049, -0.10);
+    g.userData.muzzleZ = -0.64;
+    g.userData.ejectPos = new T.Vector3(0.05, 0.02, -0.14);
+    return anim;
+  }
+
   global.MODELS.gun = {
     name: 'gun',
 
@@ -323,6 +396,7 @@
       else if (type === 'sniper') anim = buildAWP(g, M, T, st);
       else if (type === 'flamethrower') anim = buildFlamethrower(g, M, T, st);
       else if (type === 'rocket') anim = buildAT4(g, M, T, st);
+      else if (type === 'laser') anim = buildLaserRifle(g, M, T, st);
       else anim = buildDesertEagle(g, M, T, st);
 
       // 枪口锚点（曳光弹起点 + 火焰中心）——严格对齐枪管轴线前端
